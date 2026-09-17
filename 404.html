@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MC Daily Follow Up</title>
+    <script>
+        (function() {
+            var rawPath = window.location.pathname.replace(/^\/+|\/+$/g, '');
+            var segments = rawPath.split('/');
+            var validModes = ['supervisor', 'agent', 'upload-deposits', 'new-customer', 'audit', 'backoffice', 'audit-logs', 'reports'];
+            
+            var targetMode = 'supervisor';
+            for (var i = 0; i < segments.length; i++) {
+                if (validModes.indexOf(segments[i]) !== -1) {
+                    targetMode = segments[i];
+                    break;
+                }
+            }
+            
+            var params = new URLSearchParams(window.location.search);
+            params.set('view', targetMode);
+            window.location.replace('/?' + params.toString() + window.location.hash);
+        })();
+    </script>
+</head>
+<body style="background:#070a13;color:#94a3b8;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+    <div style="text-align:center;">
+        <p style="font-size:16px;">กำลังโหลดระบบ MC Daily Follow Up...</p>
+    </div>
+</body>
+</html>
