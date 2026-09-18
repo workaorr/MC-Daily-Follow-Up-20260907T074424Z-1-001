@@ -2,7 +2,7 @@
 
 ระบบบริหารจัดการและติดตามสถานะงานประจำวันสำหรับทีม MC (MC Daily Follow Up)
 
-- **Production URL:** [https://mc-daily-follow-up-20260907t074424z-1-001.vercel.app](https://mc-daily-follow-up-20260907t074424z-1-001.vercel.app)
+- **Production URL:** [https://mc-daily-follow-up-20260907t074424z-1-001-aorr.vercel.app](https://mc-daily-follow-up-20260907t074424z-1-001-aorr.vercel.app)
 - **GitHub Repository:** [workaorr/MC-Daily-Follow-Up-20260907T074424Z-1-001](https://github.com/workaorr/MC-Daily-Follow-Up-20260907T074424Z-1-001)
 - **Deployment Platform:** Vercel (Production branch: `master`)
 

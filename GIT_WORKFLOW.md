@@ -1,7 +1,7 @@
 # มาตรฐานการจัดการ Version Control (GitKraken + GitHub + Vercel)
 **โปรเจกต์:** MC Daily Follow Up  
 **ผู้ดูแลระบบ:** Aor (`workaorr`)  
-**Production URL:** [https://mc-daily-follow-up-20260907t074424z-1-001.vercel.app](https://mc-daily-follow-up-20260907t074424z-1-001.vercel.app)
+**Production URL:** [https://mc-daily-follow-up-20260907t074424z-1-001-aorr.vercel.app](https://mc-daily-follow-up-20260907t074424z-1-001-aorr.vercel.app)
 
 ---
 
