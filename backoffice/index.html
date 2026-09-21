@@ -2555,12 +2555,24 @@
                 : null;
             const isAddPhoneDuplicate = Boolean(duplicatePhoneCustomer);
 
+            const cleanedAddLineOA = formLineOA.trim().toLowerCase().replace(/^@/, '');
+            const isLineOAIgnored = !cleanedAddLineOA || cleanedAddLineOA === '-' || cleanedAddLineOA === 'ไม่มี' || cleanedAddLineOA === 'none' || cleanedAddLineOA === 'n/a';
+            const duplicateLineOACustomer = (!isLineOAIgnored && cleanedAddLineOA.length >= 2)
+                ? (customers || []).find(c => {
+                    if (!c || !c.lineOA) return false;
+                    const cl = String(c.lineOA).trim().toLowerCase().replace(/^@/, '');
+                    if (!cl || cl === '-' || cl === 'ไม่มี' || cl === 'none' || cl === 'n/a') return false;
+                    return cl === cleanedAddLineOA;
+                })
+                : null;
+            const isAddLineOADuplicate = Boolean(duplicateLineOACustomer);
+
             const isAddFullNameEmpty = !formFullName.trim();
             const isAddUsernameEmpty = !formUsername.trim();
             const isAddPhoneEmpty = !formPhone.trim();
             const isAddLineOAEmpty = !formLineOA.trim();
             const isAddMissingRequired = isAddFullNameEmpty || isAddUsernameEmpty || isAddPhoneEmpty || isAddLineOAEmpty;
-            const isAddCustomerDisabled = isAddMissingRequired || isAddUsernameDuplicate || isAddPhoneDuplicate || hasAddUsernameSpace;
+            const isAddCustomerDisabled = isAddMissingRequired || isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace;
             const [statusFilter, setStatusFilter] = useState('ALL');
             const [lineLekFilter, setLineLekFilter] = useState('ALL');
             const [sourceChannelFilter, setSourceChannelFilter] = useState('ทั้งหมด');
@@ -3233,6 +3245,12 @@
                         : `⚠️ Cannot save! Phone number "${formPhone.trim()}" already exists in the system (${duplicatePhoneCustomer?.fullName || duplicatePhoneCustomer?.username || 'existing customer'}). Phone numbers must be unique.`);
                     return false;
                 }
+                if (isAddLineOADuplicate) {
+                    alert(lang === 'TH'
+                        ? `⚠️ ไม่สามารถบันทึกได้! ไลน์ "${formLineOA.trim()}" ซ้ำกับข้อมูลในระบบแล้ว (เป็นของลูกค้า: ${duplicateLineOACustomer?.fullName ? `${duplicateLineOACustomer.fullName} (ยูสเซอร์: ${duplicateLineOACustomer.username || '-'})` : duplicateLineOACustomer?.username || 'ในระบบ'}${duplicateLineOACustomer?.createdBy ? ` / ดูแลโดย: ${duplicateLineOACustomer.createdBy}` : ''}) โดย 1 บัญชีไลน์สามารถใช้ติดต่อได้ 1 ยูสเซอร์เท่านั้นครับ`
+                        : `⚠️ Cannot save! LINE ID "${formLineOA.trim()}" already exists in the system (${duplicateLineOACustomer?.fullName || duplicateLineOACustomer?.username || 'existing customer'}). 1 LINE account per username only.`);
+                    return false;
+                }
 
                 const cleanedUsername = cleanedAddUsername;
                 const cleanedPhone = formPhone.trim();
@@ -3790,6 +3808,22 @@
                         alert(lang === 'TH' 
                             ? `⚠️ ไม่สามารถบันทึกได้! เบอร์โทรศัพท์ "${phoneVal.trim()}" ซ้ำกับลูกค้ารายอื่นในระบบแล้ว (ของ: ${dupPhoneCust.fullName ? `${dupPhoneCust.fullName} (ยูสเซอร์: ${dupPhoneCust.username || '-'})` : dupPhoneCust.username || 'ในระบบ'})` 
                             : `⚠️ Cannot save! Phone number "${phoneVal.trim()}" already belongs to another customer.`);
+                        return;
+                    }
+                }
+                const cleanEditLineOA = lineOAVal ? String(lineOAVal).trim().toLowerCase().replace(/^@/, '') : '';
+                const isEditLineIgnored = !cleanEditLineOA || cleanEditLineOA === '-' || cleanEditLineOA === 'ไม่มี' || cleanEditLineOA === 'none' || cleanEditLineOA === 'n/a';
+                if (!isEditLineIgnored && cleanEditLineOA.length >= 2) {
+                    const dupLineCust = customers.find(c => {
+                        if (!c || c.id === selectedCustForModal.id || !c.lineOA) return false;
+                        const cl = String(c.lineOA).trim().toLowerCase().replace(/^@/, '');
+                        if (!cl || cl === '-' || cl === 'ไม่มี' || cl === 'none' || cl === 'n/a') return false;
+                        return cl === cleanEditLineOA;
+                    });
+                    if (dupLineCust) {
+                        alert(lang === 'TH' 
+                            ? `⚠️ ไม่สามารถบันทึกได้! ไลน์ "${lineOAVal.trim()}" ซ้ำกับลูกค้ารายอื่นในระบบแล้ว (ของ: ${dupLineCust.fullName ? `${dupLineCust.fullName} (ยูสเซอร์: ${dupLineCust.username || '-'})` : dupLineCust.username || 'ในระบบ'}) โดย 1 บัญชีไลน์ใช้ได้ 1 ยูสเซอร์เท่านั้นครับ` 
+                            : `⚠️ Cannot save! LINE ID "${lineOAVal.trim()}" already belongs to another customer.`);
                         return;
                     }
                 }
@@ -6567,7 +6601,7 @@
                                                     <span>{lang === 'TH' ? 'ไลน์ลูกค้า (LINE ID)' : 'LINE ID'}</span>
                                                     <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span>
                                                 </label>
-                                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{lang === 'TH' ? 'หากไม่มีใส่ -' : 'If none, enter -'}</span>
+                                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{lang === 'TH' ? 'ห้ามซ้ำในระบบ (หากไม่มีใส่ -)' : 'Must be unique (If none, enter -)'}</span>
                                             </div>
                                             <input 
                                                 type="text" 
@@ -6575,9 +6609,26 @@
                                                 onChange={(e) => setFormLineOA(e.target.value)} 
                                                 placeholder={lang === 'TH' ? 'เช่น @line_id หรือ line_user (หากไม่มีใส่ -)...' : 'e.g. @line_id or line_user (enter - if none)...'} 
                                                 style={{
-                                                    borderColor: isAddLineOAEmpty && (formFullName || formUsername || formPhone) ? 'rgba(239, 68, 68, 0.6)' : undefined
+                                                    borderColor: isAddLineOADuplicate 
+                                                        ? '#ef4444' 
+                                                        : (isAddLineOAEmpty && (formFullName || formUsername || formPhone) ? 'rgba(239, 68, 68, 0.6)' : (!isLineOAIgnored && cleanedAddLineOA.length >= 2 ? '#10b981' : undefined)),
+                                                    backgroundColor: isAddLineOADuplicate 
+                                                        ? (theme === 'light' ? '#fef2f2' : 'rgba(239, 68, 68, 0.08)') 
+                                                        : (!isLineOAIgnored && cleanedAddLineOA.length >= 2 ? (theme === 'light' ? '#f0fdf4' : 'rgba(16, 185, 129, 0.06)') : undefined)
                                                 }}
                                             />
+                                            {isAddLineOADuplicate && (
+                                                <span style={{ color: '#ef4444', fontSize: '11.5px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                                                    {lang === 'TH' 
+                                                        ? `❌ ไลน์ "${formLineOA.trim()}" ซ้ำกับลูกค้าในระบบแล้ว (${duplicateLineOACustomer?.fullName ? `ของ ${duplicateLineOACustomer.fullName} (ยูส: ${duplicateLineOACustomer.username || '-'})` : 'มีอยู่แล้ว'}${duplicateLineOACustomer?.createdBy ? ` / ดูแลโดย ${duplicateLineOACustomer.createdBy}` : ''}) ไม่สามารถบันทึกซ้ำได้` 
+                                                        : `❌ LINE ID "${formLineOA.trim()}" already exists in system (${duplicateLineOACustomer?.fullName ? `owned by ${duplicateLineOACustomer.fullName}` : 'already exists'}). Cannot save duplicate.`}
+                                                </span>
+                                            )}
+                                            {!isAddLineOADuplicate && !isLineOAIgnored && cleanedAddLineOA.length >= 2 && (
+                                                <span style={{ color: '#10b981', fontSize: '11.5px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
+                                                    {lang === 'TH' ? '✓ ไลน์นี้ใช้งานได้ (ไม่ซ้ำในระบบ)' : '✓ LINE ID is available'}
+                                                </span>
+                                            )}
                                             {isAddLineOAEmpty && (formFullName || formUsername || formPhone) && (
                                                 <span style={{ color: '#ef4444', fontSize: '11.5px', marginTop: '4px', display: 'block' }}>{lang === 'TH' ? '* จำเป็นต้องระบุไลน์ (หรือใส่ - หากไม่มี)' : '* LINE ID is required (or enter - if none)'}</span>
                                             )}
@@ -6668,23 +6719,23 @@
 
                                         {isAddCustomerDisabled && (
                                             <div style={{
-                                                background: isAddUsernameDuplicate || isAddPhoneDuplicate || hasAddUsernameSpace 
+                                                background: isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace 
                                                     ? (theme === 'light' ? '#fef2f2' : 'rgba(239, 68, 68, 0.1)')
                                                     : (theme === 'light' ? '#f8fafc' : 'rgba(255,255,255,0.03)'),
-                                                border: isAddUsernameDuplicate || isAddPhoneDuplicate || hasAddUsernameSpace 
+                                                border: isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace 
                                                     ? '1px solid rgba(239, 68, 68, 0.3)' 
                                                     : (theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.06)'),
                                                 borderRadius: '8px',
                                                 padding: '10px 14px',
                                                 fontSize: '12.5px',
-                                                color: isAddUsernameDuplicate || isAddPhoneDuplicate || hasAddUsernameSpace 
+                                                color: isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace 
                                                     ? (theme === 'light' ? '#b91c1c' : '#fca5a5') 
                                                     : (theme === 'light' ? '#64748b' : '#94a3b8'),
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: '8px'
                                             }}>
-                                                {isAddUsernameDuplicate || isAddPhoneDuplicate || hasAddUsernameSpace ? (
+                                                {isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace ? (
                                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                                                         <circle cx="12" cy="12" r="10"/>
                                                         <line x1="12" x2="12" y1="8" y2="12"/>
@@ -6702,9 +6753,11 @@
                                                         ? (lang === 'TH' ? `ยูสเซอร์ "${formUsername.trim()}" ซ้ำกับลูกค้าเดิมในระบบ ไม่สามารถบันทึกได้ (ยูสเซอร์ต้องไม่ซ้ำในแต่ละคน)` : `Username "${formUsername.trim()}" already exists in system. Cannot save duplicate.`)
                                                         : isAddPhoneDuplicate
                                                             ? (lang === 'TH' ? `เบอร์โทร "${formPhone.trim()}" ซ้ำกับลูกค้าเดิมในระบบ ไม่สามารถบันทึกได้ (เบอร์โทรต้องไม่ซ้ำกัน)` : `Phone number "${formPhone.trim()}" already exists in system. Cannot save duplicate.`)
-                                                            : hasAddUsernameSpace 
-                                                                ? (lang === 'TH' ? 'ยูสเซอร์เนมห้ามมีเว้นวรรค (ช่องว่าง) กรุณาแก้ไขก่อนบันทึก' : 'Username cannot contain spaces. Please fix before saving.')
-                                                                : (lang === 'TH' ? `ยังไม่สามารถบันทึกได้: ขาด ${[isAddFullNameEmpty && 'ชื่อ-นามสกุล', isAddUsernameEmpty && 'ยูสเซอร์', isAddPhoneEmpty && 'เบอร์ติดต่อ', isAddLineOAEmpty && 'ไลน์'].filter(Boolean).join(', ')}` : `Cannot save yet: Missing ${[isAddFullNameEmpty && 'Full Name', isAddUsernameEmpty && 'Username', isAddPhoneEmpty && 'Phone', isAddLineOAEmpty && 'LINE ID'].filter(Boolean).join(', ')}`)}
+                                                            : isAddLineOADuplicate
+                                                                ? (lang === 'TH' ? `ไลน์ "${formLineOA.trim()}" ซ้ำกับลูกค้าเดิมในระบบ ไม่สามารถบันทึกได้ (1 ไลน์ต่อ 1 ยูสเซอร์เท่านั้น)` : `LINE ID "${formLineOA.trim()}" already exists in system. Cannot save duplicate.`)
+                                                                : hasAddUsernameSpace 
+                                                                    ? (lang === 'TH' ? 'ยูสเซอร์เนมห้ามมีเว้นวรรค (ช่องว่าง) กรุณาแก้ไขก่อนบันทึก' : 'Username cannot contain spaces. Please fix before saving.')
+                                                                    : (lang === 'TH' ? `ยังไม่สามารถบันทึกได้: ขาด ${[isAddFullNameEmpty && 'ชื่อ-นามสกุล', isAddUsernameEmpty && 'ยูสเซอร์', isAddPhoneEmpty && 'เบอร์ติดต่อ', isAddLineOAEmpty && 'ไลน์'].filter(Boolean).join(', ')}` : `Cannot save yet: Missing ${[isAddFullNameEmpty && 'Full Name', isAddUsernameEmpty && 'Username', isAddPhoneEmpty && 'Phone', isAddLineOAEmpty && 'LINE ID'].filter(Boolean).join(', ')}`)}
                                                 </span>
                                             </div>
                                         )}
