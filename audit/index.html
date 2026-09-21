@@ -3376,16 +3376,26 @@
                     const amount = parseFloat(rawAmt) || 0;
                     if (amount <= 0) return null;
 
-                    // ค้นหาวันที่ทำรายการ (รองรับ 'วันที่-เวลาทำรายการ', 'วันเวลา', Excel serial dates)
+                    // ค้นหาวันที่และเวลาทำรายการ (รองรับ 'วันที่-เวลาทำรายการ', 'วันเวลา', 'วันที่', Excel serial dates)
                     let rawDate = d.deposit_date || d.depositDate || d['วันที่-เวลาทำรายการ'] || d['วันเวลา'] || d['วันที่'] || d['Date'] || d['date'] || '';
                     let deposit_date = todayDateStr;
+                    let deposit_time = '';
                     if (rawDate) {
                         const num = parseFloat(rawDate);
                         if (!isNaN(num) && num > 20000 && num < 60000) {
                             const jsDate = new Date(Math.round((num - 25569) * 86400 * 1000));
-                            if (!isNaN(jsDate.getTime())) deposit_date = jsDate.toISOString().split('T')[0];
+                            if (!isNaN(jsDate.getTime())) {
+                                const iso = jsDate.toISOString();
+                                deposit_date = iso.split('T')[0];
+                                const t = iso.split('T')[1].substring(0, 8);
+                                if (t && t !== '00:00:00') deposit_time = t;
+                            }
                         } else {
                             const dateStr = String(rawDate).trim();
+                            const timeMatch = dateStr.match(/\b(\d{1,2}:\d{2}(?::\d{2})?)\b/);
+                            if (timeMatch) {
+                                deposit_time = timeMatch[1];
+                            }
                             const parsed = new Date(dateStr);
                             if (!isNaN(parsed.getTime())) {
                                 deposit_date = parsed.toISOString().split('T')[0];
@@ -3393,6 +3403,11 @@
                                 deposit_date = dateStr.substring(0, 10);
                             }
                         }
+                    }
+
+                    const extraTime = String(d['เวลา'] || d['Time'] || d['time'] || deposit_time || '').trim();
+                    if (extraTime && !deposit_date.includes(' ')) {
+                        deposit_date = `${deposit_date} ${extraTime}`;
                     }
 
                     return {
@@ -3409,23 +3424,24 @@
                 }
 
                 // 2. ตรวจเช็กและคัดกรองรายการซ้ำ (Deduplication Engine) เพื่อป้องกันยอดเบิ้ล
+                // ใช้ Frequency Map (นับจำนวนรายการต่อ signature) เพื่อรองรับลูกค้าที่มียอดฝากเข้ามาต่อเนื่องหลายบิลในวันเดียวกัน
                 let newDepositsToInsert = [];
                 let duplicateCount = 0;
-                const uniqueDates = [...new Set(allDepositsToInsert.map(d => d.deposit_date).filter(Boolean))];
-                let existingSignatureSet = new Set();
+                let existingCounts = new Map();
 
-                if (supabaseClient && uniqueDates.length > 0) {
+                if (supabaseClient) {
                     try {
                         const { data: existingDeps, error: fetchErr } = await supabaseClient
                             .from('mc_deposits')
                             .select('username, amount, deposit_date')
-                            .in('deposit_date', uniqueDates);
+                            .order('id', { ascending: false })
+                            .limit(2000);
 
                         if (!fetchErr && Array.isArray(existingDeps)) {
                             existingDeps.forEach(ed => {
                                 if (ed && ed.username) {
                                     const sig = `${String(ed.username).trim().toLowerCase()}_${parseFloat(ed.amount || 0)}_${ed.deposit_date}`;
-                                    existingSignatureSet.add(sig);
+                                    existingCounts.set(sig, (existingCounts.get(sig) || 0) + 1);
                                 }
                             });
                         }
@@ -3436,18 +3452,19 @@
                     recentDeposits.forEach(rd => {
                         if (rd && rd.username) {
                             const sig = `${String(rd.username).trim().toLowerCase()}_${parseFloat(rd.amount || 0)}_${rd.deposit_date}`;
-                            existingSignatureSet.add(sig);
+                            existingCounts.set(sig, (existingCounts.get(sig) || 0) + 1);
                         }
                     });
                 }
 
-                // กรองเฉพาะรายการใหม่ที่ไม่เคยบันทึกมาก่อน (ป้องกันทั้งรายการซ้ำในไฟล์เดียวกัน และรายการที่เคยอัปโหลดแล้ว)
+                // กรองเฉพาะรายการที่เคยมีบันทึกในฐานข้อมูลแล้ว (หากลูกค้ายูสเดิมฝากซ้ำต่อเนื่องหลายบิลในไฟล์เดียวกัน จะนำเข้าครบทุกบิลตามจริง)
                 allDepositsToInsert.forEach(d => {
                     const sig = `${d.username.toLowerCase()}_${d.amount}_${d.deposit_date}`;
-                    if (existingSignatureSet.has(sig)) {
+                    const inDbCount = existingCounts.get(sig) || 0;
+                    if (inDbCount > 0) {
                         duplicateCount++;
+                        existingCounts.set(sig, inDbCount - 1);
                     } else {
-                        existingSignatureSet.add(sig);
                         newDepositsToInsert.push(d);
                     }
                 });
