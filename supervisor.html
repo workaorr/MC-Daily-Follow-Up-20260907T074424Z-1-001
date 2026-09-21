@@ -3362,8 +3362,14 @@
                     const username = String(rawUser).trim();
                     if (!username) return null;
 
-                    // ค้นหายอดเงินฝาก (รองรับทั้งตัวเลขและข้อความที่มีเครื่องหมายคอมม่า เช่น "1,500.00")
-                    let rawAmt = d.amount ?? d['Amount'] ?? d['ยอดฝาก'] ?? d['ยอดเงิน'] ?? d['deposit'] ?? d['Deposit'] ?? 0;
+                    // กรองประเภทรายการ: ข้ามรายการที่เป็นการถอนเงินโดยสิ้นเชิง (รองรับคอลัมน์ ประเภท, type, รายการ ฯลฯ)
+                    const rawType = String(d['ประเภท'] || d['type'] || d['Type'] || d['รายการ'] || d['ประเภทรายการ'] || d['transaction_type'] || '').trim().toLowerCase();
+                    if (rawType.includes('ถอน') || rawType.includes('withdraw') || rawType.includes('out') || rawType.includes('จ่าย')) {
+                        return null;
+                    }
+
+                    // ค้นหายอดเงินฝาก (โฟกัสเฉพาะยอดฝากเท่านั้น ข้ามยอดถอนและยอดติดลบ)
+                    let rawAmt = d['ยอดฝาก'] ?? d.amount ?? d['Amount'] ?? d['ยอดเงิน'] ?? d['deposit'] ?? d['Deposit'] ?? 0;
                     if (typeof rawAmt === 'string') {
                         rawAmt = rawAmt.replace(/,/g, '').trim();
                     }
