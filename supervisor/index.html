@@ -2544,12 +2544,23 @@
                 : null;
             const isAddUsernameDuplicate = Boolean(duplicateAddCustomer);
             const hasAddUsernameSpace = /\s/.test(formUsername);
+
+            const cleanedAddPhone = formPhone ? String(formPhone).replace(/\D/g, '') : '';
+            const duplicatePhoneCustomer = (cleanedAddPhone && cleanedAddPhone.length >= 8)
+                ? (customers || []).find(c => {
+                    if (!c || !c.phone) return false;
+                    const cp = String(c.phone).replace(/\D/g, '');
+                    return cp && cp === cleanedAddPhone;
+                })
+                : null;
+            const isAddPhoneDuplicate = Boolean(duplicatePhoneCustomer);
+
             const isAddFullNameEmpty = !formFullName.trim();
             const isAddUsernameEmpty = !formUsername.trim();
             const isAddPhoneEmpty = !formPhone.trim();
             const isAddLineOAEmpty = !formLineOA.trim();
             const isAddMissingRequired = isAddFullNameEmpty || isAddUsernameEmpty || isAddPhoneEmpty || isAddLineOAEmpty;
-            const isAddCustomerDisabled = isAddMissingRequired || isAddUsernameDuplicate || hasAddUsernameSpace;
+            const isAddCustomerDisabled = isAddMissingRequired || isAddUsernameDuplicate || isAddPhoneDuplicate || hasAddUsernameSpace;
             const [statusFilter, setStatusFilter] = useState('ALL');
             const [lineLekFilter, setLineLekFilter] = useState('ALL');
             const [sourceChannelFilter, setSourceChannelFilter] = useState('ทั้งหมด');
@@ -3216,6 +3227,12 @@
                         : `⚠️ Cannot save! Username "${formUsername.trim()}" already exists in the system (${duplicateAddCustomer?.fullName || duplicateAddCustomer?.username || 'existing customer'}). Usernames must be unique.`);
                     return false;
                 }
+                if (isAddPhoneDuplicate) {
+                    alert(lang === 'TH'
+                        ? `⚠️ ไม่สามารถบันทึกได้! เบอร์โทรศัพท์ "${formPhone.trim()}" ซ้ำกับข้อมูลในระบบแล้ว (เป็นของลูกค้า: ${duplicatePhoneCustomer?.fullName ? `${duplicatePhoneCustomer.fullName} (ยูสเซอร์: ${duplicatePhoneCustomer.username || '-'})` : duplicatePhoneCustomer?.username || 'ในระบบ'}${duplicatePhoneCustomer?.createdBy ? ` / ดูแลโดย: ${duplicatePhoneCustomer.createdBy}` : ''}) โดยเบอร์โทรศัพท์จะต้องไม่ซ้ำกับลูกค้าในระบบครับ`
+                        : `⚠️ Cannot save! Phone number "${formPhone.trim()}" already exists in the system (${duplicatePhoneCustomer?.fullName || duplicatePhoneCustomer?.username || 'existing customer'}). Phone numbers must be unique.`);
+                    return false;
+                }
 
                 const cleanedUsername = cleanedAddUsername;
                 const cleanedPhone = formPhone.trim();
@@ -3765,6 +3782,16 @@
                 if (usernameVal && customers.some(c => c.id !== selectedCustForModal.id && c.username && c.username.toLowerCase() === usernameVal)) {
                     alert(lang === 'TH' ? `⚠️ ไม่สามารถบันทึกได้! ยูสเซอร์เนม "${usernameVal}" ซ้ำกับลูกค้ารายอื่นในระบบแล้ว` : `⚠️ Cannot save! Username "${usernameVal}" already belongs to another customer.`);
                     return;
+                }
+                const cleanEditPhone = phoneVal ? String(phoneVal).replace(/\D/g, '') : '';
+                if (cleanEditPhone && cleanEditPhone.length >= 8) {
+                    const dupPhoneCust = customers.find(c => c.id !== selectedCustForModal.id && c.phone && String(c.phone).replace(/\D/g, '') === cleanEditPhone);
+                    if (dupPhoneCust) {
+                        alert(lang === 'TH' 
+                            ? `⚠️ ไม่สามารถบันทึกได้! เบอร์โทรศัพท์ "${phoneVal.trim()}" ซ้ำกับลูกค้ารายอื่นในระบบแล้ว (ของ: ${dupPhoneCust.fullName ? `${dupPhoneCust.fullName} (ยูสเซอร์: ${dupPhoneCust.username || '-'})` : dupPhoneCust.username || 'ในระบบ'})` 
+                            : `⚠️ Cannot save! Phone number "${phoneVal.trim()}" already belongs to another customer.`);
+                        return;
+                    }
                 }
 
                 const oldCust = selectedCustForModal;
@@ -6497,21 +6524,41 @@
 
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                                         <div className="form-group">
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <span>{lang === 'TH' ? 'เบอร์ติดต่อลูกค้า (Phone Number)' : 'Phone Number'}</span>
-                                                <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span>
-                                            </label>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                                <label style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <span>{lang === 'TH' ? 'เบอร์ติดต่อลูกค้า (Phone Number)' : 'Phone Number'}</span>
+                                                    <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span>
+                                                </label>
+                                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{lang === 'TH' ? 'ห้ามซ้ำในระบบ' : 'Must be unique'}</span>
+                                            </div>
                                             <input 
                                                 type="text" 
                                                 value={formPhone} 
                                                 onChange={(e) => setFormPhone(e.target.value)} 
                                                 placeholder={lang === 'TH' ? 'เช่น 089-123-4567...' : 'e.g. 089-123-4567...'} 
                                                 style={{
-                                                    borderColor: isAddPhoneEmpty && (formFullName || formUsername || formLineOA) ? 'rgba(239, 68, 68, 0.6)' : undefined
+                                                    borderColor: isAddPhoneDuplicate 
+                                                        ? '#ef4444' 
+                                                        : (isAddPhoneEmpty && (formFullName || formUsername || formLineOA) ? 'rgba(239, 68, 68, 0.6)' : (cleanedAddPhone.length >= 9 ? '#10b981' : undefined)),
+                                                    backgroundColor: isAddPhoneDuplicate 
+                                                        ? (theme === 'light' ? '#fef2f2' : 'rgba(239, 68, 68, 0.08)') 
+                                                        : (cleanedAddPhone.length >= 9 ? (theme === 'light' ? '#f0fdf4' : 'rgba(16, 185, 129, 0.06)') : undefined)
                                                 }}
                                             />
+                                            {isAddPhoneDuplicate && (
+                                                <span style={{ color: '#ef4444', fontSize: '11.5px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                                                    {lang === 'TH' 
+                                                        ? `❌ เบอร์โทร "${formPhone.trim()}" ซ้ำกับลูกค้าในระบบแล้ว (${duplicatePhoneCustomer?.fullName ? `ของ ${duplicatePhoneCustomer.fullName} (ยูส: ${duplicatePhoneCustomer.username || '-'})` : 'มีอยู่แล้ว'}${duplicatePhoneCustomer?.createdBy ? ` / ดูแลโดย ${duplicatePhoneCustomer.createdBy}` : ''}) ไม่สามารถบันทึกซ้ำได้` 
+                                                        : `❌ Phone number "${formPhone.trim()}" already exists in system (${duplicatePhoneCustomer?.fullName ? `owned by ${duplicatePhoneCustomer.fullName}` : 'already exists'}). Cannot save duplicate.`}
+                                                </span>
+                                            )}
+                                            {!isAddPhoneDuplicate && cleanedAddPhone.length >= 9 && (
+                                                <span style={{ color: '#10b981', fontSize: '11.5px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
+                                                    {lang === 'TH' ? '✓ เบอร์โทรนี้ใช้งานได้ (ไม่ซ้ำในระบบ)' : '✓ Phone number is available'}
+                                                </span>
+                                            )}
                                             {isAddPhoneEmpty && (formFullName || formUsername || formLineOA) && (
-                                                <span style={{ color: '#ef4444', fontSize: '11.5px', marginTop: '4px', display: 'block' }}>{lang === 'TH' ? '* จำเป็นต้องระบุเบอร์ติดต่อ' : '* Phone number is required'}</span>
+                                                <span style={{ color: '#ef4444', fontSize: '11.5px', marginTop: '4px', display: 'block' }}>{lang === 'TH' ? '* จำเป็นต้องระบุเบอร์ติดต่อ (ห้ามซ้ำ)' : '* Phone number is required (must be unique)'}</span>
                                             )}
                                         </div>
                                         <div className="form-group">
@@ -6621,23 +6668,23 @@
 
                                         {isAddCustomerDisabled && (
                                             <div style={{
-                                                background: isAddUsernameDuplicate || hasAddUsernameSpace 
+                                                background: isAddUsernameDuplicate || isAddPhoneDuplicate || hasAddUsernameSpace 
                                                     ? (theme === 'light' ? '#fef2f2' : 'rgba(239, 68, 68, 0.1)')
                                                     : (theme === 'light' ? '#f8fafc' : 'rgba(255,255,255,0.03)'),
-                                                border: isAddUsernameDuplicate || hasAddUsernameSpace 
+                                                border: isAddUsernameDuplicate || isAddPhoneDuplicate || hasAddUsernameSpace 
                                                     ? '1px solid rgba(239, 68, 68, 0.3)' 
                                                     : (theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.06)'),
                                                 borderRadius: '8px',
                                                 padding: '10px 14px',
                                                 fontSize: '12.5px',
-                                                color: isAddUsernameDuplicate || hasAddUsernameSpace 
+                                                color: isAddUsernameDuplicate || isAddPhoneDuplicate || hasAddUsernameSpace 
                                                     ? (theme === 'light' ? '#b91c1c' : '#fca5a5') 
                                                     : (theme === 'light' ? '#64748b' : '#94a3b8'),
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: '8px'
                                             }}>
-                                                {isAddUsernameDuplicate || hasAddUsernameSpace ? (
+                                                {isAddUsernameDuplicate || isAddPhoneDuplicate || hasAddUsernameSpace ? (
                                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                                                         <circle cx="12" cy="12" r="10"/>
                                                         <line x1="12" x2="12" y1="8" y2="12"/>
@@ -6653,9 +6700,11 @@
                                                 <span>
                                                     {isAddUsernameDuplicate 
                                                         ? (lang === 'TH' ? `ยูสเซอร์ "${formUsername.trim()}" ซ้ำกับลูกค้าเดิมในระบบ ไม่สามารถบันทึกได้ (ยูสเซอร์ต้องไม่ซ้ำในแต่ละคน)` : `Username "${formUsername.trim()}" already exists in system. Cannot save duplicate.`)
-                                                        : hasAddUsernameSpace 
-                                                            ? (lang === 'TH' ? 'ยูสเซอร์เนมห้ามมีเว้นวรรค (ช่องว่าง) กรุณาแก้ไขก่อนบันทึก' : 'Username cannot contain spaces. Please fix before saving.')
-                                                            : (lang === 'TH' ? `ยังไม่สามารถบันทึกได้: ขาด ${[isAddFullNameEmpty && 'ชื่อ-นามสกุล', isAddUsernameEmpty && 'ยูสเซอร์', isAddPhoneEmpty && 'เบอร์ติดต่อ', isAddLineOAEmpty && 'ไลน์'].filter(Boolean).join(', ')}` : `Cannot save yet: Missing ${[isAddFullNameEmpty && 'Full Name', isAddUsernameEmpty && 'Username', isAddPhoneEmpty && 'Phone', isAddLineOAEmpty && 'LINE ID'].filter(Boolean).join(', ')}`)}
+                                                        : isAddPhoneDuplicate
+                                                            ? (lang === 'TH' ? `เบอร์โทร "${formPhone.trim()}" ซ้ำกับลูกค้าเดิมในระบบ ไม่สามารถบันทึกได้ (เบอร์โทรต้องไม่ซ้ำกัน)` : `Phone number "${formPhone.trim()}" already exists in system. Cannot save duplicate.`)
+                                                            : hasAddUsernameSpace 
+                                                                ? (lang === 'TH' ? 'ยูสเซอร์เนมห้ามมีเว้นวรรค (ช่องว่าง) กรุณาแก้ไขก่อนบันทึก' : 'Username cannot contain spaces. Please fix before saving.')
+                                                                : (lang === 'TH' ? `ยังไม่สามารถบันทึกได้: ขาด ${[isAddFullNameEmpty && 'ชื่อ-นามสกุล', isAddUsernameEmpty && 'ยูสเซอร์', isAddPhoneEmpty && 'เบอร์ติดต่อ', isAddLineOAEmpty && 'ไลน์'].filter(Boolean).join(', ')}` : `Cannot save yet: Missing ${[isAddFullNameEmpty && 'Full Name', isAddUsernameEmpty && 'Username', isAddPhoneEmpty && 'Phone', isAddLineOAEmpty && 'LINE ID'].filter(Boolean).join(', ')}`)}
                                                 </span>
                                             </div>
                                         )}
