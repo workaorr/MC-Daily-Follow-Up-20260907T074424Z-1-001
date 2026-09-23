@@ -2526,6 +2526,15 @@
             const [addConfirmModalData, setAddConfirmModalData] = useState(null);
             const [addSuccessModalData, setAddSuccessModalData] = useState(null);
             const [uploadedDepositFileName, setUploadedDepositFileName] = useState(() => localStorage.getItem('mc_uploaded_deposit_file') || '');
+            const [depositPreviewData, setDepositPreviewData] = useState(null);
+            const [isImportingDeposits, setIsImportingDeposits] = useState(false);
+            const [depositUploaderMap, setDepositUploaderMap] = useState(() => {
+                try {
+                    return JSON.parse(localStorage.getItem('mc_deposit_uploaders') || '{}');
+                } catch (e) {
+                    return {};
+                }
+            });
 
             // NEW CUSTOMER INPUT FORM STATE
             const [formUsername, setFormUsername] = useState('');
@@ -2730,7 +2739,7 @@
                 if (window.lucide && typeof window.lucide.createIcons === 'function') {
                     window.lucide.createIcons();
                 }
-            }, [viewMode, customers, agents, activeAgentName, selectedCustForModal, showDbSettings, selectedMonth, isLoginModalOpen, depositMetricMode, editingAgentId, sourceChannels, isAddCustomerDisabled, isAddUsernameDuplicate, showLoginPassword, loginErrorMsg, addSuccessModalData, addConfirmModalData]);
+            }, [viewMode, customers, agents, activeAgentName, selectedCustForModal, showDbSettings, selectedMonth, isLoginModalOpen, depositMetricMode, editingAgentId, sourceChannels, isAddCustomerDisabled, isAddUsernameDuplicate, showLoginPassword, loginErrorMsg, addSuccessModalData, addConfirmModalData, depositPreviewData]);
 
             // Helper: Console logger & Supabase Cloud mc_logs Writer
             const writeLog = (tag, msg, type = 'info', operator = null) => {
@@ -3317,7 +3326,164 @@
                 }
             };
 
-            // SCAN DAILY TRANSACTION LOG FILE
+            // DOWNLOAD STANDARD DEPOSIT TEMPLATES (CSV / Excel)
+            const downloadDepositTemplate = (format = 'csv') => {
+                const today = new Date().toISOString().split('T')[0];
+                const sampleRows = [
+                    {
+                        'username': 'ufa9981',
+                        'amount': 500,
+                        'deposit_date': today,
+                        'type': 'ฝากเงิน (Deposit)',
+                        'note': 'ตัวอย่างฝากผ่านแอปธนาคาร'
+                    },
+                    {
+                        'username': 'user8899',
+                        'amount': 1200,
+                        'deposit_date': `${today} 14:30:00`,
+                        'type': 'ฝากเงิน (Deposit)',
+                        'note': 'ตัวอย่างฝากผ่าน TrueMoney'
+                    },
+                    {
+                        'username': 'vip2026',
+                        'amount': 3500,
+                        'deposit_date': today,
+                        'type': 'ฝากเงิน (Deposit)',
+                        'note': 'ตัวอย่างฝากผ่าน QR Code'
+                    }
+                ];
+
+                if (format === 'csv') {
+                    const headers = ['username', 'amount', 'deposit_date', 'type', 'note'];
+                    const csvRows = [
+                        headers.join(','),
+                        ...sampleRows.map(row => [
+                            `"${row.username}"`,
+                            row.amount,
+                            `"${row.deposit_date}"`,
+                            `"${row.type}"`,
+                            `"${row.note}"`
+                        ].join(','))
+                    ];
+                    const csvContent = '\uFEFF' + csvRows.join('\r\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `deposit_template_standard_${today}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                } else {
+                    const ws = XLSX.utils.json_to_sheet(sampleRows);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'DepositTemplate');
+                    XLSX.writeFile(wb, `deposit_template_standard_${today}.xlsx`);
+                }
+            };
+
+            // QUICK ADD SINGLE CUSTOMER FROM DEPOSIT TABLE
+            const handleQuickAddSingleCustomer = async (username, amount, depositDate) => {
+                const createdByAgent = activeAgentName || 'คุณอ้อ (หัวหน้า)';
+                const cleanUser = String(username || '').trim();
+                if (!cleanUser) return;
+
+                if (!window.confirm(lang === 'TH' 
+                    ? `ต้องการเพิ่มยูสเซอร์ [${cleanUser}] เป็นลูกค้าใหม่ในพอร์ตของคุณ [${createdByAgent}] ทันทีหรือไม่?` 
+                    : `Add [${cleanUser}] as a new customer in your portfolio [${createdByAgent}]?`)) {
+                    return;
+                }
+
+                const newCust = {
+                    id: 'CUST_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+                    createdAt: new Date().toISOString(),
+                    username: cleanUser,
+                    fullName: cleanUser,
+                    phone: '-',
+                    lineOA: '-',
+                    lineLek: 'รอแอด',
+                    sourceChannel: 'ยอดฝากนำเข้า (Deposit Import)',
+                    totalDeposit: parseFloat(amount) || 0,
+                    createdBy: createdByAgent,
+                    campaignMonth: selectedMonth || currentMonthStr,
+                    followUp: {},
+                    notes: `สร้างจากประวัติรายการฝากเงินวันที่ ${depositDate || todayDateStr}`,
+                    hasDeposited: true,
+                    returnedDepositAmount: parseFloat(amount) || 0,
+                    referrer: ''
+                };
+
+                setCustomers(prev => [...prev, newCust]);
+                if (supabaseClient) {
+                    pushCustomerToSupabase(newCust).catch(e => console.error('Push customer error:', e));
+                }
+                writeLog('CUSTOMER_ADD', `เพิ่มลูกค้ายูสเซอร์ใหม่ [${cleanUser}] เข้าพอร์ตของ ${createdByAgent}`, 'success', createdByAgent);
+                alert(lang === 'TH' ? `✅ เพิ่มลูกค้า [${cleanUser}] เข้าพอร์ตของคุณ [${createdByAgent}] เรียบร้อยแล้ว!` : `Customer [${cleanUser}] added to your portfolio!`);
+            };
+
+            // QUICK ADD ALL UNMATCHED USERS FROM PREVIEW
+            const quickAddUnmatchedUsersToPortfolio = async (unmatchedList) => {
+                if (!Array.isArray(unmatchedList) || unmatchedList.length === 0) return;
+                const createdByAgent = activeAgentName || 'คุณอ้อ (หัวหน้า)';
+
+                if (!window.confirm(lang === 'TH' 
+                    ? `ยืนยันการเพิ่มยูสเซอร์ใหม่ทั้งหมด ${unmatchedList.length} คน เข้าพอร์ตลูกค้าของคุณ [${createdByAgent}] ทันที?` 
+                    : `Confirm adding all ${unmatchedList.length} new users into your portfolio [${createdByAgent}]?`)) {
+                    return;
+                }
+
+                const newCusts = unmatchedList.map((u, idx) => ({
+                    id: 'CUST_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7) + '_' + idx,
+                    createdAt: new Date().toISOString(),
+                    username: u.username,
+                    fullName: u.username,
+                    phone: '-',
+                    lineOA: '-',
+                    lineLek: 'รอแอด',
+                    sourceChannel: 'ยอดฝากนำเข้า (Deposit Import)',
+                    totalDeposit: u.totalAmount || 0,
+                    createdBy: createdByAgent,
+                    campaignMonth: selectedMonth || currentMonthStr,
+                    followUp: {},
+                    notes: `สร้างอัตโนมัติจากการนำเข้าไฟล์ ${depositPreviewData ? depositPreviewData.fileName : 'ยอดฝาก'}`,
+                    hasDeposited: true,
+                    returnedDepositAmount: u.totalAmount || 0,
+                    referrer: ''
+                }));
+
+                setCustomers(prev => [...prev, ...newCusts]);
+
+                if (supabaseClient) {
+                    for (const nc of newCusts) {
+                        pushCustomerToSupabase(nc).catch(e => console.error('Push new unmatched customer error:', e));
+                    }
+                }
+
+                // อัปเดตสถานะใน depositPreviewData ให้เป็นจับคู่ตรงกับพอร์ต
+                setDepositPreviewData(prev => {
+                    if (!prev) return null;
+                    const updatedAll = prev.allRows.map(r => {
+                        const found = newCusts.find(nc => nc.username.toLowerCase() === r.username.toLowerCase());
+                        if (found) {
+                            return { ...r, isMatched: true, matchedAgent: createdByAgent };
+                        }
+                        return r;
+                    });
+                    return {
+                        ...prev,
+                        allRows: updatedAll,
+                        newDepositsToInsert: updatedAll,
+                        matchedRows: updatedAll.filter(r => r.isMatched),
+                        unmatchedUsers: []
+                    };
+                });
+
+                writeLog('CUSTOMER_ADD', `เพิ่มลูกค้ายูสเซอร์ใหม่ ${newCusts.length} คน เข้าพอร์ตของ ${createdByAgent}`, 'success', createdByAgent);
+                alert(lang === 'TH' 
+                    ? `✅ เพิ่มลูกค้ายูสเซอร์ใหม่ ${newCusts.length} คน เข้าพอร์ตของคุณ [${createdByAgent}] เรียบร้อยแล้ว!\nระบบได้ปรับสถานะรายการเป็น "ตรงกับพอร์ต" ทันที` 
+                    : `✅ Added ${newCusts.length} new users into your portfolio [${createdByAgent}]! All records are now marked as matched.`);
+            };
+
+            // SCAN DAILY TRANSACTION LOG FILE AND SHOW PREVIEW
             const handleDailyDepositUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -3325,58 +3491,76 @@
                 // Reset input value so selecting the same file triggers onChange again
                 e.target.value = '';
 
-                writeLog('SYSTEM', `คิวอัปโหลดไฟล์ธุรกรรมรายวัน: ${file.name}`, 'info');
+                writeLog('SYSTEM', `เริ่มอ่านไฟล์ธุรกรรมรายวันเพื่อพรีวิว: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info', activeAgentName);
 
                 const reader = new FileReader();
-                reader.onload = function(evt) {
+                reader.onload = async function(evt) {
                     try {
                         const data = new Uint8Array(evt.target.result);
                         const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                         const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false, dateNF: 'yyyy-mm-dd' });
-                        processDailyDeposits(jsonData, file.name);
+                        await prepareDepositPreview(jsonData, file);
                     } catch (parseErr) {
                         console.error('File parse error:', parseErr);
-                        writeLog('SYSTEM', `อ่านไฟล์ล้มเหลว: ${parseErr.message}`, 'danger');
+                        writeLog('SYSTEM', `อ่านไฟล์ล้มเหลว: ${parseErr.message}`, 'danger', activeAgentName);
                         alert(lang === 'TH' ? '⚠️ ไม่สามารถอ่านไฟล์ได้ กรุณาตรวจสอบว่าเป็นไฟล์ Excel หรือ CSV ที่สมบูรณ์' : '⚠️ Cannot read file. Please ensure it is a valid Excel or CSV file.');
                     }
                 };
                 reader.readAsArrayBuffer(file);
             };
 
-
-            const processDailyDeposits = async (deposits, fileName) => {
+            // PREPARE DEPOSIT PREVIEW & VALIDATION (ALL-OR-NOTHING CHECK)
+            const prepareDepositPreview = async (deposits, file) => {
                 if (!Array.isArray(deposits) || deposits.length === 0) {
-                    writeLog('SYSTEM', 'ไม่พบข้อมูลในไฟล์ธุรกรรมฝากเงิน หรือรูปแบบตารางไม่ถูกต้อง', 'danger');
+                    writeLog('SYSTEM', 'ไม่พบข้อมูลในไฟล์ หรือรูปแบบตารางไม่ถูกต้อง', 'danger', activeAgentName);
                     alert(lang === 'TH' ? '⚠️ ไม่พบข้อมูลในไฟล์ หรือรูปแบบตารางไม่ถูกต้อง' : '⚠️ No data found in file or table format is invalid.');
                     return;
                 }
 
-                // 1. ดึงข้อมูลทุกแถวที่มียูสเซอร์และยอดฝากเงินจากไฟล์ (ตรงตาม Schema ตาราง mc_deposits บน Supabase)
                 const todayDateStr = new Date().toISOString().split('T')[0];
-                const allDepositsToInsert = deposits.map(d => {
-                    if (!d || typeof d !== 'object') return null;
+                const validationErrors = [];
+                const parsedRows = [];
+
+                deposits.forEach((d, idx) => {
+                    if (!d || typeof d !== 'object') return;
+                    const rowNum = idx + 2;
 
                     // ค้นหายูสเซอร์จากคอลัมน์ต่างๆ
                     const rawUser = d.username || d['Username'] || d['ยูสเซอร์'] || d['User'] || d['user'] || d['username/ยูสเซอร์'] || d['ชื่อผู้ใช้'] || '';
                     const username = String(rawUser).trim();
-                    if (!username) return null;
 
-                    // กรองประเภทรายการ: ข้ามรายการที่เป็นการถอนเงินโดยสิ้นเชิง (รองรับคอลัมน์ ประเภท, type, รายการ ฯลฯ)
+                    // กรองประเภทรายการ: ข้ามรายการที่เป็นการถอนเงินโดยสิ้นเชิง
                     const rawType = String(d['ประเภท'] || d['type'] || d['Type'] || d['รายการ'] || d['ประเภทรายการ'] || d['transaction_type'] || '').trim().toLowerCase();
                     if (rawType.includes('ถอน') || rawType.includes('withdraw') || rawType.includes('out') || rawType.includes('จ่าย')) {
-                        return null;
+                        return; // ข้ามการถอนเงิน
                     }
 
-                    // ค้นหายอดเงินฝาก (โฟกัสเฉพาะยอดฝากเท่านั้น ข้ามยอดถอนและยอดติดลบ)
-                    let rawAmt = d['ยอดฝาก'] ?? d.amount ?? d['Amount'] ?? d['ยอดเงิน'] ?? d['deposit'] ?? d['Deposit'] ?? 0;
+                    // ตรวจสอบยอดเงินฝาก
+                    let rawAmt = d['ยอดฝาก'] ?? d.amount ?? d['Amount'] ?? d['ยอดเงิน'] ?? d['deposit'] ?? d['Deposit'] ?? null;
+                    if (rawAmt === null || rawAmt === undefined) {
+                        if (username) {
+                            validationErrors.push({ row: rowNum, reason: `ไม่พบคอลัมน์ยอดฝากสำหรับยูสเซอร์ [${username}]` });
+                        }
+                        return;
+                    }
+
                     if (typeof rawAmt === 'string') {
                         rawAmt = rawAmt.replace(/,/g, '').trim();
                     }
-                    const amount = parseFloat(rawAmt) || 0;
-                    if (amount <= 0) return null;
+                    const amount = parseFloat(rawAmt);
 
-                    // ค้นหาวันที่และเวลาทำรายการ (รองรับ 'วันที่-เวลาทำรายการ', 'วันเวลา', 'วันที่', Excel serial dates)
+                    if (!username && amount > 0) {
+                        validationErrors.push({ row: rowNum, reason: `มียอดเงิน ฿${amount.toLocaleString()} แต่ไม่มี Username` });
+                        return;
+                    }
+
+                    if (isNaN(amount) || amount <= 0) {
+                        validationErrors.push({ row: rowNum, reason: `ยอดเงินฝาก [${rawAmt}] ของยูสเซอร์ [${username}] ไม่ใช่ตัวเลขที่ถูกต้อง (ต้องมากกว่า 0)` });
+                        return;
+                    }
+
+                    // ค้นหาวันที่และเวลาทำรายการ
                     let rawDate = d.deposit_date || d.depositDate || d['วันที่-เวลาทำรายการ'] || d['วันเวลา'] || d['วันที่'] || d['Date'] || d['date'] || '';
                     let deposit_date = todayDateStr;
                     let deposit_time = '';
@@ -3410,22 +3594,22 @@
                         deposit_date = `${deposit_date} ${extraTime}`;
                     }
 
-                    return {
+                    parsedRows.push({
                         username: username,
                         amount: amount,
                         deposit_date: deposit_date
-                    };
-                }).filter(Boolean);
+                    });
+                });
 
-                if (allDepositsToInsert.length === 0) {
-                    writeLog('SYSTEM', 'ไฟล์ไม่มีคอลัมน์ username หรือยอดเงินฝาก amount ที่ถูกต้อง', 'warning');
-                    alert(lang === 'TH' ? '⚠️ ไม่พบข้อมูลยูสเซอร์และยอดฝากที่ถูกต้องในไฟล์ กรุณาตรวจสอบหัวคอลัมน์ (เช่น username, ยอดฝาก, วันที่-เวลาทำรายการ)' : '⚠️ Valid username and deposit amount not found. Please check column headers (e.g. username, amount, date).');
+                if (parsedRows.length === 0) {
+                    writeLog('SYSTEM', 'ไฟล์ไม่มีคอลัมน์ username หรือยอดเงินฝาก amount ที่ถูกต้อง', 'warning', activeAgentName);
+                    alert(lang === 'TH' 
+                        ? '⚠️ ไม่พบข้อมูลยูสเซอร์และยอดฝากที่ถูกต้องในไฟล์ กรุณาตรวจสอบหัวคอลัมน์ (เช่น username, ยอดฝาก, วันที่)' 
+                        : '⚠️ Valid username and deposit amount not found. Please check column headers (e.g. username, amount, date).');
                     return;
                 }
 
-                // 2. ตรวจเช็กและคัดกรองรายการซ้ำ (Deduplication Engine) เพื่อป้องกันยอดเบิ้ล
-                // ใช้ Frequency Map (นับจำนวนรายการต่อ signature) เพื่อรองรับลูกค้าที่มียอดฝากเข้ามาต่อเนื่องหลายบิลในวันเดียวกัน
-                let newDepositsToInsert = [];
+                // ตรวจเช็กรายการซ้ำ (Deduplication Engine)
                 let duplicateCount = 0;
                 let existingCounts = new Map();
 
@@ -3457,8 +3641,8 @@
                     });
                 }
 
-                // กรองเฉพาะรายการที่เคยมีบันทึกในฐานข้อมูลแล้ว (หากลูกค้ายูสเดิมฝากซ้ำต่อเนื่องหลายบิลในไฟล์เดียวกัน จะนำเข้าครบทุกบิลตามจริง)
-                allDepositsToInsert.forEach(d => {
+                const newDepositsToInsert = [];
+                parsedRows.forEach(d => {
                     const sig = `${d.username.toLowerCase()}_${d.amount}_${d.deposit_date}`;
                     const inDbCount = existingCounts.get(sig) || 0;
                     if (inDbCount > 0) {
@@ -3469,44 +3653,121 @@
                     }
                 });
 
+                // ตรวจสอบการจับคู่กับลูกค้าในพอร์ต
+                const customerMap = new Map();
+                if (Array.isArray(customers)) {
+                    customers.forEach(c => {
+                        if (c && c.username) {
+                            customerMap.set(String(c.username).trim().toLowerCase(), c);
+                        }
+                    });
+                }
+
+                const matchedList = [];
+                const unmatchedMap = new Map();
+
+                const rowsWithMatchStatus = newDepositsToInsert.map(d => {
+                    const c = customerMap.get(d.username.toLowerCase());
+                    if (c) {
+                        const rowObj = { ...d, isMatched: true, matchedAgent: c.createdBy || c.fullName || 'มีผู้ดูแล', customerId: c.id };
+                        matchedList.push(rowObj);
+                        return rowObj;
+                    } else {
+                        const existingUnmatched = unmatchedMap.get(d.username.toLowerCase()) || { username: d.username, totalAmount: 0, count: 0, deposit_date: d.deposit_date };
+                        existingUnmatched.totalAmount += d.amount;
+                        existingUnmatched.count += 1;
+                        unmatchedMap.set(d.username.toLowerCase(), existingUnmatched);
+                        return { ...d, isMatched: false, matchedAgent: null, customerId: null };
+                    }
+                });
+
+                const unmatchedUsersList = Array.from(unmatchedMap.values());
+
+                setDepositPreviewData({
+                    fileName: file.name,
+                    fileSize: (file.size / 1024).toFixed(1) + ' KB',
+                    uploadedBy: activeAgentName || 'คุณอ้อ (หัวหน้า)',
+                    totalRows: parsedRows.length,
+                    totalAmount: parsedRows.reduce((sum, r) => sum + r.amount, 0),
+                    newDepositsToInsert: rowsWithMatchStatus,
+                    duplicateCount: duplicateCount,
+                    matchedRows: matchedList,
+                    unmatchedUsers: unmatchedUsersList,
+                    allRows: rowsWithMatchStatus,
+                    validationErrors: validationErrors
+                });
+
+                writeLog('DEPOSIT_SCAN', `อ่านไฟล์ [${file.name}] สำเร็จ: รอการยืนยันนำเข้า ${rowsWithMatchStatus.length} รายการ (ตรงกับพอร์ต ${matchedList.length} คน, ยูสเซอร์ใหม่ ${unmatchedUsersList.length} คน) โดย ${activeAgentName || 'คุณอ้อ (หัวหน้า)'}`, 'info', activeAgentName);
+
                 if (newDepositsToInsert.length === 0) {
-                    writeLog('SYSTEM', `ตรวจพบว่าทุกรายการในไฟล์ (${duplicateCount} รายการ) ได้ถูกบันทึกลงระบบแล้ว ข้ามการบันทึกซ้ำเพื่อป้องกันยอดเงินเบิ้ล`, 'warning');
                     alert(lang === 'TH'
-                        ? `⚠️ ตรวจพบข้อมูลซ้ำทั้งหมด!\n\nทุกรายการในไฟล์นี้ (${duplicateCount} รายการ) ได้รับการบันทึกในระบบไปเรียบร้อยแล้ว\nระบบได้ระงับการบันทึกเพื่อป้องกันไม่ให้ยอดเงินฝากของลูกค้าถูกคิดเบิ้ล 2 เท่าครับ`
-                        : `⚠️ All records are duplicates!\n\nAll entries in this file (${duplicateCount} records) have already been recorded.\nUpload halted to prevent double-counting deposit amounts.`);
+                        ? `⚠️ ตรวจพบข้อมูลซ้ำทั้งหมด!\n\nทุกรายการในไฟล์นี้ (${duplicateCount} รายการ) ได้รับการบันทึกในระบบไปเรียบร้อยแล้ว\nระบบจะแสดงตัวอย่างเพื่อตรวจสอบ แต่ปุ่มยืนยันจะถูกระงับเพื่อป้องกันยอดเบิ้ลครับ`
+                        : `⚠️ All records are duplicates!\n\nAll entries in this file (${duplicateCount} records) have already been recorded.`);
+                }
+            };
+
+            // CONFIRM AND IMPORT DEPOSIT TRANSACTIONS TO SUPABASE & PORTFOLIO
+            const confirmDailyDepositImport = async () => {
+                if (!depositPreviewData || isImportingDeposits) return;
+                const { newDepositsToInsert, fileName, duplicateCount, matchedRows, unmatchedUsers } = depositPreviewData;
+
+                if (!Array.isArray(newDepositsToInsert) || newDepositsToInsert.length === 0) {
+                    alert(lang === 'TH' ? '⚠️ ไม่มีรายการยอดฝากใหม่ที่จะนำเข้า (ทุกรายการเคยบันทึกในระบบแล้ว)' : '⚠️ No new records to import.');
                     return;
                 }
 
-                if (duplicateCount > 0) {
-                    writeLog('SYSTEM', `ตรวจพบรายการธุรกรรมใหม่ ${newDepositsToInsert.length} รายการ (ข้ามรายการที่เคยบันทึกแล้ว ${duplicateCount} รายการ เพื่อป้องกันยอดซ้ำซ้อน)`, 'info');
-                } else {
-                    writeLog('SYSTEM', `ตรวจพบรายการธุรกรรมฝากเงินใหม่ทั้งหมด ${newDepositsToInsert.length} รายการ กำลังนำเข้าฐานข้อมูล...`, 'info');
-                }
+                setIsImportingDeposits(true);
+                const uploaderName = activeAgentName || 'คุณอ้อ (หัวหน้า)';
+                writeLog('SYSTEM', `เริ่มบันทึกข้อมูลธุรกรรมยอดฝาก ${newDepositsToInsert.length} รายการ โดยบัญชี [${uploaderName}]...`, 'info', uploaderName);
 
-                // 3. บันทึกเฉพาะรายการใหม่ลงตาราง mc_deposits บน Supabase Cloud
+                // 1. บันทึกเฉพาะรายการใหม่ลงตาราง mc_deposits บน Supabase Cloud
                 let insertSuccess = false;
                 if (supabaseClient) {
                     try {
                         const CHUNK_SIZE = 100;
                         for (let i = 0; i < newDepositsToInsert.length; i += CHUNK_SIZE) {
                             const chunk = newDepositsToInsert.slice(i, i + CHUNK_SIZE);
-                            const { error: insertErr } = await supabaseClient.from('mc_deposits').insert(chunk);
+                            const payloadWithUploader = chunk.map(d => ({
+                                username: d.username,
+                                amount: d.amount,
+                                deposit_date: d.deposit_date,
+                                uploaded_by: uploaderName
+                            }));
+
+                            let { error: insertErr } = await supabaseClient.from('mc_deposits').insert(payloadWithUploader);
+                            // Fallback หากคอลัมน์ uploaded_by ยังไม่ได้ถูกสร้างบน Supabase
+                            if (insertErr && (insertErr.code === '42703' || (insertErr.message && insertErr.message.includes('uploaded_by')))) {
+                                const payloadClean = chunk.map(d => ({
+                                    username: d.username,
+                                    amount: d.amount,
+                                    deposit_date: d.deposit_date
+                                }));
+                                const res = await supabaseClient.from('mc_deposits').insert(payloadClean);
+                                insertErr = res.error;
+                            }
                             if (insertErr) throw insertErr;
                         }
                         insertSuccess = true;
-                        writeLog('SUPABASE', `บันทึกรายการธุรกรรมฝากเงินใหม่เข้าตาราง mc_deposits บนคลาวด์เรียบร้อย (${newDepositsToInsert.length} รายการ)`, 'success');
+                        writeLog('SUPABASE', `บันทึกรายการฝากใหม่เข้า mc_deposits เรียบร้อย (${newDepositsToInsert.length} รายการ)`, 'success', uploaderName);
                     } catch (sbErr) {
                         console.error('Supabase mc_deposits insert error:', sbErr);
-                        writeLog('SUPABASE', `บันทึก mc_deposits ไม่สำเร็จ: ${sbErr.message || JSON.stringify(sbErr)}`, 'danger');
-                        if (sbErr.message && (sbErr.message.includes('row-level security') || sbErr.code === '42501')) {
-                            alert('⚠️ บันทึกตาราง mc_deposits บน Supabase ไม่สำเร็จ!\nสาเหตุ: ตารางติดสิทธิ์ Row Level Security (RLS)\n\nกรุณานำโค้ด SQL ที่ระบบแจ้งไปรันใน Supabase SQL Editor เพื่อปลดล็อกสิทธิ์ครับ');
-                        } else {
-                            alert(`⚠️ บันทึก mc_deposits ไม่สำเร็จ: ${sbErr.message}`);
-                        }
+                        writeLog('SUPABASE', `บันทึก mc_deposits ไม่สำเร็จ: ${sbErr.message || JSON.stringify(sbErr)}`, 'danger', uploaderName);
+                        alert(`⚠️ บันทึก mc_deposits ไม่สำเร็จ: ${sbErr.message}`);
                     }
                 }
 
-                // 4. จับคู่กับลูกค้ารอติดตามในพอร์ตและคำนวณ KPI เฉพาะยอดฝากใหม่
+                // 2. บันทึกแมปผู้นำเข้าไฟล์ลงใน State & LocalStorage
+                const updatedUploaderMap = { ...(depositUploaderMap || {}) };
+                newDepositsToInsert.forEach(d => {
+                    const sig = `${String(d.username).toLowerCase()}_${parseFloat(d.amount || 0)}_${d.deposit_date}`;
+                    updatedUploaderMap[sig] = uploaderName;
+                });
+                setDepositUploaderMap(updatedUploaderMap);
+                try {
+                    localStorage.setItem('mc_deposit_uploaders', JSON.stringify(updatedUploaderMap));
+                } catch (e) {}
+
+                // 3. จับคู่กับลูกค้ารอติดตามในพอร์ตและคำนวณ KPI เฉพาะยอดฝากใหม่
                 let matchCount = 0;
                 if (customers && customers.length > 0) {
                     const depositBatchMap = new Map();
@@ -3524,9 +3785,8 @@
                             const oldTotal = cust.totalDeposit || 0;
                             const newTotal = oldTotal + depositAmount;
 
-                            writeLog('MATCH_ENGINE', `ตรวจพบการฝากเงินใหม่: [${cust.username}] ฝากยอดใหม่ ฿${depositAmount.toLocaleString()} | เจ้าของเคสโทรตามสำเร็จ: ${cust.createdBy}`, 'success');
+                            writeLog('MATCH_ENGINE', `ตรวจพบการฝากเงินใหม่: [${cust.username}] ฝากยอดใหม่ ฿${depositAmount.toLocaleString()} | เจ้าของเคสโทรตามสำเร็จ: ${cust.createdBy}`, 'success', uploaderName);
 
-                            // รักษายอดฝากแรก (FTD) ให้คงที่ และรวมยอดฝากสะสม (Total) เพิ่มขึ้นตามรอบ
                             const firstDepAmount = (cust.hasDeposited && cust.returnedDepositAmount > 0)
                                 ? cust.returnedDepositAmount
                                 : depositAmount;
@@ -3542,7 +3802,7 @@
                     });
 
                     setCustomers(updated);
-                    writeLog('SYSTEM', `สแกนตารางธุรกรรมเสร็จสิ้น: จับคู่ลูกค้าที่ตามได้สำเร็จ ${matchCount} คน (จากรายการใหม่ ${newDepositsToInsert.length} แถว${duplicateCount > 0 ? `, ข้ามรายการซ้ำ ${duplicateCount} แถว` : ''})`, 'success');
+                    writeLog('SYSTEM', `สแกนตารางธุรกรรมเสร็จสิ้น: จับคู่ลูกค้าที่ตามได้สำเร็จ ${matchCount} คน (จากรายการใหม่ ${newDepositsToInsert.length} แถว${duplicateCount > 0 ? `, ข้ามรายการซ้ำ ${duplicateCount} แถว` : ''})`, 'success', uploaderName);
 
                     // ซิงค์ข้อมูลลูกค้าที่จับคู่ได้ขึ้น Supabase mc_customers
                     if (supabaseClient) {
@@ -3554,8 +3814,6 @@
                             }
                         }
                     }
-                } else {
-                    writeLog('SYSTEM', `บันทึกรายการฝากสำเร็จ ${newDepositsToInsert.length} รายการ (ยังไม่มีรายชื่อลูกค้าในระบบเพื่อจับคู่)`, 'info');
                 }
 
                 if (supabaseClient) {
@@ -3563,13 +3821,18 @@
                 }
 
                 setUploadedDepositFileName(fileName);
+                writeLog('DEPOSIT_UPLOAD', `นำเข้าไฟล์ยอดฝาก [${fileName}] (${newDepositsToInsert.length} รายการ) สำเร็จ โดย ${uploaderName}`, 'success', uploaderName);
+
                 const summaryMsg = lang === 'TH' ? (duplicateCount > 0
-                    ? `✅ ประมวลผลและบันทึกข้อมูลธุรกรรมสำเร็จเรียบร้อย!\n\n• บันทึกรายการใหม่เข้า mc_deposits: ${newDepositsToInsert.length} รายการ\n• ข้ามรายการที่เคยบันทึกแล้ว (กันยอดเบิ้ล): ${duplicateCount} รายการ\n• จับคู่ลูกค้าในระบบสำเร็จ: ${matchCount} คน\n• ไฟล์: ${fileName}`
-                    : `✅ ประมวลผลและบันทึกข้อมูลธุรกรรมสำเร็จเรียบร้อย!\n\n• บันทึกเข้าตาราง mc_deposits บน Supabase: ${newDepositsToInsert.length} รายการ\n• จับคู่ลูกค้าในระบบสำเร็จ: ${matchCount} คน\n• ไฟล์: ${fileName}`)
+                    ? `✅ ยืนยันการนำเข้าข้อมูลธุรกรรมยอดฝากสำเร็จเรียบร้อย!\n\n• บันทึกรายการใหม่เข้า mc_deposits: ${newDepositsToInsert.length} รายการ\n• ข้ามรายการที่เคยบันทึกแล้ว (กันยอดเบิ้ล): ${duplicateCount} รายการ\n• จับคู่ลูกค้าในพอร์ตสำเร็จ: ${matchCount} คน\n• บัญชีผู้นำเข้า: ${uploaderName}\n• ไฟล์: ${fileName}`
+                    : `✅ ยืนยันการนำเข้าข้อมูลธุรกรรมยอดฝากสำเร็จเรียบร้อย!\n\n• บันทึกเข้าตาราง mc_deposits บน Supabase: ${newDepositsToInsert.length} รายการ\n• จับคู่ลูกค้าในพอร์ตสำเร็จ: ${matchCount} คน\n• บัญชีผู้นำเข้า: ${uploaderName}\n• ไฟล์: ${fileName}`)
                     : (duplicateCount > 0
-                    ? `✅ Deposit transactions processed and recorded successfully!\n\n• Inserted into mc_deposits: ${newDepositsToInsert.length} records\n• Skipped duplicates: ${duplicateCount} records\n• Customers matched: ${matchCount} leads\n• File: ${fileName}`
-                    : `✅ Deposit transactions processed and recorded successfully!\n\n• Inserted into mc_deposits: ${newDepositsToInsert.length} records\n• Customers matched: ${matchCount} leads\n• File: ${fileName}`);
+                    ? `✅ Deposit transactions import confirmed successfully!\n\n• Inserted: ${newDepositsToInsert.length} records\n• Skipped duplicates: ${duplicateCount} records\n• Customers matched: ${matchCount} leads\n• Uploaded By: ${uploaderName}\n• File: ${fileName}`
+                    : `✅ Deposit transactions import confirmed successfully!\n\n• Inserted: ${newDepositsToInsert.length} records\n• Customers matched: ${matchCount} leads\n• Uploaded By: ${uploaderName}\n• File: ${fileName}`);
+
                 alert(summaryMsg);
+                setDepositPreviewData(null);
+                setIsImportingDeposits(false);
             };
 
             // CHECKBOX DAILY FOLLOW-UP TOGGLER
@@ -5682,19 +5945,34 @@
                                             </h3>
                                             <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
                                                 {lang === 'TH' 
-                                                    ? `อัปโหลดไฟล์ธุรกรรมฝากเงิน Excel (.xlsx / .xls) หรือ CSV ระบบจะแกะ Username ค้นหาและปิดเคสค้างฝากให้อัตโนมัติประจำรอบ ${selectedMonth}` 
-                                                    : `Upload Excel (.xlsx / .xls) or CSV deposit files. Automatically extracts usernames and updates deposit statuses for ${selectedMonth}`}
+                                                    ? `อัปโหลดไฟล์ธุรกรรมฝากเงิน Excel (.xlsx / .xls) หรือ CSV ตรวจสอบพรีวิว ยืนยันนำเข้า และผูกยอดสะสมอัตโนมัติประจำรอบ ${selectedMonth}` 
+                                                    : `Upload Excel (.xlsx / .xls) or CSV deposit files with preview, confirmation, and auto-matching for ${selectedMonth}`}
                                             </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Uploader Account Badge */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 16px', borderRadius: '12px', background: 'rgba(168, 85, 247, 0.12)', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+                                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #a855f7 0%, #7e22ce 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '12px' }}>
+                                            {(activeAgentName || 'A').charAt(0)}
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                {lang === 'TH' ? 'บัญชีผู้นำเข้าไฟล์' : 'Upload Account'}
+                                            </div>
+                                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#c084fc' }}>
+                                                {activeAgentName || 'คุณอ้อ (หัวหน้า)'}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Drag & Drop Upload Card */}
-                                <div className="panel" style={{ padding: '40px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: '20px' }}>
+                                <div className="panel" style={{ padding: '36px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: '18px' }}>
                                     <div 
                                         className="upload-box" 
                                         onClick={() => document.getElementById('deposit-page-input-file').click()}
-                                        style={{ maxWidth: '640px', width: '100%', padding: '36px 24px', border: '2px dashed rgba(168, 85, 247, 0.4)', borderRadius: '18px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}
+                                        style={{ maxWidth: '640px', width: '100%', padding: '36px 24px', border: '2px dashed rgba(168, 85, 247, 0.4)', borderRadius: '18px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', background: 'rgba(168, 85, 247, 0.02)', transition: 'all 0.2s ease' }}
                                     >
                                         <div style={{ padding: '16px', borderRadius: '18px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
                                             <i data-lucide="file-check-2" style={{ width: '40px', height: '40px' }}></i>
@@ -5711,8 +5989,8 @@
                                                     </span>
                                                 ) : (
                                                     lang === 'TH' 
-                                                        ? 'รองรับไฟล์ Excel (.xlsx / .xls) และ CSV แกะค้นหา Username สะสมยอดฝากให้อัตโนมัติ' 
-                                                        : 'Supports Excel (.xlsx, .xls) and CSV. Automatically matches usernames and accumulates deposits.'
+                                                        ? 'รองรับไฟล์ Excel (.xlsx / .xls) และ CSV พร้อมระบบพรีวิวตรวจสอบก่อนบันทึกจริง' 
+                                                        : 'Supports Excel (.xlsx, .xls) and CSV. Previews and validates before saving.'
                                                 )}
                                             </p>
                                         </div>
@@ -5725,25 +6003,293 @@
                                         />
                                     </div>
 
+                                    {/* Standard Template Download Buttons */}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flexWrap: 'wrap', width: '100%', maxWidth: '640px', marginTop: '2px' }}>
+                                        <button 
+                                            type="button" 
+                                            className="btn btn-secondary" 
+                                            onClick={() => downloadDepositTemplate('csv')}
+                                            style={{ padding: '8px 16px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', border: '1px solid rgba(255,255,255,0.1)' }}
+                                            title="ดาวน์โหลดไฟล์เทมเพลตมาตรฐานแบบ CSV"
+                                        >
+                                            <i data-lucide="download" style={{ width: '14px', height: '14px', color: '#38bdf8' }}></i>
+                                            <span>{lang === 'TH' ? '📥 ดาวน์โหลดเทมเพลตมาตรฐาน (.csv)' : '📥 Download Template (.csv)'}</span>
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            className="btn btn-secondary" 
+                                            onClick={() => downloadDepositTemplate('xlsx')}
+                                            style={{ padding: '8px 16px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', border: '1px solid rgba(255,255,255,0.1)' }}
+                                            title="ดาวน์โหลดไฟล์เทมเพลตมาตรฐานแบบ Excel"
+                                        >
+                                            <i data-lucide="file-spreadsheet" style={{ width: '14px', height: '14px', color: '#34d399' }}></i>
+                                            <span>{lang === 'TH' ? '📥 ดาวน์โหลดเทมเพลตมาตรฐาน (.xlsx)' : '📥 Download Template (.xlsx)'}</span>
+                                        </button>
+                                    </div>
 
                                     {/* Guidance Information */}
-                                    <div className="upload-guidance-card" style={{ maxWidth: '640px', width: '100%', marginTop: '10px', padding: '16px 20px', borderRadius: '14px', background: 'rgba(15, 23, 42, 0.4)', border: '1px solid rgba(255,255,255,0.06)', textAlign: 'left', fontSize: '12px' }}>
+                                    <div className="upload-guidance-card" style={{ maxWidth: '640px', width: '100%', marginTop: '6px', padding: '16px 20px', borderRadius: '14px', background: 'rgba(15, 23, 42, 0.4)', border: '1px solid rgba(255,255,255,0.06)', textAlign: 'left', fontSize: '12px' }}>
                                         <div style={{ fontWeight: 700, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                             <i data-lucide="info" style={{ width: '15px', height: '15px', color: '#c084fc' }}></i>
                                             <span>{lang === 'TH' ? 'รูปแบบไฟล์ที่แนะนำสำหรับการประมวลผลอัตโนมัติ:' : 'Recommended column formats for auto-matching:'}</span>
                                         </div>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-                                            <span className="upload-guidance-pill" style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1' }}>{lang === 'TH' ? 'คอลัมน์: username / ยูสเซอร์' : 'Column: username / user'}</span>
-                                            <span className="upload-guidance-pill" style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1' }}>{lang === 'TH' ? 'คอลัมน์: amount / ยอดฝาก' : 'Column: amount / deposit'}</span>
-                                            <span className="upload-guidance-pill" style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1' }}>{lang === 'TH' ? 'คอลัมน์: date / วันที่' : 'Column: date / timestamp'}</span>
+                                            <span className="upload-guidance-pill" style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1' }}>{lang === 'TH' ? 'คอลัมน์: username / ยูสเซอร์ (จำเป็น)' : 'Column: username (required)'}</span>
+                                            <span className="upload-guidance-pill" style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1' }}>{lang === 'TH' ? 'คอลัมน์: amount / ยอดฝาก (จำเป็น)' : 'Column: amount (required)'}</span>
+                                            <span className="upload-guidance-pill" style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1' }}>{lang === 'TH' ? 'คอลัมน์: date / วันที่ (จำเป็น)' : 'Column: date (required)'}</span>
+                                            <span className="upload-guidance-pill" style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1' }}>{lang === 'TH' ? 'คอลัมน์: type / ประเภท (ตัวเลือก)' : 'Column: type (optional)'}</span>
                                         </div>
                                         <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
                                             {lang === 'TH'
-                                                ? '* เมื่ออัปโหลดแล้ว ระบบจะค้นหาลูกค้าที่มียูสเซอร์ตรงกัน ปรับสถานะเป็น "สมัครและฝาก" และนำยอดเงินฝากไปบวกสะสมในแดชบอร์ดภาพรวมและโต๊ะติดตามของพนักงานเจ้าของเคสทันที'
-                                                : '* Upon upload, matching user accounts are automatically marked as "Reg & Deposited" and amounts are credited to dashboards and agent sheets.'}
+                                                ? '* เมื่อเลือกไฟล์ ระบบจะแสดงหน้าต่างตรวจสอบข้อมูล (Preview) สรุปยอดเงินและยูสเซอร์ใหม่ ให้คุณตรวจสอบและกดยืนยันก่อนบันทึกลงฐานข้อมูลจริง'
+                                                : '* Upon file selection, a Preview dialog will show summary stats and new users for confirmation before committing to database.'}
                                         </p>
                                     </div>
                                 </div>
+
+                                {/* PREVIEW & CONFIRMATION PANEL (แสดงเมื่อมีไฟล์ถูกเลือก) */}
+                                {depositPreviewData && (
+                                    <div className="panel" style={{ border: '2px solid rgba(168, 85, 247, 0.5)', background: 'rgba(15, 23, 42, 0.85)', boxShadow: '0 10px 40px rgba(168, 85, 247, 0.15)', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                                        {/* Preview Header */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '14px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                <div style={{ padding: '10px', borderRadius: '12px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+                                                    <i data-lucide="file-spreadsheet" style={{ width: '24px', height: '24px' }}></i>
+                                                </div>
+                                                <div>
+                                                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#fff' }}>
+                                                        {lang === 'TH' ? '📋 ยืนยันการนำเข้าข้อมูลยอดฝาก (Deposit Import Confirmation)' : '📋 Deposit Import Confirmation'}
+                                                    </h3>
+                                                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+                                                        {lang === 'TH' ? `ไฟล์: ${depositPreviewData.fileName} (${depositPreviewData.fileSize}) | บัญชีผู้นำเข้า: ` : `File: ${depositPreviewData.fileName} (${depositPreviewData.fileSize}) | Uploader: `}
+                                                        <strong style={{ color: '#c084fc' }}>{depositPreviewData.uploadedBy}</strong>
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-secondary"
+                                                    onClick={() => setDepositPreviewData(null)}
+                                                    disabled={isImportingDeposits}
+                                                    style={{ padding: '8px 16px', fontSize: '12px' }}
+                                                >
+                                                    {lang === 'TH' ? '❌ ยกเลิก' : '❌ Cancel'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-primary"
+                                                    onClick={confirmDailyDepositImport}
+                                                    disabled={isImportingDeposits || (depositPreviewData.newDepositsToInsert && depositPreviewData.newDepositsToInsert.length === 0)}
+                                                    style={{ padding: '8px 20px', fontSize: '13px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                                                >
+                                                    {isImportingDeposits ? (
+                                                        <>
+                                                            <i data-lucide="refresh-cw" className="spin" style={{ width: '15px', height: '15px' }}></i>
+                                                            <span>{lang === 'TH' ? 'กำลังบันทึกลงฐานข้อมูล...' : 'Importing to database...'}</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <i data-lucide="check-circle" style={{ width: '16px', height: '16px' }}></i>
+                                                            <span>{lang === 'TH' ? `✅ ยืนยันการนำเข้าข้อมูล (${depositPreviewData.newDepositsToInsert.length} รายการ)` : `✅ Confirm Import (${depositPreviewData.newDepositsToInsert.length} records)`}</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Stat Cards Grid */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
+                                            <div style={{ padding: '14px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{lang === 'TH' ? 'รายการทั้งหมดในไฟล์' : 'Total Records'}</div>
+                                                <div style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>
+                                                    {depositPreviewData.totalRows.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)' }}>รายการ</span>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ padding: '14px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                                                <div style={{ fontSize: '11px', color: '#34d399' }}>{lang === 'TH' ? 'ยอดเงินฝากรวม' : 'Total Deposit'}</div>
+                                                <div style={{ fontSize: '20px', fontWeight: 800, color: '#34d399', marginTop: '4px' }}>
+                                                    ฿{depositPreviewData.totalAmount.toLocaleString()}
+                                                </div>
+                                            </div>
+
+                                            <div style={{ padding: '14px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.25)' }}>
+                                                <div style={{ fontSize: '11px', color: '#38bdf8' }}>{lang === 'TH' ? 'ตรงกับลูกค้าในพอร์ต' : 'Matched Portfolio Leads'}</div>
+                                                <div style={{ fontSize: '20px', fontWeight: 800, color: '#38bdf8', marginTop: '4px' }}>
+                                                    {depositPreviewData.matchedRows.length.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)' }}>คน</span>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ padding: '14px', borderRadius: '12px', background: depositPreviewData.unmatchedUsers.length > 0 ? 'rgba(234, 179, 8, 0.1)' : 'rgba(255,255,255,0.03)', border: depositPreviewData.unmatchedUsers.length > 0 ? '1px solid rgba(234, 179, 8, 0.3)' : '1px solid rgba(255,255,255,0.06)' }}>
+                                                <div style={{ fontSize: '11px', color: depositPreviewData.unmatchedUsers.length > 0 ? '#facc15' : 'var(--text-muted)' }}>{lang === 'TH' ? 'ยูสเซอร์ใหม่ (ไม่มีในพอร์ต)' : 'Unmatched / New Users'}</div>
+                                                <div style={{ fontSize: '20px', fontWeight: 800, color: depositPreviewData.unmatchedUsers.length > 0 ? '#facc15' : '#fff', marginTop: '4px' }}>
+                                                    {depositPreviewData.unmatchedUsers.length.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)' }}>คน</span>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ padding: '14px', borderRadius: '12px', background: 'rgba(244, 63, 94, 0.08)', border: '1px solid rgba(244, 63, 94, 0.2)' }}>
+                                                <div style={{ fontSize: '11px', color: '#fb7185' }}>{lang === 'TH' ? 'ข้ามรายการซ้ำในระบบ' : 'Duplicates Skipped'}</div>
+                                                <div style={{ fontSize: '20px', fontWeight: 800, color: '#fb7185', marginTop: '4px' }}>
+                                                    {depositPreviewData.duplicateCount.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)' }}>รายการ</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* UNMATCHED USERS PROMPT & QUICK-ADD BANNER */}
+                                        {depositPreviewData.unmatchedUsers && depositPreviewData.unmatchedUsers.length > 0 && (
+                                            <div style={{
+                                                padding: '16px 20px',
+                                                borderRadius: '14px',
+                                                background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(249, 115, 22, 0.12) 100%)',
+                                                border: '1px solid rgba(234, 179, 8, 0.4)',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                flexWrap: 'wrap',
+                                                gap: '14px'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 300px' }}>
+                                                    <div style={{ padding: '10px', borderRadius: '10px', background: 'rgba(234, 179, 8, 0.2)', color: '#facc15' }}>
+                                                        <i data-lucide="user-plus" style={{ width: '22px', height: '22px' }}></i>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontWeight: 800, color: '#facc15', fontSize: '14px' }}>
+                                                            {lang === 'TH' 
+                                                                ? `🔔 ตรวจพบยูสเซอร์ใหม่ ${depositPreviewData.unmatchedUsers.length} คน ที่ยังไม่มีในพอร์ตตาม` 
+                                                                : `🔔 Found ${depositPreviewData.unmatchedUsers.length} new users not currently in follow-up portfolio`}
+                                                        </div>
+                                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                            {lang === 'TH'
+                                                                ? `คุณต้องการเพิ่มยูสเซอร์ใหม่เหล่านี้เป็นลูกค้าในพอร์ตของคุณ [${depositPreviewData.uploadedBy}] ทันทีหรือไม่?`
+                                                                : `Would you like to add these new users into your customer portfolio [${depositPreviewData.uploadedBy}] right now?`}
+                                                        </div>
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                                                            {depositPreviewData.unmatchedUsers.slice(0, 8).map((u, i) => (
+                                                                <span key={i} style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace', background: 'rgba(255,255,255,0.08)', color: '#facc15', border: '1px solid rgba(234, 179, 8, 0.3)' }}>
+                                                                    👤 {u.username} (฿{u.totalAmount.toLocaleString()})
+                                                                </span>
+                                                            ))}
+                                                            {depositPreviewData.unmatchedUsers.length > 8 && (
+                                                                <span style={{ fontSize: '11px', color: 'var(--text-muted)', alignSelf: 'center' }}>
+                                                                    +{depositPreviewData.unmatchedUsers.length - 8} คน
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-primary"
+                                                    onClick={() => quickAddUnmatchedUsersToPortfolio(depositPreviewData.unmatchedUsers)}
+                                                    style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)', border: 'none', color: '#000' }}
+                                                >
+                                                    <i data-lucide="user-check" style={{ width: '16px', height: '16px' }}></i>
+                                                    <span>{lang === 'TH' ? `➕ เพิ่มยูสเซอร์ใหม่ทั้งหมดเข้าพอร์ตทันที (${depositPreviewData.unmatchedUsers.length} คน)` : `➕ Quick-Add All to Portfolio (${depositPreviewData.unmatchedUsers.length})`}</span>
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Validation Errors If Any */}
+                                        {depositPreviewData.validationErrors && depositPreviewData.validationErrors.length > 0 && (
+                                            <div style={{ padding: '14px 18px', borderRadius: '12px', background: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.3)' }}>
+                                                <div style={{ fontWeight: 700, color: '#fb7185', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <i data-lucide="alert-triangle" style={{ width: '16px', height: '16px' }}></i>
+                                                    <span>{lang === 'TH' ? `พบข้อผิดพลาดในไฟล์ ${depositPreviewData.validationErrors.length} แถว (ถูกข้ามอัตโนมัติ):` : `File validation errors (${depositPreviewData.validationErrors.length} rows skipped):`}</span>
+                                                </div>
+                                                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '100px', overflowY: 'auto' }}>
+                                                    {depositPreviewData.validationErrors.slice(0, 10).map((err, i) => (
+                                                        <div key={i} style={{ fontSize: '11px', color: '#fca5a5' }}>
+                                                            • แถวที่ {err.row}: {err.reason}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Preview Data Table */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                                                <span>{lang === 'TH' ? 'ตัวอย่างรายการที่เตรียมนำเข้า:' : 'Preview of records to import:'}</span>
+                                                <span>{lang === 'TH' ? `แสดง ${Math.min(depositPreviewData.allRows.length, 15)} จาก ${depositPreviewData.allRows.length} รายการ` : `Showing ${Math.min(depositPreviewData.allRows.length, 15)} of ${depositPreviewData.allRows.length}`}</span>
+                                            </div>
+                                            <div className="table-wrapper" style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                                                <table>
+                                                    <thead>
+                                                        <tr>
+                                                            <th style={{ width: '40px' }}>#</th>
+                                                            <th>{lang === 'TH' ? 'วันที่ทำรายการ' : 'Date'}</th>
+                                                            <th>{lang === 'TH' ? 'ยูสเซอร์ (Username)' : 'Username'}</th>
+                                                            <th style={{ textAlign: 'right' }}>{lang === 'TH' ? 'ยอดเงินฝาก' : 'Deposit'}</th>
+                                                            <th>{lang === 'TH' ? 'สถานะการจับคู่' : 'Match Status'}</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {depositPreviewData.allRows.slice(0, 15).map((row, idx) => (
+                                                            <tr key={idx}>
+                                                                <td style={{ fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                                                                <td style={{ fontSize: '12px' }}>📅 {row.deposit_date}</td>
+                                                                <td>
+                                                                    <strong style={{ fontFamily: 'monospace', color: '#38bdf8', fontSize: '13px' }}>
+                                                                        👤 {row.username}
+                                                                    </strong>
+                                                                </td>
+                                                                <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#34d399', fontSize: '13px' }}>
+                                                                    ฿{Number(row.amount || 0).toLocaleString()}
+                                                                </td>
+                                                                <td>
+                                                                    {row.isMatched ? (
+                                                                        <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)', padding: '3px 8px', borderRadius: '10px', fontSize: '11px' }}>
+                                                                            {lang === 'TH' ? `✅ ตรงกับพอร์ต (${row.matchedAgent || 'มีผู้ดูแล'})` : `✅ Matched (${row.matchedAgent || 'Assigned'})`}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="badge" style={{ background: 'rgba(234, 179, 8, 0.12)', color: '#facc15', border: '1px solid rgba(234, 179, 8, 0.3)', padding: '3px 8px', borderRadius: '10px', fontSize: '11px' }}>
+                                                                            {lang === 'TH' ? '⚪ ยูสเซอร์ใหม่ (ไม่มีในพอร์ต)' : '⚪ New / Unmatched User'}
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        {/* Footer Action Buttons */}
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '14px' }}>
+                                            <button
+                                                type="button"
+                                                className="btn btn-secondary"
+                                                onClick={() => setDepositPreviewData(null)}
+                                                disabled={isImportingDeposits}
+                                                style={{ padding: '8px 18px', fontSize: '12px' }}
+                                            >
+                                                {lang === 'TH' ? '❌ ยกเลิกไม่นำเข้า' : '❌ Cancel'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn btn-primary"
+                                                onClick={confirmDailyDepositImport}
+                                                disabled={isImportingDeposits || (depositPreviewData.newDepositsToInsert && depositPreviewData.newDepositsToInsert.length === 0)}
+                                                style={{ padding: '10px 24px', fontSize: '13px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                                            >
+                                                {isImportingDeposits ? (
+                                                    <>
+                                                        <i data-lucide="refresh-cw" className="spin" style={{ width: '16px', height: '16px' }}></i>
+                                                        <span>{lang === 'TH' ? 'กำลังนำเข้าข้อมูล...' : 'Importing...'}</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <i data-lucide="check-circle" style={{ width: '16px', height: '16px' }}></i>
+                                                        <span>{lang === 'TH' ? `✅ ยืนยันการนำเข้าข้อมูล (${depositPreviewData.newDepositsToInsert.length} รายการ)` : `✅ Confirm Import (${depositPreviewData.newDepositsToInsert.length} records)`}</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Section 2: Recent Deposit Transactions History Table */}
                                 <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '4px' }}>
@@ -5757,7 +6303,7 @@
                                                     {lang === 'TH' ? '🕒 ประวัติรายการฝากเงินล่าสุด (Recent Deposit History)' : '🕒 Recent Deposit History'}
                                                 </h3>
                                                 <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
-                                                    {lang === 'TH' ? 'แสดง 50 รายการฝากล่าสุดที่บันทึกขึ้นระบบ Supabase (mc_deposits) พร้อมผลการจับคู่ลูกค้า' : 'Showing latest 50 deposit records from Supabase (mc_deposits) with match status'}
+                                                    {lang === 'TH' ? 'แสดง 50 รายการฝากล่าสุดที่บันทึกขึ้นระบบ Supabase (mc_deposits) พร้อมผลการจับคู่ลูกค้าและผู้ใช้อัปโหลด' : 'Showing latest 50 deposit records from Supabase (mc_deposits) with match status and uploader account'}
                                                 </p>
                                             </div>
                                         </div>
@@ -5794,6 +6340,7 @@
                                                     <th>{lang === 'TH' ? 'ยูสเซอร์ลูกค้า (Username)' : 'Username'}</th>
                                                     <th style={{ textAlign: 'right' }}>{lang === 'TH' ? 'ยอดเงินฝาก' : 'Deposit Amount'}</th>
                                                     <th>{lang === 'TH' ? 'ผลการจับคู่ในระบบ (Matching Status)' : 'Matching Status'}</th>
+                                                    <th>{lang === 'TH' ? 'ผู้นำเข้าไฟล์ (Uploaded By)' : 'Uploaded By'}</th>
                                                     <th>{lang === 'TH' ? 'เวลาบันทึกลงระบบ' : 'Recorded At'}</th>
                                                 </tr>
                                             </thead>
@@ -5808,7 +6355,7 @@
                                                     if (list.length === 0) {
                                                         return (
                                                             <tr>
-                                                                <td colSpan="6" style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
+                                                                <td colSpan="7" style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
                                                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                                                                         <i data-lucide="inbox" style={{ width: '32px', height: '32px', opacity: 0.5 }}></i>
                                                                         <span>{q ? (lang === 'TH' ? 'ไม่พบรายการฝากที่ตรงกับคำค้นหา' : 'No deposit records match search query') : (lang === 'TH' ? 'ยังไม่มีประวัติรายการฝากเงินในระบบ mc_deposits' : 'No deposit records in system')}</span>
@@ -5823,6 +6370,8 @@
                                                         const matchedCust = customers.find(c => c && c.username && c.username.trim().toLowerCase() === depUser);
                                                         const createdTime = dep.created_at ? new Date(dep.created_at).toLocaleString('th-TH') : '-';
                                                         const depDate = dep.deposit_date || (dep.created_at ? dep.created_at.substring(0, 10) : '-');
+                                                        const sig = `${depUser}_${parseFloat(dep.amount || 0)}_${dep.deposit_date}`;
+                                                        const uploaderName = dep.uploaded_by || depositUploaderMap[dep.id] || depositUploaderMap[sig] || 'คุณอ้อ (หัวหน้า)';
 
                                                         return (
                                                             <tr key={dep.id || idx}>
@@ -5851,10 +6400,43 @@
                                                                             <strong>{matchedCust.createdBy || (lang === 'TH' ? 'มีผู้ดูแล' : 'Assigned')}</strong>
                                                                         </span>
                                                                     ) : (
-                                                                        <span className="badge" style={{ background: 'rgba(148, 163, 184, 0.1)', color: 'var(--text-muted)', border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.08)', padding: '4px 8px', borderRadius: '12px', fontSize: '11px' }}>
-                                                                            {lang === 'TH' ? '⚪ ลูกค้าทั่วไป (ไม่มีในพอร์ตตาม)' : '⚪ General User (Not in portfolio)'}
-                                                                        </span>
+                                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                                            <span className="badge" style={{ background: 'rgba(148, 163, 184, 0.1)', color: 'var(--text-muted)', border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.08)', padding: '4px 8px', borderRadius: '12px', fontSize: '11px' }}>
+                                                                                {lang === 'TH' ? '⚪ ลูกค้าทั่วไป (ไม่มีในพอร์ตตาม)' : '⚪ General User (Not in portfolio)'}
+                                                                            </span>
+                                                                            <button 
+                                                                                type="button"
+                                                                                className="btn btn-secondary"
+                                                                                onClick={() => handleQuickAddSingleCustomer(dep.username, dep.amount, dep.deposit_date)}
+                                                                                style={{ padding: '3px 8px', fontSize: '11px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(168, 85, 247, 0.4)', color: '#c084fc', background: 'rgba(168, 85, 247, 0.1)' }}
+                                                                                title={lang === 'TH' ? `เพิ่ม ${dep.username} เข้าพอร์ตของคุณ` : `Add ${dep.username} to your portfolio`}
+                                                                            >
+                                                                                <i data-lucide="user-plus" style={{ width: '12px', height: '12px' }}></i>
+                                                                                <span>{lang === 'TH' ? '➕ เพิ่มเข้าพอร์ต' : '➕ Add to Portfolio'}</span>
+                                                                            </button>
+                                                                        </div>
                                                                     )}
+                                                                </td>
+                                                                <td>
+                                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+                                                                        <span style={{ 
+                                                                            width: '22px', 
+                                                                            height: '22px', 
+                                                                            borderRadius: '50%', 
+                                                                            background: 'rgba(168, 85, 247, 0.2)', 
+                                                                            color: '#c084fc', 
+                                                                            display: 'inline-flex', 
+                                                                            alignItems: 'center', 
+                                                                            justifyContent: 'center', 
+                                                                            fontSize: '11px',
+                                                                            fontWeight: 700 
+                                                                        }}>
+                                                                            {(uploaderName || 'A').charAt(0)}
+                                                                        </span>
+                                                                        <span style={{ fontWeight: 600, color: theme === 'light' ? '#334155' : '#cbd5e1' }}>
+                                                                            {uploaderName}
+                                                                        </span>
+                                                                    </div>
                                                                 </td>
                                                                 <td style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                                                                     {createdTime}
