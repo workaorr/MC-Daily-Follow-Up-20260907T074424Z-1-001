@@ -6744,6 +6744,38 @@
                                                         })
                                                     )}
                                                 </tbody>
+                                                {filteredCustomers.length > 0 && (
+                                                    <tfoot>
+                                                        <tr style={{
+                                                            background: theme === 'light' ? '#f8fafc' : 'rgba(30, 41, 59, 0.8)',
+                                                            borderTop: '2px solid var(--border-color)',
+                                                            fontWeight: 700,
+                                                            fontSize: '12.5px'
+                                                        }}>
+                                                            <td colSpan="5" style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--text-muted)' }}>
+                                                                <span>{lang === 'TH' ? 'ยอดรวมเงินฝากสะสมทุกแถวในตาราง:' : 'Grand Total of All Rows:'}</span>
+                                                                <strong style={{ marginLeft: '6px', color: theme === 'light' ? '#0f172a' : '#ffffff' }}>
+                                                                    {filteredCustomers.length} {lang === 'TH' ? 'คน' : 'leads'}
+                                                                </strong>
+                                                            </td>
+                                                            <td style={{ textAlign: 'right', fontWeight: 900, color: '#10b981', fontSize: '13.5px', padding: '12px 14px' }}>
+                                                                ฿{totalAccumulatedDeposit.toLocaleString()}
+                                                            </td>
+                                                            <td style={{ textAlign: 'center', padding: '12px 6px' }}>
+                                                                <span className="badge badge-saved" style={{ padding: '3px 6px', fontSize: '10.5px' }}>
+                                                                    {lang === 'TH' ? `🟢 ฝากแล้ว ${totalDeposited}` : `🟢 ${totalDeposited} Dep`}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ textAlign: 'center', padding: '12px 6px' }}>
+                                                                {filteredCustomers.length - totalDeposited > 0 && (
+                                                                    <span className="badge badge-pending" style={{ padding: '3px 6px', fontSize: '10.5px' }}>
+                                                                        {lang === 'TH' ? `🔴 รอฝาก ${filteredCustomers.length - totalDeposited}` : `🔴 ${filteredCustomers.length - totalDeposited} Pending`}
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    </tfoot>
+                                                )}
                                             </table>
                                         </div>
                                     </div>
@@ -7652,6 +7684,10 @@
                                 return true;
                             });
 
+                            const displayTotalDeposit = displayList.reduce((sum, c) => sum + (parseFloat(c.totalDeposit || 0)), 0);
+                            const displayDepositedCount = displayList.filter(c => isDepositedAsOfDate(c)).length;
+                            const displayUnconvertedCount = displayList.length - displayDepositedCount;
+
                             return (
                                 <div className="panel" style={{ padding: 0 }}>
                                     {/* STICKY TOP CONTROLS & FILTER SECTION (LOCKED ON SCROLL) */}
@@ -7827,6 +7863,89 @@
                                                     <button className={`btn ${lineLekFilter === 'NONE' || lineLekFilter === 'ไม่มี' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '3px 8px', fontSize: '11px', color: (lineLekFilter === 'NONE' || lineLekFilter === 'ไม่มี') ? '#fff' : '#f43f5e' }} onClick={() => setLineLekFilter(lineLekFilter === 'NONE' || lineLekFilter === 'ไม่มี' ? 'ALL' : 'NONE')}>
                                                         {lang === 'TH' ? '🔴 ไม่มีไลน์' : '🔴 No LINE'} ({cLineNone})
                                                     </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Summary Totals Bar (Grand Total of Filtered Records) */}
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                flexWrap: 'wrap',
+                                                gap: '12px',
+                                                padding: '10px 16px',
+                                                marginTop: '10px',
+                                                marginBottom: '10px',
+                                                borderRadius: '10px',
+                                                background: theme === 'light' ? '#f8fafc' : 'rgba(15, 23, 42, 0.75)',
+                                                border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255, 255, 255, 0.1)',
+                                                boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                                        {lang === 'TH' ? '📊 สรุปยอดรวมที่กรอง:' : '📊 Filter Summary:'}
+                                                    </span>
+                                                    <span style={{
+                                                        fontSize: '12px',
+                                                        fontWeight: 700,
+                                                        padding: '3px 10px',
+                                                        borderRadius: '6px',
+                                                        background: theme === 'light' ? '#ffffff' : 'rgba(255, 255, 255, 0.06)',
+                                                        border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255, 255, 255, 0.1)',
+                                                        color: theme === 'light' ? '#0f172a' : '#f8fafc'
+                                                    }}>
+                                                        👥 {lang === 'TH' ? 'ลูกค้าทั้งหมด' : 'Total Leads'}: <strong style={{ color: 'var(--primary)' }}>{displayList.length}</strong> {lang === 'TH' ? 'คน' : ''}
+                                                    </span>
+                                                    <span style={{
+                                                        fontSize: '12px',
+                                                        fontWeight: 700,
+                                                        padding: '3px 10px',
+                                                        borderRadius: '6px',
+                                                        background: 'rgba(16, 185, 129, 0.12)',
+                                                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                                                        color: '#10b981'
+                                                    }}>
+                                                        🟢 {lang === 'TH' ? 'ฝากแล้ว' : 'Deposited'}: <strong>{displayDepositedCount}</strong> {lang === 'TH' ? 'คน' : ''}
+                                                    </span>
+                                                    <span style={{
+                                                        fontSize: '12px',
+                                                        fontWeight: 700,
+                                                        padding: '3px 10px',
+                                                        borderRadius: '6px',
+                                                        background: 'rgba(244, 63, 94, 0.12)',
+                                                        border: '1px solid rgba(244, 63, 94, 0.3)',
+                                                        color: '#f43f5e'
+                                                    }}>
+                                                        🔴 {lang === 'TH' ? 'รอฝาก' : 'Pending'}: <strong>{displayUnconvertedCount}</strong> {lang === 'TH' ? 'คน' : ''}
+                                                    </span>
+                                                    {effectiveFollowUpAgent !== 'ทั้งหมด' && (
+                                                        <span style={{
+                                                            fontSize: '11.5px',
+                                                            fontWeight: 700,
+                                                            color: 'var(--primary)',
+                                                            paddingLeft: '4px'
+                                                        }}>
+                                                            ({lang === 'TH' ? `งานของ: ${effectiveFollowUpAgent}` : `Agent: ${effectiveFollowUpAgent}`})
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Grand Total Deposit Highlight Badge */}
+                                                <div style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '5px 14px',
+                                                    borderRadius: '8px',
+                                                    background: theme === 'light' ? '#ecfdf5' : 'rgba(16, 185, 129, 0.15)',
+                                                    border: '1px solid rgba(16, 185, 129, 0.4)'
+                                                }}>
+                                                    <span style={{ fontSize: '12.5px', fontWeight: 700, color: theme === 'light' ? '#065f46' : '#6ee7b7' }}>
+                                                        💰 {lang === 'TH' ? 'ยอดเงินฝากสะสมรวมทุกแถว:' : 'Grand Total Deposits:'}
+                                                    </span>
+                                                    <span style={{ fontSize: '15px', fontWeight: 900, color: '#10b981' }}>
+                                                        ฿{displayTotalDeposit.toLocaleString()}
+                                                    </span>
                                                 </div>
                                             </div>
 
@@ -8091,6 +8210,43 @@
                                                             })
                                                         )}
                                         </tbody>
+                                        {displayList.length > 0 && (
+                                            <tfoot>
+                                                <tr style={{
+                                                    background: theme === 'light' ? '#f1f5f9' : 'rgba(30, 41, 59, 0.8)',
+                                                    borderTop: '2px solid var(--border-color)',
+                                                    fontWeight: 700,
+                                                    fontSize: '12.5px'
+                                                }}>
+                                                    <td colSpan="3" style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--text-muted)' }}>
+                                                        <span>{lang === 'TH' ? 'ยอดรวมทุกแถวตามตัวกรอง:' : 'Total of Filtered Rows:'}</span>
+                                                        <strong style={{ marginLeft: '6px', color: theme === 'light' ? '#0f172a' : '#ffffff' }}>
+                                                            {displayList.length} {lang === 'TH' ? 'คน' : 'leads'}
+                                                        </strong>
+                                                    </td>
+                                                    <td style={{ width: '90px', minWidth: '85px', textAlign: 'center', whiteSpace: 'nowrap', padding: '12px 6px', color: '#10b981', fontSize: '13.5px', fontWeight: 900 }}>
+                                                        ฿{displayTotalDeposit.toLocaleString()}
+                                                    </td>
+                                                    <td style={{ textAlign: 'center', padding: '12px 6px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                                                        {displayDepositedCount > 0 ? (
+                                                            lang === 'TH' ? `เฉลี่ย ฿${Math.round(displayTotalDeposit / displayDepositedCount).toLocaleString()}/คนฝาก` : `Avg ฿${Math.round(displayTotalDeposit / displayDepositedCount).toLocaleString()}/dep`
+                                                        ) : '-'}
+                                                    </td>
+                                                    <td style={{ width: '100px', minWidth: '95px', maxWidth: '110px', textAlign: 'center', whiteSpace: 'nowrap', padding: '12px 4px' }}>
+                                                        <span className="badge badge-saved" style={{ padding: '3px 6px', fontSize: '10.5px' }}>
+                                                            {lang === 'TH' ? `🟢 ฝากแล้ว ${displayDepositedCount}` : `🟢 ${displayDepositedCount} Dep`}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '12px 14px' }}>
+                                                        {displayUnconvertedCount > 0 && (
+                                                            <span className="badge badge-pending" style={{ padding: '3px 6px', fontSize: '10.5px' }}>
+                                                                {lang === 'TH' ? `🔴 รอฝาก ${displayUnconvertedCount}` : `🔴 ${displayUnconvertedCount} Pending`}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        )}
                                     </table>
                                 </div>
                             </div>
