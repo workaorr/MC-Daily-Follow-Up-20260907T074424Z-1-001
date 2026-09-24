@@ -2472,7 +2472,7 @@
                 const keepAliveInterval = setInterval(sendKeepAlivePing, 4 * 60 * 1000);
                 return () => clearInterval(keepAliveInterval);
             }, [supabaseClient]);
-            const [depositMetricMode, setDepositMetricMode] = useState('FIRST');
+            const [depositMetricMode, setDepositMetricMode] = useState('TOTAL');
             const [supervisorFollowUpFilter, setSupervisorFollowUpFilter] = useState('ทั้งหมด');
             const [newCustAssignedAgent, setNewCustAssignedAgent] = useState('');
 
@@ -4545,12 +4545,9 @@
                 const contactedRegistered = agentCusts.filter(c => c.username && c.username.trim() !== '').length;
                 const registeredAndDeposited = agentCusts.filter(c => c.username && c.username.trim() !== '' && isDepositedAsOfDate(c)).length;
                 const registeredNotDeposited = agentCusts.filter(c => c.username && c.username.trim() !== '' && !isDepositedAsOfDate(c)).length;
-                const totalDeposit = agentCusts.reduce((sum, c) => {
-                    const amt = depositMetricMode === 'FIRST'
-                        ? (c.returnedDepositAmount || 0)
-                        : (c.totalDeposit || 0);
-                    return sum + amt;
-                }, 0);
+                const totalAccumulated = agentCusts.reduce((sum, c) => sum + (c.totalDeposit || 0), 0);
+                const firstDeposit = agentCusts.reduce((sum, c) => sum + (c.returnedDepositAmount || 0), 0);
+                const totalDeposit = depositMetricMode === 'FIRST' ? firstDeposit : totalAccumulated;
 
                 return { 
                     name: agent.name, 
@@ -4559,7 +4556,9 @@
                     contactedRegistered, 
                     registeredAndDeposited, 
                     registeredNotDeposited, 
-                    totalDeposit 
+                    totalDeposit,
+                    totalAccumulated,
+                    firstDeposit
                 };
             });
 
@@ -5741,10 +5740,19 @@
                                                                         {ag.registeredAndDeposited} <span style={{ fontSize: '11px', fontWeight: 600 }}>{lang === 'TH' ? 'คน' : 'leads'}</span>
                                                                     </div>
                                                                 </div>
-                                                                <div style={{ borderLeft: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', paddingLeft: '14px', minWidth: '85px' }}>
-                                                                    <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>{lang === 'TH' ? 'ยอดฝากสะสม' : 'Total Deposits'}</div>
+                                                                <div style={{ borderLeft: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', paddingLeft: '14px', minWidth: '95px' }}>
+                                                                    <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                                                                        {depositMetricMode === 'FIRST' 
+                                                                            ? (lang === 'TH' ? 'เช็กยอดฝาก (FTD)' : 'Checked (FTD)') 
+                                                                            : (lang === 'TH' ? 'ยอดฝากสะสมรวม' : 'Total Deposits')}
+                                                                    </div>
                                                                     <div style={{ fontSize: '14px', fontWeight: 800, color: '#fbbf24' }}>
                                                                         ฿{ag.totalDeposit.toLocaleString()}
+                                                                    </div>
+                                                                    <div style={{ fontSize: '9.5px', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                                                                        {depositMetricMode === 'FIRST'
+                                                                            ? (lang === 'TH' ? `(ยอดสะสม: ฿${(ag.totalAccumulated || 0).toLocaleString()})` : `(Total: ฿${(ag.totalAccumulated || 0).toLocaleString()})`)
+                                                                            : (lang === 'TH' ? `(ยอด FTD: ฿${(ag.firstDeposit || 0).toLocaleString()})` : `(FTD: ฿${(ag.firstDeposit || 0).toLocaleString()})`)}
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -5889,7 +5897,7 @@
                                                     <th style={{ textAlign: 'center', color: '#60a5fa' }}>{lang === 'TH' ? '3. ทักสมัคร' : '3. Registered'}</th>
                                                     <th style={{ textAlign: 'center', color: '#34d399' }}>{lang === 'TH' ? '4. สมัครและฝาก' : '4. Reg & Deposited'}</th>
                                                     <th style={{ textAlign: 'center', color: '#fb7185' }}>{lang === 'TH' ? '5. สมัครไม่ฝาก' : '5. Reg (No Deposit)'}</th>
-                                                    <th style={{ textAlign: 'right', color: '#fbbf24' }}>{lang === 'TH' ? 'ยอดฝากสะสม' : 'Total Deposits'}</th>
+                                                    <th style={{ textAlign: 'right', color: '#fbbf24' }}>{depositMetricMode === 'FIRST' ? (lang === 'TH' ? 'เช็กยอดฝาก (FTD)' : 'Checked (FTD)') : (lang === 'TH' ? 'ยอดฝากสะสมรวม' : 'Total Deposits')}</th>
                                                     <th style={{ textAlign: 'center', color: '#c084fc' }}>{lang === 'TH' ? 'อัตราสำเร็จ (MC%)' : 'Success Rate (%)'}</th>
                                                 </tr>
                                             </thead>
@@ -5909,7 +5917,14 @@
                                                             <td style={{ textAlign: 'center', color: '#60a5fa' }}><strong>{stat.contactedRegistered} {lang === 'TH' ? 'คน' : ''}</strong></td>
                                                             <td style={{ textAlign: 'center', color: '#34d399' }}><strong>{stat.registeredAndDeposited} {lang === 'TH' ? 'คน' : ''}</strong></td>
                                                             <td style={{ textAlign: 'center', color: '#fb7185' }}><strong>{stat.registeredNotDeposited} {lang === 'TH' ? 'คน' : ''}</strong></td>
-                                                            <td style={{ textAlign: 'right', color: '#34d399' }}><strong>฿{stat.totalDeposit.toLocaleString()}</strong></td>
+                                                            <td style={{ textAlign: 'right', color: '#34d399' }}>
+                                                                <div><strong>฿{stat.totalDeposit.toLocaleString()}</strong></div>
+                                                                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                                    {depositMetricMode === 'FIRST'
+                                                                        ? (lang === 'TH' ? `สะสม ฿${(stat.totalAccumulated || 0).toLocaleString()}` : `Tot ฿${(stat.totalAccumulated || 0).toLocaleString()}`)
+                                                                        : (lang === 'TH' ? `FTD ฿${(stat.firstDeposit || 0).toLocaleString()}` : `FTD ฿${(stat.firstDeposit || 0).toLocaleString()}`)}
+                                                                </div>
+                                                            </td>
                                                             <td>
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
                                                                     <div style={{ width: '60px', height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
