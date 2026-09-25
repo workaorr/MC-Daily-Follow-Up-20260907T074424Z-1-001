@@ -2384,22 +2384,24 @@
                 if (typeof parsedPerms === 'string') {
                     try { parsedPerms = JSON.parse(parsedPerms); } catch (e) { parsedPerms = null; }
                 }
+                const isActive = a.isActive !== undefined ? Boolean(a.isActive) : (a.is_active !== undefined ? Boolean(a.is_active) : true);
                 return {
                     id: a.id || (Date.now() + idx),
                     name: name,
                     role: role,
                     loginUsername: a.loginUsername || a.login_username || '',
                     passcode: a.passcode || '1234',
-                    permissions: (parsedPerms && typeof parsedPerms === 'object') ? { ...defaultPerms, ...parsedPerms } : defaultPerms
+                    permissions: (parsedPerms && typeof parsedPerms === 'object') ? { ...defaultPerms, ...parsedPerms } : defaultPerms,
+                    isActive: isActive
                 };
             };
 
             const DEFAULT_AGENTS = [
-                { id: 1, name: 'คุณศรัณยา (Sarah)', role: 'AGENT', loginUsername: 'sarah_mc', passcode: '1234', permissions: { canDashboard: true, canFollowUp: true, canNewCustomer: true, canAudit: false, canBackOffice: false } },
-                { id: 2, name: 'คุณเอมิกา (Emma)', role: 'AGENT', loginUsername: 'emma_mc', passcode: '1234', permissions: { canDashboard: true, canFollowUp: true, canNewCustomer: true, canAudit: false, canBackOffice: false } },
-                { id: 3, name: 'คุณเดชา (David)', role: 'AGENT', loginUsername: 'david_mc', passcode: '1234', permissions: { canDashboard: true, canFollowUp: true, canNewCustomer: true, canAudit: false, canBackOffice: false } },
-                { id: 4, name: 'คุณมนัสพงษ์ (Michael)', role: 'AGENT', loginUsername: 'michael_mc', passcode: '1234', permissions: { canDashboard: true, canFollowUp: true, canNewCustomer: true, canAudit: false, canBackOffice: false } },
-                { id: 5, name: 'คุณอ้อที่สวยสวย', role: 'SUPERVISOR', loginUsername: 'aor_supervisor', passcode: '1234', permissions: { canDashboard: true, canFollowUp: true, canNewCustomer: true, canAudit: true, canBackOffice: true } }
+                { id: 1, name: 'คุณศรัณยา (Sarah)', role: 'AGENT', loginUsername: 'sarah_mc', passcode: '1234', permissions: { canDashboard: true, canFollowUp: true, canNewCustomer: true, canAudit: false, canBackOffice: false }, isActive: true },
+                { id: 2, name: 'คุณเอมิกา (Emma)', role: 'AGENT', loginUsername: 'emma_mc', passcode: '1234', permissions: { canDashboard: true, canFollowUp: true, canNewCustomer: true, canAudit: false, canBackOffice: false }, isActive: true },
+                { id: 3, name: 'คุณเดชา (David)', role: 'AGENT', loginUsername: 'david_mc', passcode: '1234', permissions: { canDashboard: true, canFollowUp: true, canNewCustomer: true, canAudit: false, canBackOffice: false }, isActive: true },
+                { id: 4, name: 'คุณมนัสพงษ์ (Michael)', role: 'AGENT', loginUsername: 'michael_mc', passcode: '1234', permissions: { canDashboard: true, canFollowUp: true, canNewCustomer: true, canAudit: false, canBackOffice: false }, isActive: true },
+                { id: 5, name: 'คุณอ้อที่สวยสวย', role: 'SUPERVISOR', loginUsername: 'aor_supervisor', passcode: '1234', permissions: { canDashboard: true, canFollowUp: true, canNewCustomer: true, canAudit: true, canBackOffice: true }, isActive: true }
             ];
 
             const [agents, setAgents] = useState(() => {
@@ -2499,6 +2501,7 @@
             const [editingPermNewCustomer, setEditingPermNewCustomer] = useState(true);
             const [editingPermAudit, setEditingPermAudit] = useState(false);
             const [editingPermBackOffice, setEditingPermBackOffice] = useState(false);
+            const [editingAgentActive, setEditingAgentActive] = useState(true);
 
             // CUSTOMER DATA STATE PERSISTED
             const [customers, setCustomers] = useState(() => {
@@ -3122,7 +3125,8 @@
                         role: agent.role || 'AGENT',
                         login_username: (agent.loginUsername || '').trim(),
                         passcode: (agent.passcode || '1234').trim(),
-                        permissions: agent.permissions || {}
+                        permissions: agent.permissions || {},
+                        is_active: agent.isActive !== false
                     };
                     if (agent.id && typeof agent.id === 'number' && agent.id < 1000000000) {
                         payload.id = agent.id;
@@ -3132,9 +3136,10 @@
                         .from('mc_agents')
                         .upsert(payload, { onConflict: 'name' });
 
-                    // Graceful fallback if permissions column does not exist on Supabase yet
-                    if (error && (error.message.includes('permissions') || error.code === '42703')) {
+                    // Graceful fallback if permissions or is_active column does not exist on Supabase yet
+                    if (error && (error.message.includes('permissions') || error.message.includes('is_active') || error.code === '42703')) {
                         delete payload.permissions;
+                        delete payload.is_active;
                         const res = await supabaseClient
                             .from('mc_agents')
                             .upsert(payload, { onConflict: 'name' });
@@ -3895,7 +3900,8 @@
                     role: role,
                     loginUsername: cleanUser,
                     passcode: hashedPass,
-                    permissions: permissionsToSave
+                    permissions: permissionsToSave,
+                    isActive: true
                 };
                 const updatedAgents = [...agents, newAgent];
                 setAgents(updatedAgents);
@@ -3915,6 +3921,7 @@
                 setEditingLoginUsername(agent.loginUsername || '');
                 setEditingPasscode(''); // Leave blank if retaining current password
                 setShowEditingPassword(false);
+                setEditingAgentActive(agent.isActive !== false);
 
                 const perms = agent.permissions || (agent.role === 'SUPERVISOR' ? {
                     canDashboard: true, canFollowUp: true, canNewCustomer: true, canAudit: true, canBackOffice: true
@@ -3952,7 +3959,8 @@
                     role: editingAgentRole,
                     loginUsername: editingLoginUsername.trim(),
                     passcode: finalPasscode,
-                    permissions: updatedPerms
+                    permissions: updatedPerms,
+                    isActive: editingAgentActive
                 };
 
                 const updatedAgents = agents.map(a => a.id === agent.id ? updatedAgent : a);
@@ -3980,7 +3988,8 @@
                             role: editingAgentRole,
                             login_username: editingLoginUsername.trim(),
                             passcode: finalPasscode,
-                            permissions: updatedPerms
+                            permissions: updatedPerms,
+                            is_active: editingAgentActive
                         };
                         let query = supabaseClient.from('mc_agents').update(updatePayload);
                         if (agent.id && typeof agent.id === 'number' && agent.id < 1000000000) {
@@ -3989,8 +3998,9 @@
                             query = query.eq('name', oldName);
                         }
                         let { error } = await query;
-                        if (error && (error.message.includes('permissions') || error.code === '42703')) {
+                        if (error && (error.message.includes('permissions') || error.message.includes('is_active') || error.code === '42703')) {
                             delete updatePayload.permissions;
+                            delete updatePayload.is_active;
                             let fbQuery = supabaseClient.from('mc_agents').update(updatePayload);
                             if (agent.id && typeof agent.id === 'number' && agent.id < 1000000000) {
                                 fbQuery = fbQuery.eq('id', agent.id);
@@ -4022,6 +4032,45 @@
             const handleEditAgent = (agentId, oldName) => {
                 const target = agents.find(a => a.id === agentId);
                 if (target) startEditAgent(target);
+            };
+
+            const handleToggleAgentActive = async (agentId, agentName) => {
+                const target = agents.find(a => a.id === agentId || a.name === agentName);
+                if (!target) return;
+                const nextStatus = target.isActive === false; // true = reactivate, false = suspend
+                const confirmPrompt = nextStatus
+                    ? (lang === 'TH' ? `ยืนยันการเปิดใช้งานบัญชี [${agentName}] อีกครั้ง?` : `Confirm reactivating account [${agentName}]?`)
+                    : (lang === 'TH' ? `ยืนยันการพักงาน / ปิดการใช้งานบัญชี [${agentName}] ชั่วคราว?\n\n(พนักงานจะไม่สามารถล็อกอินเข้าสู่ระบบได้ และจะไม่ขึ้นในรายชื่อมอบหมายลูกค้าใหม่ แต่ข้อมูลลูกค้าและประวัติการตามเดิมจะยังคงอยู่ครบ 100%)` : `Confirm suspending account [${agentName}]?`);
+
+                if (!window.confirm(confirmPrompt)) return;
+
+                const updatedAgents = agents.map(a => (a.id === agentId || a.name === agentName) ? { ...a, isActive: nextStatus } : a);
+                setAgents(updatedAgents);
+                localStorage.setItem('mc_agents', JSON.stringify(updatedAgents));
+
+                writeLog('BACKOFFICE', `${nextStatus ? 'เปิดใช้งาน' : 'พักงาน/ปิดใช้งาน'}พนักงาน MC: ${agentName}`, nextStatus ? 'success' : 'warning');
+
+                if (supabaseClient) {
+                    try {
+                        const updatePayload = { is_active: nextStatus };
+                        let query = supabaseClient.from('mc_agents').update(updatePayload);
+                        if (target.id && typeof target.id === 'number' && target.id < 1000000000) {
+                            query = query.eq('id', target.id);
+                        } else {
+                            query = query.eq('name', agentName);
+                        }
+                        let { error } = await query;
+                        if (error && (error.message.includes('is_active') || error.code === '42703')) {
+                            console.warn('Column is_active does not exist on Supabase yet', error);
+                        } else if (error) {
+                            throw error;
+                        } else {
+                            writeLog('SUPABASE', `ซิงค์สถานะ${nextStatus ? 'เปิดใช้งาน' : 'พักงาน'} [${agentName}] ขึ้นคลาวด์แล้ว`, 'success');
+                        }
+                    } catch (e) {
+                        writeLog('SUPABASE', `อัปเดตสถานะพนักงานในคลาวด์ล้มเหลว: ${e.message}`, 'danger');
+                    }
+                }
             };
 
             const handleDeleteAgent = async (agentId, agentName) => {
@@ -4208,6 +4257,12 @@
                     return;
                 }
                 const matchedAgent = agents.find(a => a.name === chosenAgentName);
+                if (matchedAgent && matchedAgent.isActive === false) {
+                    setLoginErrorMsg(lang === 'TH'
+                        ? `⛔ บัญชี [${chosenAgentName}] ถูกระงับหรือพักงานชั่วคราว กรุณาติดต่อหัวหน้า (Supervisor)`
+                        : `⛔ Account [${chosenAgentName}] is suspended/deactivated. Please contact Supervisor.`);
+                    return;
+                }
                 const requiredPasscode = (matchedAgent && matchedAgent.passcode) ? String(matchedAgent.passcode) : '1234';
 
                 if (!loginPasswordInput) {
@@ -4513,6 +4568,17 @@
                     else switchViewMode('upload-deposits');
                 }
             }, [viewMode, canAudit, canBackOffice, canDashboard, canFollowUp, canNewCustomer]);
+
+            // Security: If current active account is suspended/deactivated, immediately logout
+            useEffect(() => {
+                if (activeAgentName && currentActiveAgent && currentActiveAgent.isActive === false) {
+                    writeLog('AUTH', `บัญชี [${activeAgentName}] ถูกสั่งพักงาน/ระงับสิทธิ์ จึงออกจากระบบอัตโนมัติ`, 'warning', activeAgentName);
+                    setActiveAgentName('');
+                    localStorage.removeItem('mc_active_agent_name');
+                    localStorage.setItem('mc_logged_out', 'true');
+                    alert(lang === 'TH' ? `⛔ บัญชีของคุณ [${activeAgentName}] ถูกระงับหรือพักงานชั่วคราว ระบบทำการออกจากระบบอัตโนมัติ กรุณาติดต่อหัวหน้า (Supervisor)` : `⛔ Your account [${activeAgentName}] has been deactivated. Logging out.`);
+                }
+            }, [activeAgentName, currentActiveAgent, lang]);
             const filterDate = endDateFilter || startDateFilter;
             const isDepositedAsOfDate = (c) => {
                 if (!c.hasDeposited) return false;
@@ -4938,7 +5004,7 @@
                                         outline: 'none',
                                         cursor: 'pointer'
                                     }}
-                                    value={selectedLoginAgent || (availableAgents[0] && availableAgents[0].name) || ''}
+                                    value={selectedLoginAgent || ((availableAgents.find(a => a.isActive !== false) || availableAgents[0])?.name) || ''}
                                     onChange={(e) => {
                                         setSelectedLoginAgent(e.target.value);
                                         setLoginErrorMsg('');
@@ -4946,8 +5012,10 @@
                                     }}
                                 >
                                     {availableAgents.map(a => (
-                                        <option key={a.id} value={a.name} style={{ background: theme === 'light' ? '#fff' : '#0f172a', color: theme === 'light' ? '#000' : '#fff' }}>
-                                            {a.role === 'SUPERVISOR' ? '👑 ' + a.name + ' (Supervisor)' : '👤 ' + a.name + ' (MC Agent)'}
+                                        <option key={a.id} value={a.name} style={{ background: theme === 'light' ? '#fff' : '#0f172a', color: a.isActive === false ? '#94a3b8' : (theme === 'light' ? '#000' : '#fff') }}>
+                                            {a.isActive === false 
+                                                ? '⏸️ ' + a.name + ' (พักงาน/ระงับใช้งาน)' 
+                                                : (a.role === 'SUPERVISOR' ? '👑 ' + a.name + ' (Supervisor)' : '👤 ' + a.name + ' (MC Agent)')}
                                         </option>
                                     ))}
                                 </select>
@@ -7115,7 +7183,7 @@
                                                     onChange={(e) => setNewCustAssignedAgent(e.target.value)}
                                                     className="select-input"
                                                 >
-                                                    {agents.map(a => (
+                                                    {agents.filter(a => a.isActive !== false).map(a => (
                                                         <option key={a.id} value={a.name}>{a.name}</option>
                                                     ))}
                                                 </select>
@@ -7731,7 +7799,9 @@
                                                         >
                                                             <option value="ทั้งหมด">{lang === 'TH' ? 'พนักงานทั้งหมด (ดูรวม)' : 'All MC Agents (Overview)'}</option>
                                                             {agents.map(a => (
-                                                                <option key={a.id} value={a.name}>{a.name}</option>
+                                                                <option key={a.id} value={a.name}>
+                                                                    {a.name}{a.isActive === false ? ' (พักงาน)' : ''}
+                                                                </option>
                                                             ))}
                                                         </select>
                                                     </React.Fragment>
@@ -8470,7 +8540,7 @@
                                                             {lang === 'TH' ? 'การซิงค์สิทธิ์พนักงานสู่ Supabase Cloud (Permissions Sync)' : 'Staff Permissions Cloud Sync (Supabase)'}
                                                         </div>
                                                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                                            {lang === 'TH' ? 'ระบบซิงค์ชื่อ, ยูสเซอร์, รหัสผ่าน และสิทธิ์ 5 รายการขึ้น Cloud อัตโนมัติ (หากยังไม่ได้เพิ่มคอลัมน์ permissions ใน Supabase ให้คลิกปุ่มเพื่อคัดลอก SQL ไปรันได้ทันที)' : 'Auto-syncs staff, passwords, and 5 granular permissions to cloud. (Click button to copy migration SQL)'}
+                                                            {lang === 'TH' ? 'ระบบซิงค์ชื่อ, ยูสเซอร์, รหัสผ่าน, สิทธิ์ 5 รายการ และสถานะใช้งาน/พักงาน (is_active) ขึ้น Cloud อัตโนมัติ (คลิกปุ่มเพื่อคัดลอก SQL ไปรันบน Supabase)' : 'Auto-syncs staff, passwords, permissions, and active/suspended status (is_active) to cloud. (Click button to copy migration SQL)'}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -8479,10 +8549,10 @@
                                                     className="btn btn-secondary"
                                                     style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 700, borderColor: '#3b82f6', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '6px' }}
                                                     onClick={() => {
-                                                        const sql = "ALTER TABLE IF EXISTS public.mc_agents ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT '{\"canDashboard\":true,\"canFollowUp\":true,\"canNewCustomer\":true,\"canAudit\":false,\"canBackOffice\":false}'::jsonb;";
+                                                        const sql = "ALTER TABLE IF EXISTS public.mc_agents ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT '{\"canDashboard\":true,\"canFollowUp\":true,\"canNewCustomer\":true,\"canAudit\":false,\"canBackOffice\":false}'::jsonb;\nALTER TABLE IF EXISTS public.mc_agents ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;";
                                                         if (navigator.clipboard && navigator.clipboard.writeText) {
                                                             navigator.clipboard.writeText(sql).then(() => {
-                                                                alert(lang === 'TH' ? "📋 คัดลอกคำสั่ง SQL สำหรับเปิดคอลัมน์ permissions เรียบร้อย!\n\nนำไปวางใน Supabase Dashboard -> SQL Editor แล้วกด Run ได้เลยครับ\n\nคำสั่ง:\n" + sql : "📋 SQL statement copied!\n\nPaste into Supabase SQL Editor and run.\n\nQuery:\n" + sql);
+                                                                alert(lang === 'TH' ? "📋 คัดลอกคำสั่ง SQL สำหรับเปิดคอลัมน์ permissions และ is_active เรียบร้อย!\n\nนำไปวางใน Supabase Dashboard -> SQL Editor แล้วกด Run ได้เลยครับ\n\nคำสั่ง:\n" + sql : "📋 SQL statement copied!\n\nPaste into Supabase SQL Editor and run.\n\nQuery:\n" + sql);
                                                             }).catch(() => {
                                                                 prompt(lang === 'TH' ? "คัดลอกคำสั่ง SQL นี้ไปวางใน Supabase SQL Editor:" : "Copy SQL to run in Supabase SQL Editor:", sql);
                                                             });
@@ -8491,7 +8561,7 @@
                                                         }
                                                     }}
                                                 >
-                                                    <i data-lucide="copy" style={{ width: '13px', height: '13px' }}></i> {lang === 'TH' ? 'คัดลอก SQL สิทธิ์พนักงาน' : 'Copy Permissions SQL'}
+                                                    <i data-lucide="copy" style={{ width: '13px', height: '13px' }}></i> {lang === 'TH' ? 'คัดลอก SQL สิทธิ์ & สถานะพนักงาน' : 'Copy Permissions & Status SQL'}
                                                 </button>
                                             </div>
 
@@ -8637,7 +8707,7 @@
                                                     const isSuper = a.role === 'SUPERVISOR';
                                                     const perms = a.permissions || {};
                                                     return (
-                                                        <div key={a.id} className={`staff-item-row ${isEditing ? 'is-editing' : ''}`} style={{ background: isEditing ? 'rgba(30, 41, 59, 0.9)' : 'rgba(15, 23, 42, 0.7)', border: isEditing ? '1px solid #a855f7' : '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '10px 14px', transition: 'all 0.2s' }}>
+                                                        <div key={a.id} className={`staff-item-row ${isEditing ? 'is-editing' : ''}`} style={{ background: isEditing ? 'rgba(30, 41, 59, 0.9)' : (a.isActive === false ? 'rgba(30, 27, 40, 0.6)' : 'rgba(15, 23, 42, 0.7)'), border: isEditing ? '1px solid #a855f7' : (a.isActive === false ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(255,255,255,0.06)'), borderRadius: '10px', padding: '10px 14px', transition: 'all 0.2s', opacity: a.isActive === false && !isEditing ? 0.75 : 1 }}>
                                                             {isEditing ? (
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
@@ -8697,6 +8767,15 @@
                                                                         >
                                                                             <option value="AGENT">{lang === 'TH' ? '👤 พนักงาน (MC Agent)' : '👤 Agent (MC Agent)'}</option>
                                                                             <option value="SUPERVISOR">{lang === 'TH' ? '👑 หัวหน้า (Supervisor)' : '👑 Supervisor'}</option>
+                                                                        </select>
+                                                                        <select 
+                                                                            value={editingAgentActive ? 'ACTIVE' : 'SUSPENDED'}
+                                                                            onChange={(e) => setEditingAgentActive(e.target.value === 'ACTIVE')}
+                                                                            className="select-input"
+                                                                            style={{ padding: '6px 10px', fontSize: '12px', fontWeight: 700, color: editingAgentActive ? '#34d399' : '#f87171' }}
+                                                                        >
+                                                                            <option value="ACTIVE">{lang === 'TH' ? '🟢 ใช้งานอยู่ (Active)' : '🟢 Active'}</option>
+                                                                            <option value="SUSPENDED">{lang === 'TH' ? '⏸️ พักงาน (Suspended)' : '⏸️ Suspended'}</option>
                                                                         </select>
                                                                         <button 
                                                                             type="button"
@@ -8772,6 +8851,15 @@
                                                                         <span className={`role-badge ${isSuper ? 'role-badge-supervisor' : 'role-badge-agent'}`} style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '12px', background: isSuper ? 'rgba(245, 158, 11, 0.18)' : 'rgba(16, 185, 129, 0.18)', color: isSuper ? '#fbbf24' : '#34d399', border: isSuper ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)' }}>
                                                                             {isSuper ? (lang === 'TH' ? '👑 หัวหน้า' : '👑 Supervisor') : (lang === 'TH' ? '👤 พนักงาน' : '👤 Agent')}
                                                                         </span>
+                                                                        {a.isActive === false ? (
+                                                                            <span className="role-badge" style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.18)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.35)' }}>
+                                                                                {lang === 'TH' ? '⏸️ พักงาน' : '⏸️ Suspended'}
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="role-badge" style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.18)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
+                                                                                {lang === 'TH' ? '🟢 ใช้งานอยู่' : '🟢 Active'}
+                                                                            </span>
+                                                                        )}
                                                                         {a.loginUsername && (
                                                                             <span className="staff-user-pill" style={{ fontSize: '10px', fontFamily: 'monospace', padding: '2px 6px', borderRadius: '6px', background: 'rgba(0,0,0,0.4)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.06)' }}>
                                                                                 {lang === 'TH' ? '🔑 ยูส: ' : '🔑 User: '}{a.loginUsername}
@@ -8784,6 +8872,29 @@
                                                                         )}
                                                                     </div>
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                        {a.isActive === false ? (
+                                                                            <button 
+                                                                                type="button"
+                                                                                className="staff-btn-toggle"
+                                                                                style={{ border: 'none', background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                                onClick={() => handleToggleAgentActive(a.id, a.name)}
+                                                                                title={lang === 'TH' ? "เปิดใช้งานบัญชีพนักงานอีกครั้ง" : "Reactivate staff"}
+                                                                            >
+                                                                                <i data-lucide="play-circle" style={{ width: '13px', height: '13px' }}></i>
+                                                                                <span>{lang === 'TH' ? 'เปิดใช้งาน' : 'Activate'}</span>
+                                                                            </button>
+                                                                        ) : (
+                                                                            <button 
+                                                                                type="button"
+                                                                                className="staff-btn-toggle"
+                                                                                style={{ border: 'none', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                                onClick={() => handleToggleAgentActive(a.id, a.name)}
+                                                                                title={lang === 'TH' ? "พักงาน / ระงับการใช้งานบัญชีชั่วคราว (เข้าสู่ระบบไม่ได้ แต่ข้อมูลและประวัติยังคงอยู่ 100%)" : "Suspend / Deactivate"}
+                                                                            >
+                                                                                <i data-lucide="pause-circle" style={{ width: '13px', height: '13px' }}></i>
+                                                                                <span>{lang === 'TH' ? 'พักงาน' : 'Suspend'}</span>
+                                                                            </button>
+                                                                        )}
                                                                         <button 
                                                                             className="staff-btn-edit"
                                                                             style={{ border: 'none', background: 'rgba(168, 85, 247, 0.12)', color: '#c084fc', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer' }}
@@ -9427,8 +9538,10 @@
                                             id="modal-agent-select"
                                             defaultValue={selectedCustForModal.createdBy}
                                         >
-                                            {agents.map(a => (
-                                                <option key={a.id} value={a.name}>{a.name}</option>
+                                            {agents.filter(a => a.isActive !== false || a.name === selectedCustForModal.createdBy).map(a => (
+                                                <option key={a.id} value={a.name}>
+                                                    {a.name}{a.isActive === false ? ' (พักงาน)' : ''}
+                                                </option>
                                             ))}
                                         </select>
                                     ) : (
@@ -9587,15 +9700,17 @@
                                     <select 
                                         className="select-input"
                                         style={{ width: '100%', padding: '10px 14px', fontSize: '14px', borderRadius: '10px', marginTop: '6px' }}
-                                        value={selectedLoginAgent || activeAgentName || (agents[0] && agents[0].name) || ''}
+                                        value={selectedLoginAgent || activeAgentName || ((agents.find(a => a.isActive !== false) || agents[0])?.name) || ''}
                                         onChange={(e) => {
                                             setSelectedLoginAgent(e.target.value);
                                             setLoginErrorMsg('');
                                         }}
                                     >
                                         {agents.map(a => (
-                                            <option key={a.id} value={a.name}>
-                                                {a.role === 'SUPERVISOR' ? '👑 ' + a.name + ' (Supervisor)' : '👤 ' + a.name + ' (MC Agent)'}
+                                            <option key={a.id} value={a.name} style={{ color: a.isActive === false ? '#94a3b8' : 'inherit' }}>
+                                                {a.isActive === false 
+                                                    ? '⏸️ ' + a.name + ' (พักงาน/ระงับใช้งาน)' 
+                                                    : (a.role === 'SUPERVISOR' ? '👑 ' + a.name + ' (Supervisor)' : '👤 ' + a.name + ' (MC Agent)')}
                                             </option>
                                         ))}
                                     </select>
