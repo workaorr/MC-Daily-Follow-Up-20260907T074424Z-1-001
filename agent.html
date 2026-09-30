@@ -2314,22 +2314,37 @@
             const daysInMonth = getDaysInSelectedMonth();
 
             // FORMAT TIMESTAMP FOR DISPLAY (Date & Time when customer was keyed in)
-            const formatLastLogin = (isoStr) => {
-                if (!isoStr) return null;
+            const formatLastLogin = (val) => {
+                if (!val) return null;
                 try {
-                    const d = new Date(isoStr);
-                    if (isNaN(d.getTime())) return null;
-                    const now = new Date();
-                    const isToday = d.toDateString() === now.toDateString();
-                    const timePart = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-                    if (isToday) {
-                        return `วันนี้ ${timePart}`;
+                    const parts = String(val).replace('T', ' ').split(' ');
+                    if (parts.length >= 2) {
+                        const [dPart, tPart] = parts;
+                        const dParts = dPart.split('-');
+                        const tParts = tPart.split(':');
+                        if (dParts.length === 3 && tParts.length >= 2) {
+                            const todayStr = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).split(' ')[0];
+                            const hh = tParts[0];
+                            const mm = tParts[1];
+                            if (dPart === todayStr) {
+                                return `วันนี้ ${hh}:${mm}`;
+                            }
+                            return `${dParts[2]}/${dParts[1]}/${dParts[0].slice(2)} ${hh}:${mm}`;
+                        }
                     }
-                    const datePart = d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
-                    return `${datePart} ${timePart}`;
+                    const d = new Date(val);
+                    if (!isNaN(d.getTime())) {
+                        const now = new Date();
+                        const isToday = d.toDateString() === now.toDateString();
+                        const timePart = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                        if (isToday) return `วันนี้ ${timePart}`;
+                        const datePart = d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                        return `${datePart} ${timePart}`;
+                    }
                 } catch (e) {
-                    return null;
+                    return String(val);
                 }
+                return String(val);
             };
 
             const formatKeyedDateTime = (isoStr) => {
@@ -4383,7 +4398,7 @@
                 }
 
                 // Authentication Success
-                const loginTimestamp = new Date().toISOString();
+                const loginTimestamp = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).replace('T', ' ');
                 setLoginFailedAttempts(0);
                 setLoginLockoutUntil(0);
                 setActiveAgentName(chosenAgentName);
