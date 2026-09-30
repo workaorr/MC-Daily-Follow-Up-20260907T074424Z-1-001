@@ -2314,6 +2314,24 @@
             const daysInMonth = getDaysInSelectedMonth();
 
             // FORMAT TIMESTAMP FOR DISPLAY (Date & Time when customer was keyed in)
+            const formatLastLogin = (isoStr) => {
+                if (!isoStr) return null;
+                try {
+                    const d = new Date(isoStr);
+                    if (isNaN(d.getTime())) return null;
+                    const now = new Date();
+                    const isToday = d.toDateString() === now.toDateString();
+                    const timePart = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                    if (isToday) {
+                        return `วันนี้ ${timePart}`;
+                    }
+                    const datePart = d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                    return `${datePart} ${timePart}`;
+                } catch (e) {
+                    return null;
+                }
+            };
+
             const formatKeyedDateTime = (isoStr) => {
                 if (!isoStr) return '-';
                 try {
@@ -2385,6 +2403,7 @@
                     try { parsedPerms = JSON.parse(parsedPerms); } catch (e) { parsedPerms = null; }
                 }
                 const isActive = a.is_active !== undefined ? Boolean(a.is_active) : (a.isActive !== undefined ? Boolean(a.isActive) : true);
+                const lastLoginAt = a.last_login_at || a.lastLoginAt || null;
                 return {
                     id: a.id || (Date.now() + idx),
                     name: name,
@@ -2392,7 +2411,8 @@
                     loginUsername: a.loginUsername || a.login_username || '',
                     passcode: a.passcode || '1234',
                     permissions: (parsedPerms && typeof parsedPerms === 'object') ? { ...defaultPerms, ...parsedPerms } : defaultPerms,
-                    isActive: isActive
+                    isActive: isActive,
+                    lastLoginAt: lastLoginAt
                 };
             };
 
@@ -4360,6 +4380,7 @@
                 }
 
                 // Authentication Success
+                const loginTimestamp = new Date().toISOString();
                 setLoginFailedAttempts(0);
                 setLoginLockoutUntil(0);
                 setActiveAgentName(chosenAgentName);
@@ -4372,6 +4393,29 @@
                 setIsLoginModalOpen(false);
                 setSelectedLoginAgent('');
                 writeLog('AUTH', `เข้าสู่ระบบสำเร็จในนาม [${chosenAgentName}] (${matchedAgent ? matchedAgent.role : 'AGENT'})`, 'success', chosenAgentName);
+
+                // Record last login timestamp in state & Supabase
+                if (matchedAgent) {
+                    setAgents(prevAgents => {
+                        const updated = prevAgents.map(a => a.id === matchedAgent.id ? { ...a, lastLoginAt: loginTimestamp } : a);
+                        localStorage.setItem('mc_agents', JSON.stringify(updated));
+                        return updated;
+                    });
+                    if (supabaseClient) {
+                        supabaseClient
+                            .from('mc_agents')
+                            .update({ last_login_at: loginTimestamp })
+                            .eq('id', matchedAgent.id)
+                            .then(({ error }) => {
+                                if (error) {
+                                    console.warn('Note: mc_agents.last_login_at in Supabase:', error.message);
+                                } else {
+                                    console.log('Recorded last_login_at for', matchedAgent.name);
+                                }
+                            })
+                            .catch(err => console.warn('Supabase last_login_at update:', err));
+                    }
+                }
 
                 // Auto-upgrade legacy plain text passcode to SHA-256 hash in storage & Supabase
                 if (matchedAgent && matchedAgent.passcode && matchedAgent.passcode.length < 32) {
@@ -8641,7 +8685,7 @@
                                                     className="btn btn-secondary"
                                                     style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 700, borderColor: '#3b82f6', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '6px' }}
                                                     onClick={() => {
-                                                        const sql = "ALTER TABLE IF EXISTS public.mc_agents ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT '{\"canDashboard\":true,\"canFollowUp\":true,\"canNewCustomer\":true,\"canAudit\":false,\"canBackOffice\":false}'::jsonb;\nALTER TABLE IF EXISTS public.mc_agents ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;";
+                                                        const sql = "ALTER TABLE IF EXISTS public.mc_agents ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT '{\"canDashboard\":true,\"canFollowUp\":true,\"canNewCustomer\":true,\"canAudit\":false,\"canBackOffice\":false}'::jsonb;\nALTER TABLE IF EXISTS public.mc_agents ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;\nALTER TABLE IF EXISTS public.mc_agents ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;";
                                                         if (navigator.clipboard && navigator.clipboard.writeText) {
                                                             navigator.clipboard.writeText(sql).then(() => {
                                                                 alert(lang === 'TH' ? "📋 คัดลอกคำสั่ง SQL สำหรับเปิดคอลัมน์ permissions และ is_active เรียบร้อย!\n\nนำไปวางใน Supabase Dashboard -> SQL Editor แล้วกด Run ได้เลยครับ\n\nคำสั่ง:\n" + sql : "📋 SQL statement copied!\n\nPaste into Supabase SQL Editor and run.\n\nQuery:\n" + sql);
@@ -8957,6 +9001,14 @@
                                                                                 {lang === 'TH' ? '🔑 ยูส: ' : '🔑 User: '}{a.loginUsername}
                                                                             </span>
                                                                         )}
+                                                                        <span className="staff-login-time" style={{ fontSize: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 7px', borderRadius: '6px', background: a.lastLoginAt ? 'rgba(56, 189, 248, 0.1)' : 'rgba(255, 255, 255, 0.04)', color: a.lastLoginAt ? '#38bdf8' : 'var(--text-muted)', border: a.lastLoginAt ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid rgba(255, 255, 255, 0.06)' }} title={a.lastLoginAt ? `เข้าสู่ระบบล่าสุดเมื่อ: ${a.lastLoginAt}` : 'ยังไม่มีประวัติเข้าสู่ระบบ'}>
+                                                                            <i data-lucide="clock" style={{ width: '11px', height: '11px' }}></i>
+                                                                            <span>
+                                                                                {a.lastLoginAt 
+                                                                                    ? `${lang === 'TH' ? 'ล็อกอินล่าสุด:' : 'Last:'} ${formatLastLogin(a.lastLoginAt)}` 
+                                                                                    : (lang === 'TH' ? 'ยังไม่เคยเข้าสู่ระบบ' : 'Never logged in')}
+                                                                            </span>
+                                                                        </span>
                                                                         {perms.canBackOffice ? (
                                                                             <span className="staff-bo-perm-open" style={{ fontSize: '10px', color: '#c084fc', fontWeight: 600 }}>{lang === 'TH' ? '[⚙️ เปิดสิทธิ์หลังบ้าน]' : '[⚙️ Back Office Enabled]'}</span>
                                                                         ) : (
