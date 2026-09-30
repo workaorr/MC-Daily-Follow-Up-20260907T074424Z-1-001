@@ -2886,6 +2886,9 @@
                                 if (a.is_active !== undefined) {
                                     merged.isActive = Boolean(a.is_active);
                                 }
+                                if (a.last_login_at !== undefined) {
+                                    merged.lastLoginAt = a.last_login_at;
+                                }
                                 return normalizeAgent(merged, i);
                             });
                             DEFAULT_AGENTS.forEach((defAgent, defIdx) => {
@@ -4402,18 +4405,19 @@
                         return updated;
                     });
                     if (supabaseClient) {
+                        const targetFilter = (matchedAgent.name) ? { field: 'name', val: matchedAgent.name } : { field: 'id', val: matchedAgent.id };
                         supabaseClient
                             .from('mc_agents')
                             .update({ last_login_at: loginTimestamp })
-                            .eq('id', matchedAgent.id)
-                            .then(({ error }) => {
+                            .eq(targetFilter.field, targetFilter.val)
+                            .then(({ error, data }) => {
                                 if (error) {
                                     console.warn('Note: mc_agents.last_login_at in Supabase:', error.message);
                                 } else {
-                                    console.log('Recorded last_login_at for', matchedAgent.name);
+                                    console.log('Recorded last_login_at for', matchedAgent.name, loginTimestamp);
                                 }
                             })
-                            .catch(err => console.warn('Supabase last_login_at update:', err));
+                            .catch(err => console.warn('Supabase last_login_at update error:', err));
                     }
                 }
 
@@ -5322,15 +5326,24 @@
                         {/* Right: User Profile & Top Action Controls */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             {activeAgentName ? (
-                                <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '9px',
-                                    padding: '4px 12px 4px 6px',
-                                    borderRadius: '10px',
-                                    background: theme === 'light' ? '#f8fafc' : 'rgba(255, 255, 255, 0.05)',
-                                    border: theme === 'light' ? '1px solid #e2e8f0' : (isSupervisor ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)')
-                                }}>
+                                <div 
+                                    onClick={() => {
+                                        setLoginPasswordInput('');
+                                        setLoginErrorMsg('');
+                                        setIsLoginModalOpen(true);
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '9px',
+                                        padding: '4px 12px 4px 6px',
+                                        borderRadius: '10px',
+                                        background: theme === 'light' ? '#f8fafc' : 'rgba(255, 255, 255, 0.05)',
+                                        border: theme === 'light' ? '1px solid #e2e8f0' : (isSupervisor ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)'),
+                                        cursor: 'pointer'
+                                    }}
+                                    title={lang === 'TH' ? 'คลิกเพื่อสลับผู้ใช้งาน (Switch Account)' : 'Click to switch account'}
+                                >
                                     <div style={{
                                         width: '30px',
                                         height: '30px',
