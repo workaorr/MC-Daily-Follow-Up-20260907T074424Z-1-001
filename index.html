@@ -2579,12 +2579,47 @@
                 : null;
             const isAddLineOADuplicate = Boolean(duplicateLineOACustomer);
 
+            // Validation for Referrer (when sourceChannel is 'เพื่อนแนะนำ')
+            const cleanedReferrer = formReferrer.trim();
+            const cleanedReferrerUsername = cleanedReferrer.replace(/\s+/g, '').toLowerCase();
+            const cleanedReferrerPhone = cleanedReferrer.replace(/\D/g, '');
+
+            const matchedReferrerCustomer = (formSource === 'เพื่อนแนะนำ' && cleanedReferrer)
+                ? (customers || []).find(c => {
+                    if (!c) return false;
+                    const cUser = c.username ? String(c.username).replace(/\s+/g, '').toLowerCase() : '';
+                    if (cUser && cUser === cleanedReferrerUsername) return true;
+                    if (cleanedReferrerPhone && cleanedReferrerPhone.length >= 8) {
+                        const cPhone = c.phone ? String(c.phone).replace(/\D/g, '') : '';
+                        if (cPhone && cPhone === cleanedReferrerPhone) return true;
+                    }
+                    return false;
+                })
+                : null;
+
+            const isReferrerSelf = Boolean(
+                formSource === 'เพื่อนแนะนำ' && 
+                cleanedReferrer && 
+                ((cleanedAddUsername && cleanedReferrerUsername === cleanedAddUsername) ||
+                 (cleanedAddPhone && cleanedReferrerPhone && cleanedReferrerPhone.length >= 8 && cleanedReferrerPhone === cleanedAddPhone))
+            );
+
+            const isReferrerEmpty = formSource === 'เพื่อนแนะนำ' && !cleanedReferrer;
+            const isReferrerNotFound = Boolean(
+                formSource === 'เพื่อนแนะนำ' && 
+                cleanedReferrer && 
+                !isReferrerSelf && 
+                !matchedReferrerCustomer
+            );
+
+            const isAddReferrerInvalid = Boolean(formSource === 'เพื่อนแนะนำ' && (isReferrerEmpty || isReferrerNotFound || isReferrerSelf));
+
             const isAddFullNameEmpty = !formFullName.trim();
             const isAddUsernameEmpty = !formUsername.trim();
             const isAddPhoneEmpty = !formPhone.trim();
             const isAddLineOAEmpty = !formLineOA.trim();
-            const isAddMissingRequired = isAddFullNameEmpty || isAddUsernameEmpty || isAddPhoneEmpty || isAddLineOAEmpty;
-            const isAddCustomerDisabled = isAddMissingRequired || isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace;
+            const isAddMissingRequired = isAddFullNameEmpty || isAddUsernameEmpty || isAddPhoneEmpty || isAddLineOAEmpty || (formSource === 'เพื่อนแนะนำ' && isReferrerEmpty);
+            const isAddCustomerDisabled = isAddMissingRequired || isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace || isAddReferrerInvalid;
             const [statusFilter, setStatusFilter] = useState('ALL');
             const [lineLekFilter, setLineLekFilter] = useState('ALL');
             const [sourceChannelFilter, setSourceChannelFilter] = useState('ทั้งหมด');
@@ -3269,6 +3304,26 @@
                         : `⚠️ Cannot save! LINE ID "${formLineOA.trim()}" already exists in the system (${duplicateLineOACustomer?.fullName || duplicateLineOACustomer?.username || 'existing customer'}). 1 LINE account per username only.`);
                     return false;
                 }
+                if (formSource === 'เพื่อนแนะนำ') {
+                    if (isReferrerEmpty) {
+                        alert(lang === 'TH'
+                            ? '⚠️ ไม่สามารถบันทึกได้! กรุณาระบุยูสเซอร์เนมหรือเบอร์โทรเพื่อนที่แนะนำมาก่อนกดบันทึกครับ'
+                            : '⚠️ Cannot save! Please enter referrer username or phone number.');
+                        return false;
+                    }
+                    if (isReferrerSelf) {
+                        alert(lang === 'TH'
+                            ? '⚠️ ไม่สามารถบันทึกได้! ไม่สามารถระบุตนเองเป็นผู้แนะนำได้ครับ'
+                            : '⚠️ Cannot save! You cannot specify oneself as referrer.');
+                        return false;
+                    }
+                    if (isReferrerNotFound) {
+                        alert(lang === 'TH'
+                            ? `⚠️ ไม่สามารถบันทึกได้! ไม่พบยูสเซอร์หรือยูสเซอร์ไม่ถูกต้อง: "${formReferrer.trim()}" (ไม่พบข้อมูลในระบบ) กรุณาตรวจสอบยูสเซอร์เพื่อนที่แนะนำครับ`
+                            : `⚠️ Cannot save! Referrer user "${formReferrer.trim()}" not found or invalid in system.`);
+                        return false;
+                    }
+                }
 
                 const cleanedUsername = cleanedAddUsername;
                 const cleanedPhone = formPhone.trim();
@@ -3292,7 +3347,7 @@
                     lineOA: formLineOA.trim(),
                     lineLek: formLineLek.trim(),
                     sourceChannel: formSource,
-                    referrer: formSource === 'เพื่อนแนะนำ' ? formReferrer : '',
+                    referrer: formSource === 'เพื่อนแนะนำ' ? (matchedReferrerCustomer?.username || formReferrer.trim()) : '',
                     totalDeposit: 0,
                     createdBy: (isSupervisor && newCustAssignedAgent) ? newCustAssignedAgent : activeAgentName,
                     campaignMonth: inputRegistrationDate ? inputRegistrationDate.substring(0, 7) : currentMonthStr,
@@ -7361,14 +7416,63 @@
                                         </select>
                                         {formSource === 'เพื่อนแนะนำ' && (
                                             <div style={{ marginTop: '10px' }}>
-                                                <label style={{ color: '#f59e0b', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>{lang === 'TH' ? '🤝 ยูสเซอร์ผู้แนะนำ / เบอร์เพื่อนที่แนะนำมา (Referrer Username / Phone)' : '🤝 Referrer Username / Phone Number'}</label>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                                    <label style={{ color: '#f59e0b', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                                                        <span>{lang === 'TH' ? '🎁 ยูสเซอร์ผู้แนะนำ / เบอร์เพื่อนที่แนะนำมา (Referrer Username / Phone)' : '🎁 Referrer Username / Phone Number'}</span>
+                                                        <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span>
+                                                    </label>
+                                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{lang === 'TH' ? 'ต้องมียูสเซอร์ในระบบ' : 'Must exist in system'}</span>
+                                                </div>
                                                 <input 
                                                     type="text" 
+                                                    list="referrerSuggestionsList"
                                                     value={formReferrer} 
                                                     onChange={(e) => setFormReferrer(e.target.value)} 
                                                     placeholder={lang === 'TH' ? 'กรอกยูสเซอร์เนมหรือเบอร์โทรเพื่อนที่แนะนำมา...' : 'Enter referrer username or phone number...'} 
-                                                    style={{ borderColor: 'rgba(245, 158, 11, 0.5)', backgroundColor: 'rgba(245, 158, 11, 0.05)' }}
+                                                    style={{ 
+                                                        borderColor: (isReferrerNotFound || isReferrerSelf)
+                                                            ? '#ef4444' 
+                                                            : (matchedReferrerCustomer ? '#10b981' : (isReferrerEmpty && (formFullName || formUsername || formPhone || formLineOA) ? 'rgba(239, 68, 68, 0.6)' : 'rgba(245, 158, 11, 0.5)')),
+                                                        backgroundColor: (isReferrerNotFound || isReferrerSelf)
+                                                            ? (theme === 'light' ? '#fef2f2' : 'rgba(239, 68, 68, 0.08)') 
+                                                            : (matchedReferrerCustomer ? (theme === 'light' ? '#f0fdf4' : 'rgba(16, 185, 129, 0.06)') : 'rgba(245, 158, 11, 0.05)')
+                                                    }}
                                                 />
+                                                <datalist id="referrerSuggestionsList">
+                                                    {(customers || []).filter(c => c && c.username).slice(0, 300).map((c, i) => (
+                                                        <option key={i} value={c.username}>
+                                                            {c.fullName ? `${c.fullName} (${c.phone || ''})` : c.phone || ''}
+                                                        </option>
+                                                    ))}
+                                                </datalist>
+
+                                                {isReferrerNotFound && (
+                                                    <span style={{ color: '#ef4444', fontSize: '11.5px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                                                        {lang === 'TH' 
+                                                            ? `❌ ไม่พบยูสเซอร์หรือยูสเซอร์ไม่ถูกต้อง (ไม่พบข้อมูล "${formReferrer.trim()}" ในระบบ)` 
+                                                            : `❌ Referrer user "${formReferrer.trim()}" not found or invalid in system.`}
+                                                    </span>
+                                                )}
+
+                                                {isReferrerSelf && (
+                                                    <span style={{ color: '#ef4444', fontSize: '11.5px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                                                        {lang === 'TH' ? '❌ ไม่สามารถระบุตนเองเป็นผู้แนะนำได้' : '❌ Cannot specify oneself as referrer'}
+                                                    </span>
+                                                )}
+
+                                                {matchedReferrerCustomer && (
+                                                    <span style={{ color: '#10b981', fontSize: '11.5px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
+                                                        {lang === 'TH' 
+                                                            ? `✓ พบข้อมูลผู้แนะนำ: ${matchedReferrerCustomer.fullName ? `${matchedReferrerCustomer.fullName} ` : ''}(ยูส: ${matchedReferrerCustomer.username || '-'}${matchedReferrerCustomer.createdBy ? ` / ดูแลโดย: ${matchedReferrerCustomer.createdBy}` : ''})` 
+                                                            : `✓ Referrer found: ${matchedReferrerCustomer.fullName || ''} (${matchedReferrerCustomer.username || ''})`}
+                                                    </span>
+                                                )}
+
+                                                {isReferrerEmpty && (formFullName || formUsername || formPhone || formLineOA) && (
+                                                    <span style={{ color: '#ef4444', fontSize: '11.5px', marginTop: '4px', display: 'block' }}>
+                                                        {lang === 'TH' ? '* จำเป็นต้องระบุยูสเซอร์หรือเบอร์โทรเพื่อนที่แนะนำมา' : '* Referrer username or phone is required'}
+                                                    </span>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -7424,23 +7528,23 @@
 
                                         {isAddCustomerDisabled && (
                                             <div style={{
-                                                background: isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace 
+                                                background: isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace || isAddReferrerInvalid
                                                     ? (theme === 'light' ? '#fef2f2' : 'rgba(239, 68, 68, 0.1)')
                                                     : (theme === 'light' ? '#f8fafc' : 'rgba(255,255,255,0.03)'),
-                                                border: isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace 
+                                                border: isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace || isAddReferrerInvalid
                                                     ? '1px solid rgba(239, 68, 68, 0.3)' 
                                                     : (theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.06)'),
                                                 borderRadius: '8px',
                                                 padding: '10px 14px',
                                                 fontSize: '12.5px',
-                                                color: isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace 
+                                                color: isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace || isAddReferrerInvalid
                                                     ? (theme === 'light' ? '#b91c1c' : '#fca5a5') 
                                                     : (theme === 'light' ? '#64748b' : '#94a3b8'),
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: '8px'
                                             }}>
-                                                {isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace ? (
+                                                {isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace || isAddReferrerInvalid ? (
                                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                                                         <circle cx="12" cy="12" r="10"/>
                                                         <line x1="12" x2="12" y1="8" y2="12"/>
@@ -7462,7 +7566,11 @@
                                                                 ? (lang === 'TH' ? `ไลน์ "${formLineOA.trim()}" ซ้ำกับลูกค้าเดิมในระบบ ไม่สามารถบันทึกได้ (1 ไลน์ต่อ 1 ยูสเซอร์เท่านั้น)` : `LINE ID "${formLineOA.trim()}" already exists in system. Cannot save duplicate.`)
                                                                 : hasAddUsernameSpace 
                                                                     ? (lang === 'TH' ? 'ยูสเซอร์เนมห้ามมีเว้นวรรค (ช่องว่าง) กรุณาแก้ไขก่อนบันทึก' : 'Username cannot contain spaces. Please fix before saving.')
-                                                                    : (lang === 'TH' ? `ยังไม่สามารถบันทึกได้: ขาด ${[isAddFullNameEmpty && 'ชื่อ-นามสกุล', isAddUsernameEmpty && 'ยูสเซอร์', isAddPhoneEmpty && 'เบอร์ติดต่อ', isAddLineOAEmpty && 'ไลน์'].filter(Boolean).join(', ')}` : `Cannot save yet: Missing ${[isAddFullNameEmpty && 'Full Name', isAddUsernameEmpty && 'Username', isAddPhoneEmpty && 'Phone', isAddLineOAEmpty && 'LINE ID'].filter(Boolean).join(', ')}`)}
+                                                                    : (formSource === 'เพื่อนแนะนำ' && isReferrerNotFound)
+                                                                        ? (lang === 'TH' ? `ไม่พบยูสเซอร์หรือยูสเซอร์ไม่ถูกต้อง ("${formReferrer.trim()}" ไม่พบในระบบ) กรุณาตรวจสอบยูสเพื่อนที่แนะนำ` : `Referrer user "${formReferrer.trim()}" not found or invalid in system.`)
+                                                                        : (formSource === 'เพื่อนแนะนำ' && isReferrerSelf)
+                                                                            ? (lang === 'TH' ? 'ไม่สามารถระบุตนเองเป็นผู้แนะนำได้ กรุณาระบุยูสเซอร์ของเพื่อนที่แนะนำมา' : 'Cannot specify oneself as referrer.')
+                                                                            : (lang === 'TH' ? `ยังไม่สามารถบันทึกได้: ขาด ${[isAddFullNameEmpty && 'ชื่อ-นามสกุล', isAddUsernameEmpty && 'ยูสเซอร์', isAddPhoneEmpty && 'เบอร์ติดต่อ', isAddLineOAEmpty && 'ไลน์', (formSource === 'เพื่อนแนะนำ' && isReferrerEmpty) && 'ยูสเซอร์เพื่อนที่แนะนำ'].filter(Boolean).join(', ')}` : `Cannot save yet: Missing ${[isAddFullNameEmpty && 'Full Name', isAddUsernameEmpty && 'Username', isAddPhoneEmpty && 'Phone', isAddLineOAEmpty && 'LINE ID', (formSource === 'เพื่อนแนะนำ' && isReferrerEmpty) && 'Referrer'].filter(Boolean).join(', ')}`)}
                                                 </span>
                                             </div>
                                         )}
@@ -9862,6 +9970,14 @@
                                             {addConfirmModalData.sourceChannel}
                                         </span>
                                     </div>
+                                    {addConfirmModalData.sourceChannel === 'เพื่อนแนะนำ' && addConfirmModalData.referrer && (
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ color: 'var(--text-muted)' }}>{lang === 'TH' ? '🤝 เพื่อนที่แนะนำ:' : '🤝 Referrer:'}</span>
+                                            <span style={{ fontWeight: 600, color: '#f59e0b' }}>
+                                                {addConfirmModalData.referrer}
+                                            </span>
+                                        </div>
+                                    )}
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ color: 'var(--text-muted)' }}>{lang === 'TH' ? '👨‍💼 ผู้รับผิดชอบ (Owner):' : '👨‍💼 Assigned Owner:'}</span>
                                         <span style={{ fontWeight: 600, color: theme === 'light' ? '#0f172a' : '#ffffff' }}>
