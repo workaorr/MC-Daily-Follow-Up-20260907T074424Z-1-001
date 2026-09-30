@@ -2509,6 +2509,64 @@
                 const keepAliveInterval = setInterval(sendKeepAlivePing, 4 * 60 * 1000);
                 return () => clearInterval(keepAliveInterval);
             }, [supabaseClient]);
+            // SESSION SECURITY: 15-MINUTE INACTIVITY AUTO-LOCK
+            const [isLockedDueToInactivity, setIsLockedDueToInactivity] = useState(false);
+            const lastActivityRef = React.useRef(Date.now());
+
+            useEffect(() => {
+                const handleUserActivity = () => {
+                    lastActivityRef.current = Date.now();
+                };
+                const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+                activityEvents.forEach(evt => window.addEventListener(evt, handleUserActivity, { passive: true }));
+
+                const checkIdleInterval = setInterval(() => {
+                    if (!activeAgentName || isLoginModalOpen) return;
+                    const idleTime = Date.now() - lastActivityRef.current;
+                    if (idleTime >= 15 * 60 * 1000) { // 15 minutes = 900,000ms
+                        setIsLockedDueToInactivity(true);
+                        setSelectedLoginAgent(activeAgentName);
+                        setIsLoginModalOpen(true);
+                        writeLog('SESSION', `🔒 ล็อกหน้าจออัตโนมัติเนื่องจากไม่มีการใช้งานเกิน 15 นาที (${activeAgentName})`, 'warning', activeAgentName);
+                    }
+                }, 15000); // Check every 15s
+
+                return () => {
+                    activityEvents.forEach(evt => window.removeEventListener(evt, handleUserActivity));
+                    clearInterval(checkIdleInterval);
+                };
+            }, [activeAgentName, isLoginModalOpen]);
+
+            // SECURITY NOTICE: DEFAULT PASSCODE DETECTION & MODAL STATES
+            const [showChangePasscodeModal, setShowChangePasscodeModal] = useState(false);
+            const [changePasscodeNew, setChangePasscodeNew] = useState('');
+            const [changePasscodeConfirm, setChangePasscodeConfirm] = useState('');
+            const [changePasscodeError, setChangePasscodeError] = useState('');
+            const [isDismissedDefaultPasscodeBanner, setIsDismissedDefaultPasscodeBanner] = useState(false);
+
+            const DEFAULT_PASSCODE_HASH = '26a18de478539f81d4b69424fdc2c6e86f842f3f5e45668c0990d48605c44ec1';
+            const isUsingDefaultPasscode = Boolean(
+                currentActiveAgent &&
+                (currentActiveAgent.passcode === '1234' || currentActiveAgent.passcode === DEFAULT_PASSCODE_HASH)
+            );
+
+            // DATA PROTECTION: CUSTOMER RECYCLE BIN (SOFT DELETE & RESTORE)
+            const [deletedCustomers, setDeletedCustomers] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('mc_deleted_customers');
+                    const parsed = saved ? JSON.parse(saved) : [];
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch (e) {
+                    return [];
+                }
+            });
+
+            useEffect(() => {
+                try {
+                    localStorage.setItem('mc_deleted_customers', JSON.stringify(deletedCustomers));
+                } catch (e) {}
+            }, [deletedCustomers]);
+
             const [depositMetricMode, setDepositMetricMode] = useState('TOTAL');
             const [supervisorFollowUpFilter, setSupervisorFollowUpFilter] = useState('ทั้งหมด');
             const [newCustAssignedAgent, setNewCustAssignedAgent] = useState('');
@@ -2812,7 +2870,7 @@
                 if (window.lucide && typeof window.lucide.createIcons === 'function') {
                     window.lucide.createIcons();
                 }
-            }, [viewMode, customers, agents, activeAgentName, selectedCustForModal, showDbSettings, selectedMonth, isLoginModalOpen, depositMetricMode, editingAgentId, sourceChannels, isAddCustomerDisabled, isAddUsernameDuplicate, showLoginPassword, loginErrorMsg, addSuccessModalData, addConfirmModalData, depositPreviewData]);
+            }, [viewMode, customers, agents, activeAgentName, selectedCustForModal, showDbSettings, selectedMonth, isLoginModalOpen, depositMetricMode, editingAgentId, sourceChannels, isAddCustomerDisabled, isAddUsernameDuplicate, showLoginPassword, loginErrorMsg, addSuccessModalData, addConfirmModalData, depositPreviewData, showChangePasscodeModal, deletedCustomers, isLockedDueToInactivity]);
 
             // Helper: Console logger & Supabase Cloud mc_logs Writer
             const writeLog = (tag, msg, type = 'info', operator = null) => {
@@ -4076,7 +4134,48 @@
                     localStorage.setItem('mc_customers', JSON.stringify(updatedCustomers));
                 }
 
-                writeLog('BACKOFFICE', `บันทึกข้อมูลและสิทธิ์พนักงาน MC [${trimmedName}] (${editingAgentRole === 'SUPERVISOR' ? '👑 หัวหน้า' : '👤 พนักงาน'})`, 'success');
+                // Granular Privilege & Role Audit Logging
+                const agentChanges = [];
+                if (agent.role !== editingAgentRole) {
+                    agentChanges.push(`บทบาท: ${agent.role} -> ${editingAgentRole}`);
+                }
+                if (Boolean(agent.isActive !== false) !== Boolean(editingAgentActive)) {
+                    agentChanges.push(`สถานะ: ${editingAgentActive ? '🟢 เปิดใช้งาน' : '⏸️ พักงาน/ระงับใช้งาน'}`);
+                }
+                if (editingPasscode && editingPasscode.trim()) {
+                    agentChanges.push('🔑 รีเซ็ตรหัสผ่านใหม่');
+                }
+                if (oldName !== trimmedName) {
+                    agentChanges.push(`ชื่อพนักงาน: ${oldName} -> ${trimmedName}`);
+                }
+                if ((agent.loginUsername || '') !== editingLoginUsername.trim()) {
+                    agentChanges.push(`Login Username: ${agent.loginUsername || '-'} -> ${editingLoginUsername.trim()}`);
+                }
+
+                const permLabels = {
+                    canDashboard: 'แดชบอร์ด',
+                    canFollowUp: 'ติดตามงาน',
+                    canNewCustomer: 'เพิ่มลูกค้าใหม่',
+                    canAudit: 'ตรวจสอบประวัติ (Audit)',
+                    canBackOffice: 'แบคออฟฟิศ (Backoffice)'
+                };
+                const oldPerms = agent.permissions || {};
+                const permDiffs = [];
+                Object.keys(permLabels).forEach(k => {
+                    const oldV = Boolean(oldPerms[k]);
+                    const newV = Boolean(updatedPerms[k]);
+                    if (oldV !== newV) {
+                        permDiffs.push(`${permLabels[k]}: ${newV ? '✅ ให้สิทธิ์' : '⛔ ถอนสิทธิ์'}`);
+                    }
+                });
+                if (permDiffs.length > 0) {
+                    agentChanges.push(`สิทธิ์การเข้าถึง: [${permDiffs.join(', ')}]`);
+                }
+
+                const auditMsg = agentChanges.length > 0
+                    ? `[ปรับแก้สิทธิ์พนักงาน] ${trimmedName} -> ${agentChanges.join(' | ')}`
+                    : `[บันทึกข้อมูลพนักงาน] ${trimmedName} (${editingAgentRole})`;
+                writeLog('STAFF_AUDIT', auditMsg, 'warning', activeAgentName);
 
                 if (supabaseClient) {
                     try {
@@ -4205,15 +4304,29 @@
                 }
             };
 
+            // DATA LOSS PREVENTION: SOFT DELETE & RECYCLE BIN HANDLERS
             const handleDeleteCustomer = async (custId, username) => {
                 const targetCust = customers.find(c => c.id === custId);
                 const displayName = username || (targetCust && targetCust.fullName) || custId;
-                if (!window.confirm(lang === 'TH' ? `⚠️ ยืนยันการลบลูกค้า [${displayName}] ออกจากระบบ?` : `⚠️ Confirm deleting customer [${displayName}] from system?`)) return;
+                if (!window.confirm(lang === 'TH' ? `⚠️ ยืนยันการย้ายลูกค้า [${displayName}] ไปยังถังขยะ? (สามารถกู้คืนได้ทุกเมื่อจากหน้า Backoffice)` : `⚠️ Move customer [${displayName}] to Recycle Bin? (Can be restored anytime in Backoffice)`)) return;
+
+                if (targetCust) {
+                    const deletedRecord = {
+                        ...targetCust,
+                        deletedAt: new Date().toISOString(),
+                        deletedBy: activeAgentName || 'Supervisor'
+                    };
+                    const updatedDeleted = [deletedRecord, ...deletedCustomers.filter(c => c.id !== custId)];
+                    setDeletedCustomers(updatedDeleted);
+                    try { localStorage.setItem('mc_deleted_customers', JSON.stringify(updatedDeleted)); } catch (e) {}
+                }
+
                 const updated = customers.filter(c => c.id !== custId);
                 setCustomers(updated);
-                
-                writeLog('BACKOFFICE', `ลบลูกค้า [${displayName}] ออกจากระบบ`, 'warning');
-                
+                try { localStorage.setItem('mc_customers', JSON.stringify(updated)); } catch (e) {}
+
+                writeLog('CUSTOMER_DELETE', `ย้ายลูกค้า [${displayName}] ไปยังถังขยะ (Soft Delete) โดย ${activeAgentName}`, 'warning', activeAgentName);
+
                 if (supabaseClient) {
                     try {
                         let query = supabaseClient.from('mc_customers').delete();
@@ -4224,11 +4337,76 @@
                         }
                         const { error } = await query;
                         if (error) throw error;
-                        writeLog('SUPABASE', `ลบลูกค้า [${displayName}] จากคลาวด์แล้ว`, 'success');
+                        writeLog('SUPABASE', `ลบลูกค้า [${displayName}] จากคลาวด์แล้ว (สำรองในถังขยะเรียบร้อย)`, 'success', activeAgentName);
                     } catch (e) {
-                        writeLog('SUPABASE', `ลบลูกค้าในคลาวด์ล้มเหลว: ${e.message}`, 'danger');
+                        writeLog('SUPABASE', `ลบลูกค้าในคลาวด์ล้มเหลว: ${e.message}`, 'danger', activeAgentName);
                     }
                 }
+            };
+
+            const handleRestoreCustomer = async (deletedCust) => {
+                if (!deletedCust) return;
+                const displayName = deletedCust.fullName || deletedCust.username || `ID#${deletedCust.id}`;
+
+                if (deletedCust.username && customers.some(c => c.username && c.username.toLowerCase() === deletedCust.username.toLowerCase())) {
+                    alert(lang === 'TH' ? `⚠️ ไม่สามารถกู้คืนได้: ยูสเซอร์เนม "${deletedCust.username}" มีอยู่ในระบบปัจจุบันแล้ว` : `⚠️ Cannot restore: Username already exists in active records.`);
+                    return;
+                }
+
+                const { deletedAt, deletedBy, ...cleanRestored } = deletedCust;
+                const nextCustomers = [cleanRestored, ...customers];
+                setCustomers(nextCustomers);
+                try { localStorage.setItem('mc_customers', JSON.stringify(nextCustomers)); } catch (e) {}
+
+                const nextDeleted = deletedCustomers.filter(c => c.id !== deletedCust.id);
+                setDeletedCustomers(nextDeleted);
+                try { localStorage.setItem('mc_deleted_customers', JSON.stringify(nextDeleted)); } catch (e) {}
+
+                writeLog('CUSTOMER_RESTORE', `[กู้คืนข้อมูล] กู้คืนลูกค้า [${displayName}] กลับเข้าสู่ระบบสำเร็จ`, 'success', activeAgentName);
+
+                if (supabaseClient) {
+                    try {
+                        const rowToUpsert = {
+                            id: cleanRestored.id,
+                            username: cleanRestored.username || null,
+                            full_name: cleanRestored.fullName || '',
+                            phone: cleanRestored.phone || '',
+                            line_oa: cleanRestored.lineOA || '',
+                            line_lek: cleanRestored.lineLek || '',
+                            source: cleanRestored.source || '',
+                            notes: cleanRestored.notes || '',
+                            first_deposit: cleanRestored.firstDeposit || 0,
+                            total_deposit: cleanRestored.totalDeposit || cleanRestored.firstDeposit || 0,
+                            created_by: cleanRestored.createdBy || activeAgentName,
+                            created_date: cleanRestored.createdDate || new Date().toISOString(),
+                            interest_status: cleanRestored.interestStatus || 'สนใจ',
+                            status: cleanRestored.status || 'รอทัก'
+                        };
+                        const { error } = await supabaseClient.from('mc_customers').upsert(rowToUpsert);
+                        if (error) writeLog('SUPABASE', `กู้คืนลูกค้าขึ้นคลาวด์ล้มเหลว: ${error.message}`, 'danger', activeAgentName);
+                        else writeLog('SUPABASE', `กู้คืนลูกค้า [${displayName}] ขึ้นคลาวด์เรียบร้อย`, 'success', activeAgentName);
+                    } catch (e) {
+                        writeLog('SUPABASE', `กู้คืนลูกค้าในคลาวด์ล้มเหลว: ${e.message}`, 'danger', activeAgentName);
+                    }
+                }
+
+                alert(lang === 'TH' ? `✅ กู้คืนลูกค้า [${displayName}] กลับเข้าสู่ระบบสำเร็จเรียบร้อยแล้ว!` : `✅ Customer [${displayName}] restored successfully!`);
+            };
+
+            const handlePermanentDeleteCustomer = (custId, displayName) => {
+                if (!window.confirm(lang === 'TH' ? `🚨 ยืนยันการลบลูกค้า [${displayName}] ถาวร?\n\nข้อมูลนี้จะถูกลบออกจากถังขยะและไม่สามารถกู้คืนได้อีก!` : `🚨 Permanently delete [${displayName}]? This cannot be undone!`)) return;
+                const nextDeleted = deletedCustomers.filter(c => c.id !== custId);
+                setDeletedCustomers(nextDeleted);
+                try { localStorage.setItem('mc_deleted_customers', JSON.stringify(nextDeleted)); } catch (e) {}
+                writeLog('CUSTOMER_PURGE', `ลบข้อมูลลูกค้า [${displayName}] ออกจากถังขยะอย่างถาวร`, 'danger', activeAgentName);
+            };
+
+            const handleClearAllRecycleBin = () => {
+                if (!window.confirm(lang === 'TH' ? `🚨 ยืนยันการล้างถังขยะทั้งหมด (${deletedCustomers.length} รายการ)?\n\nข้อมูลลูกค้าทั้งหมดที่ลบแล้วจะไม่สามารถกู้คืนได้อีก!` : `🚨 Empty all ${deletedCustomers.length} records from Recycle Bin?`)) return;
+                const count = deletedCustomers.length;
+                setDeletedCustomers([]);
+                try { localStorage.removeItem('mc_deleted_customers'); } catch (e) {}
+                writeLog('CUSTOMER_PURGE', `ล้างถังขยะลูกค้าทั้งหมด (${count} รายการ)`, 'danger', activeAgentName);
             };
 
             // MODAL EDIT ACTION
@@ -4280,14 +4458,26 @@
                 const changes = [];
 
                 if (oldCust) {
+                    if (oldCust.fullName !== fullNameVal) {
+                        changes.push(`ชื่อ-สกุล: ${oldCust.fullName || '(ว่าง)'} -> ${fullNameVal || '(ว่าง)'}`);
+                    }
+
                     if (!oldCust.username && usernameVal) {
                         changes.push(`✨ เพิ่มยูสเซอร์เนมทีหลัง: ${usernameVal}`);
                     } else if (oldCust.username !== usernameVal) {
                         changes.push(`✏️ เปลี่ยนยูสเซอร์เนม: ${oldCust.username || '(ไม่มี)'} -> ${usernameVal}`);
                     }
 
+                    if (oldCust.phone !== phoneVal) {
+                        changes.push(`📞 เบอร์โทร: ${oldCust.phone || '-'} -> ${phoneVal || '-'}`);
+                    }
+
+                    if (oldCust.lineOA !== lineOAVal) {
+                        changes.push(`📱 LINE OA: ${oldCust.lineOA || '-'} -> ${lineOAVal || '-'}`);
+                    }
+
                     if (oldCust.lineLek !== lineLekVal) {
-                        changes.push(`💬 อัปเดตไลน์เล็กทีหลัง: ${oldCust.lineLek || 'ไม่มี'} -> ${lineLekVal}`);
+                        changes.push(`💬 ไลน์เล็ก: ${oldCust.lineLek || 'ไม่มี'} -> ${lineLekVal || 'ไม่มี'}`);
                     }
 
                     if (oldCust.createdBy !== agentVal) {
@@ -4296,10 +4486,6 @@
 
                     if (oldCust.notes !== noteVal) {
                         changes.push(`📝 บันทึกโน้ต: "${noteVal || 'ลบโน้ต'}"`);
-                    }
-
-                    if (oldCust.phone !== phoneVal) {
-                        changes.push(`📞 เปลี่ยนเบอร์โทร: ${oldCust.phone} -> ${phoneVal}`);
                     }
                 }
 
@@ -4344,7 +4530,7 @@
 
                 const changeDetail = changes.length > 0 ? changes.join(' | ') : 'อัปเดตข้อมูลลูกค้า';
                 const custDisplayName = fullNameVal || usernameVal || (oldCust && oldCust.username) || `ID#${selectedCustForModal.id}`;
-                writeLog('EDIT_CUSTOMER', `[แก้ไขข้อมูลลูกค้า] คุณ${custDisplayName} -> ${changeDetail}`, 'success', activeAgentName);
+                writeLog('CUSTOMER_AUDIT', `[แก้ไขข้อมูลลูกค้า] คุณ${custDisplayName} -> ${changeDetail}`, 'info', activeAgentName);
             };
 
             // STAFF AUTHENTICATION HANDLER (PASSCODE VERIFICATION WITH BRUTE-FORCE LOCKOUT & AUTO-HASH UPGRADE)
@@ -4401,6 +4587,8 @@
                 const loginTimestamp = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).replace('T', ' ');
                 setLoginFailedAttempts(0);
                 setLoginLockoutUntil(0);
+                setIsLockedDueToInactivity(false);
+                lastActivityRef.current = Date.now();
                 setActiveAgentName(chosenAgentName);
                 localStorage.setItem('mc_active_agent_name', chosenAgentName);
                 localStorage.setItem('mc_last_selected_agent', chosenAgentName);
@@ -4436,7 +4624,52 @@
                     }
                 }
 
-                // Auto-upgrade legacy plain text passcode to SHA-256 hash in storage & Supabase
+                // PERSONAL PASSCODE MANAGEMENT (SHA-256 + SYSTEM SALT)
+            const handleChangeOwnPasscode = async () => {
+                const cleanNew = changePasscodeNew.trim();
+                const cleanConfirm = changePasscodeConfirm.trim();
+                if (!cleanNew || cleanNew.length < 4) {
+                    setChangePasscodeError(lang === 'TH' ? '⚠️ รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 4 ตัวอักษร' : '⚠️ Passcode must be at least 4 characters');
+                    return;
+                }
+                if (cleanNew === '1234') {
+                    setChangePasscodeError(lang === 'TH' ? '⚠️ กรุณาตั้งรหัสผ่านอื่นที่ไม่ใช่รหัสเริ่มต้น 1234 เพื่อความปลอดภัย' : '⚠️ Cannot use default 1234. Please choose a secure passcode');
+                    return;
+                }
+                if (cleanNew !== cleanConfirm) {
+                    setChangePasscodeError(lang === 'TH' ? '⚠️ รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน' : '⚠️ Passcodes do not match');
+                    return;
+                }
+
+                try {
+                    const hashed = await hashPasscode(cleanNew);
+                    const updatedAgents = agents.map(a => a.name === activeAgentName ? { ...a, passcode: hashed } : a);
+                    setAgents(updatedAgents);
+                    localStorage.setItem('mc_agents', JSON.stringify(updatedAgents));
+
+                    if (supabaseClient) {
+                        const currentAgent = agents.find(a => a.name === activeAgentName);
+                        let query = supabaseClient.from('mc_agents').update({ passcode: hashed });
+                        if (currentAgent && currentAgent.id && typeof currentAgent.id === 'number' && currentAgent.id < 1000000000) {
+                            query = query.eq('id', currentAgent.id);
+                        } else {
+                            query = query.eq('name', activeAgentName);
+                        }
+                        await query;
+                    }
+
+                    writeLog('SECURITY', `[ความปลอดภัย] บัญชี [${activeAgentName}] เปลี่ยนรหัสผ่านส่วนตัวใหม่เรียบร้อยแล้ว`, 'success', activeAgentName);
+                    setShowChangePasscodeModal(false);
+                    setChangePasscodeNew('');
+                    setChangePasscodeConfirm('');
+                    setChangePasscodeError('');
+                    alert(lang === 'TH' ? `✅ เปลี่ยนรหัสผ่านสำหรับ [${activeAgentName}] สำเร็จแล้ว!\nรหัสผ่านใหม่ถูกเข้ารหัสด้วย SHA-256 + Salt ปลอดภัยสูงสุดเรียบร้อย` : `✅ Passcode updated successfully for [${activeAgentName}]!`);
+                } catch (err) {
+                    setChangePasscodeError(lang === 'TH' ? `❌ ไม่สามารถเปลี่ยนรหัสผ่านได้: ${err.message}` : `❌ Failed to update passcode: ${err.message}`);
+                }
+            };
+
+            // Auto-upgrade legacy plain text passcode to SHA-256 hash in storage & Supabase
                 if (matchedAgent && matchedAgent.passcode && matchedAgent.passcode.length < 32) {
                     try {
                         const hashed = await hashPasscode(loginPasswordInput.trim());
@@ -4480,6 +4713,7 @@
                         exportedBy: activeAgentName || 'Supervisor',
                         stats: {
                             totalCustomers: customers.length,
+                            totalDeletedCustomers: deletedCustomers.length,
                             totalAgents: agents.length,
                             totalDeposits: backupDeposits.length,
                             totalChannels: sourceChannels.length,
@@ -4487,6 +4721,7 @@
                         },
                         data: {
                             customers: customers,
+                            deletedCustomers: deletedCustomers,
                             agents: agents,
                             sourceChannels: sourceChannels,
                             deposits: backupDeposits,
@@ -5542,6 +5777,87 @@
 
                     {/* MAIN WORKING AREA */}
                     <main className="app-main">
+                        {/* DEFAULT PASSCODE SECURITY NOTICE BANNER */}
+                        {currentActiveAgent && isUsingDefaultPasscode && !isDismissedDefaultPasscodeBanner && (
+                            <div style={{
+                                background: 'linear-gradient(90deg, rgba(239, 68, 68, 0.12) 0%, rgba(245, 158, 11, 0.12) 100%)',
+                                border: '1px solid rgba(239, 68, 68, 0.35)',
+                                borderRadius: '12px',
+                                padding: '12px 18px',
+                                marginBottom: '20px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '14px',
+                                flexWrap: 'wrap',
+                                boxShadow: '0 4px 16px rgba(239, 68, 68, 0.1)'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{
+                                        width: '36px',
+                                        height: '36px',
+                                        borderRadius: '10px',
+                                        background: 'rgba(239, 68, 68, 0.2)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: '#ef4444',
+                                        flexShrink: 0
+                                    }}>
+                                        <i data-lucide="shield-alert" style={{ width: '20px', height: '20px' }}></i>
+                                    </div>
+                                    <div>
+                                        <strong style={{ color: '#ef4444', fontSize: '13.5px', display: 'block' }}>
+                                            {lang === 'TH' ? '⚠️ คำเตือนความปลอดภัยของบัญชี' : '⚠️ Account Security Notice'}
+                                        </strong>
+                                        <span style={{ fontSize: '12.5px', color: 'var(--text-main)', lineHeight: 1.4 }}>
+                                            {lang === 'TH' 
+                                                ? `บัญชี [${activeAgentName}] กำลังใช้งานรหัสผ่านเริ่มต้น (1234) แนะนำให้เปลี่ยนเป็นรหัสผ่านส่วนตัวเพื่อความปลอดภัยสูงสุด` 
+                                                : `Account [${activeAgentName}] is currently using default passcode (1234). Please set your private passcode.`}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary"
+                                        onClick={() => {
+                                            setChangePasscodeNew('');
+                                            setChangePasscodeConfirm('');
+                                            setChangePasscodeError('');
+                                            setShowChangePasscodeModal(true);
+                                        }}
+                                        style={{
+                                            padding: '8px 16px',
+                                            fontSize: '12.5px',
+                                            fontWeight: 700,
+                                            background: '#ef4444',
+                                            boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px'
+                                        }}
+                                    >
+                                        <i data-lucide="key" style={{ width: '14px', height: '14px' }}></i>
+                                        {lang === 'TH' ? 'เปลี่ยนรหัสผ่านทันที' : 'Change Passcode Now'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsDismissedDefaultPasscodeBanner(true)}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            color: 'var(--text-muted)',
+                                            fontSize: '20px',
+                                            cursor: 'pointer',
+                                            padding: '2px 6px',
+                                            lineHeight: 1
+                                        }}
+                                        title={lang === 'TH' ? 'ปิดการแจ้งเตือนชั่วคราว' : 'Dismiss notice'}
+                                    >&times;</button>
+                                </div>
+                            </div>
+                        )}
                         
                         {/* VIEW 1: SUPERVISOR DASHBOARD PANEL (แดชบอร์ดสรุป - แสดงตัวเลือก Campaign Month เฉพาะหน้านี้) */}
                         {viewMode === 'supervisor' && (
@@ -9377,6 +9693,147 @@
                                     </div>
                                 </div>
 
+                                {/* Section 2.5: Customer Recycle Bin & Soft Delete Restore (ถังขยะและกู้คืนข้อมูลลูกค้า) */}
+                                <div className="panel" style={{
+                                    marginTop: '24px',
+                                    background: theme === 'light' ? '#ffffff' : 'rgba(15, 23, 42, 0.75)',
+                                    border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(239, 68, 68, 0.25)',
+                                    borderRadius: '16px',
+                                    padding: '24px',
+                                    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderBottom: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '16px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                                            <div style={{
+                                                width: '42px',
+                                                height: '42px',
+                                                borderRadius: '12px',
+                                                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: '#ffffff',
+                                                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)'
+                                            }}>
+                                                <i data-lucide="trash-2" style={{ width: '22px', height: '22px' }}></i>
+                                            </div>
+                                            <div>
+                                                <h3 style={{ fontSize: '17px', fontWeight: 700, margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    {lang === 'TH' ? 'ถังขยะและระบบกู้คืนข้อมูลลูกค้า (Customer Recycle Bin & Restore)' : 'Customer Recycle Bin & Restore'}
+                                                    <span style={{ fontSize: '11.5px', padding: '3px 10px', borderRadius: '20px', background: deletedCustomers.length > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(148, 163, 184, 0.15)', color: deletedCustomers.length > 0 ? '#ef4444' : 'var(--text-muted)', border: '1px solid rgba(239, 68, 68, 0.25)', fontWeight: 700 }}>
+                                                        {deletedCustomers.length} {lang === 'TH' ? 'รายการ' : 'records'}
+                                                    </span>
+                                                </h3>
+                                                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                                                    {lang === 'TH' 
+                                                        ? 'เมื่อลบรายชื่อลูกค้า ข้อมูลจะถูกเก็บไว้ที่ถังขยะชั่วคราวเพื่อป้องกันการลบผิดพลาด คุณสามารถกด "กู้คืน" ข้อมูลกลับเข้าสู่ระบบได้ทุกเมื่อ' 
+                                                        : 'Deleted customer records are protected in the Recycle Bin. You can restore them anytime.'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {deletedCustomers.length > 0 && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-secondary"
+                                                onClick={handleClearAllRecycleBin}
+                                                style={{
+                                                    padding: '8px 14px',
+                                                    fontSize: '12px',
+                                                    fontWeight: 600,
+                                                    color: '#ef4444',
+                                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                    background: 'rgba(239, 68, 68, 0.08)',
+                                                    cursor: 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                }}
+                                            >
+                                                <i data-lucide="trash" style={{ width: '14px', height: '14px' }}></i>
+                                                {lang === 'TH' ? 'ล้างถังขยะทั้งหมด' : 'Empty Recycle Bin'}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {deletedCustomers.length === 0 ? (
+                                        <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                            <i data-lucide="check-circle" style={{ width: '32px', height: '32px', margin: '0 auto 8px auto', display: 'block', color: '#10b981', opacity: 0.8 }}></i>
+                                            {lang === 'TH' ? 'ไม่มีรายการลูกค้าในถังขยะ — ข้อมูลทั้งหมดปลอดภัยสมบูรณ์' : 'Recycle bin is empty. All customer records are safe.'}
+                                        </div>
+                                    ) : (
+                                        <div className="table-responsive" style={{ marginTop: '16px', maxHeight: '360px', overflowY: 'auto' }}>
+                                            <table className="data-table" style={{ width: '100%', fontSize: '12.5px' }}>
+                                                <thead>
+                                                    <tr>
+                                                        <th>{lang === 'TH' ? 'ชื่อลูกค้า / ยูสเซอร์' : 'Customer / User'}</th>
+                                                        <th>{lang === 'TH' ? 'เบอร์โทร' : 'Phone'}</th>
+                                                        <th>{lang === 'TH' ? 'ผู้ดูแลเดิม' : 'Original MC'}</th>
+                                                        <th>{lang === 'TH' ? 'วันเวลาที่ลบ' : 'Deleted At'}</th>
+                                                        <th>{lang === 'TH' ? 'ผู้ที่ลบ' : 'Deleted By'}</th>
+                                                        <th style={{ textAlign: 'center' }}>{lang === 'TH' ? 'การจัดการ' : 'Actions'}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {deletedCustomers.map(dc => (
+                                                        <tr key={dc.id || dc.deletedAt}>
+                                                            <td>
+                                                                <strong>{dc.fullName || dc.username || `ID#${dc.id}`}</strong>
+                                                                {dc.username && <span style={{ display: 'block', fontSize: '11px', color: 'var(--primary)' }}>@{dc.username}</span>}
+                                                            </td>
+                                                            <td>{dc.phone || '-'}</td>
+                                                            <td><span className="badge badge-source">{dc.createdBy || '-'}</span></td>
+                                                            <td style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                                                                {dc.deletedAt ? new Date(dc.deletedAt).toLocaleString('th-TH') : '-'}
+                                                            </td>
+                                                            <td style={{ fontSize: '12px' }}>
+                                                                <span style={{ color: '#f59e0b', fontWeight: 600 }}>{dc.deletedBy || 'Supervisor'}</span>
+                                                            </td>
+                                                            <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn btn-primary"
+                                                                    onClick={() => handleRestoreCustomer(dc)}
+                                                                    style={{
+                                                                        padding: '5px 12px',
+                                                                        fontSize: '11.5px',
+                                                                        fontWeight: 700,
+                                                                        background: '#10b981',
+                                                                        marginRight: '8px',
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '4px',
+                                                                        cursor: 'pointer'
+                                                                    }}
+                                                                    title={lang === 'TH' ? 'กู้คืนข้อมูลลูกค้ารายนี้กลับสู่ระบบ' : 'Restore customer'}
+                                                                >
+                                                                    <i data-lucide="rotate-ccw" style={{ width: '12px', height: '12px' }}></i>
+                                                                    {lang === 'TH' ? 'กู้คืน' : 'Restore'}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handlePermanentDeleteCustomer(dc.id, dc.fullName || dc.username || dc.id)}
+                                                                    style={{
+                                                                        border: 'none',
+                                                                        background: 'rgba(239, 68, 68, 0.12)',
+                                                                        color: '#ef4444',
+                                                                        padding: '5px 8px',
+                                                                        borderRadius: '6px',
+                                                                        cursor: 'pointer'
+                                                                    }}
+                                                                    title={lang === 'TH' ? 'ลบถาวร (ไม่สามารถกู้คืนได้อีก)' : 'Permanently Delete'}
+                                                                >
+                                                                    <i data-lucide="trash-2" style={{ width: '12px', height: '12px' }}></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+
                                 {/* Section 3: Disaster Recovery & Database Backup/Restore (กู้คืนและสำรองข้อมูลฉุกเฉิน) */}
                                 <div className="panel" style={{
                                     marginTop: '24px',
@@ -9842,7 +10299,7 @@
                                         </div>
                                         {lang === 'TH' ? 'เข้าสู่ระบบเจ้าหน้าที่ (Staff Login)' : 'Staff Login'}
                                     </h4>
-                                    {activeAgentName && (
+                                    {activeAgentName && !isLockedDueToInactivity && (
                                         <button 
                                             style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', fontSize: '22px', cursor: 'pointer' }} 
                                             onClick={() => {
@@ -9857,6 +10314,34 @@
                                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.5, marginTop: '10px' }}>
                                     {lang === 'TH' ? 'กรุณาเลือกบัญชีเจ้าหน้าที่และกรอกรหัสผ่าน (Passcode) เพื่อยืนยันตัวตนก่อนเข้าใช้งานระบบ' : 'Please select your staff account and enter passcode to authenticate.'}
                                 </p>
+
+                                {isLockedDueToInactivity && (
+                                    <div style={{
+                                        background: 'rgba(245, 158, 11, 0.15)',
+                                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                                        color: '#fbbf24',
+                                        padding: '10px 14px',
+                                        borderRadius: '10px',
+                                        marginTop: '12px',
+                                        fontSize: '12.5px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        lineHeight: 1.4
+                                    }}>
+                                        <i data-lucide="lock" style={{ width: '22px', height: '22px', flexShrink: 0, color: '#f59e0b' }}></i>
+                                        <div>
+                                            <strong style={{ display: 'block', color: '#f59e0b' }}>
+                                                {lang === 'TH' ? '🔒 ล็อกหน้าจออัตโนมัติ (Inactivity Auto-Lock)' : '🔒 Screen Auto-Locked'}
+                                            </strong>
+                                            <span>
+                                                {lang === 'TH' 
+                                                    ? 'ไม่มีการเคลื่อนไหวเกิน 15 นาที เพื่อความปลอดภัยของข้อมูลลูกค้า กรุณากรอกรหัสผ่านเพื่อปลดล็อก' 
+                                                    : 'Inactive for 15 minutes. Please enter your passcode to unlock.'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {loginErrorMsg && (
                                     <div style={{
@@ -9952,7 +10437,7 @@
                                 </div>
 
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '24px' }}>
-                                    {activeAgentName && (
+                                    {activeAgentName && !isLockedDueToInactivity && (
                                         <button 
                                             className="btn btn-secondary" 
                                             onClick={() => {
@@ -9970,7 +10455,110 @@
                                         onClick={handleConfirmLogin}
                                     >
                                         <i data-lucide="log-in" style={{ width: '14px', height: '14px' }}></i>
-                                        {lang === 'TH' ? 'ยืนยันเข้าสู่ระบบ' : 'Confirm Login'}
+                                        {isLockedDueToInactivity ? (lang === 'TH' ? '🔓 ปลดล็อกหน้าจอ' : '🔓 Unlock Screen') : (lang === 'TH' ? 'ยืนยันเข้าสู่ระบบ' : 'Confirm Login')}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* CHANGE PASSCODE MODAL (เปลี่ยนรหัสผ่านส่วนตัว) */}
+                    {showChangePasscodeModal && (
+                        <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={() => setShowChangePasscodeModal(false)}>
+                            <div className="modal-content" style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px' }}>
+                                    <h4 style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '16px', color: theme === 'light' ? '#0f172a' : '#fff' }}>
+                                        <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f87171' }}>
+                                            <i data-lucide="key" style={{ width: '18px', height: '18px' }}></i>
+                                        </div>
+                                        {lang === 'TH' ? 'เปลี่ยนรหัสผ่านส่วนตัว (Change Passcode)' : 'Change Personal Passcode'}
+                                    </h4>
+                                    <button 
+                                        style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', fontSize: '22px', cursor: 'pointer' }} 
+                                        onClick={() => setShowChangePasscodeModal(false)}
+                                    >&times;</button>
+                                </div>
+
+                                <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.5, marginTop: '10px' }}>
+                                    {lang === 'TH' 
+                                        ? `ตั้งรหัสผ่านใหม่สำหรับบัญชี [${activeAgentName}] เพื่อความปลอดภัย (รหัสผ่านจะถูกเข้ารหัส SHA-256 + Salt ปลอดภัยสูงสุด)` 
+                                        : `Set a new secure passcode for account [${activeAgentName}]. (Encrypted with SHA-256 + Salt)`}
+                                </p>
+
+                                {changePasscodeError && (
+                                    <div style={{
+                                        background: 'rgba(239, 68, 68, 0.15)',
+                                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                                        color: '#f87171',
+                                        padding: '9px 12px',
+                                        borderRadius: '8px',
+                                        fontSize: '12.5px',
+                                        marginTop: '12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                    }}>
+                                        <i data-lucide="alert-circle" style={{ width: '16px', height: '16px', flexShrink: 0 }}></i>
+                                        <span>{changePasscodeError}</span>
+                                    </div>
+                                )}
+
+                                <div className="modal-field" style={{ marginTop: '14px' }}>
+                                    <label style={{ fontWeight: 600, fontSize: '13px', color: theme === 'light' ? '#334155' : '#cbd5e1' }}>
+                                        {lang === 'TH' ? 'รหัสผ่านใหม่ (อย่างน้อย 4 ตัวอักษร):' : 'New Passcode (min 4 chars):'}
+                                    </label>
+                                    <input
+                                        type="password"
+                                        className="text-input"
+                                        style={{ width: '100%', padding: '10px 14px', fontSize: '14px', borderRadius: '10px', marginTop: '6px' }}
+                                        placeholder={lang === 'TH' ? 'กรอกรหัสผ่านใหม่' : 'Enter new passcode'}
+                                        value={changePasscodeNew}
+                                        onChange={(e) => {
+                                            setChangePasscodeNew(e.target.value);
+                                            setChangePasscodeError('');
+                                        }}
+                                        autoFocus
+                                    />
+                                </div>
+
+                                <div className="modal-field" style={{ marginTop: '12px' }}>
+                                    <label style={{ fontWeight: 600, fontSize: '13px', color: theme === 'light' ? '#334155' : '#cbd5e1' }}>
+                                        {lang === 'TH' ? 'ยืนยันรหัสผ่านใหม่อีกครั้ง:' : 'Confirm New Passcode:'}
+                                    </label>
+                                    <input
+                                        type="password"
+                                        className="text-input"
+                                        style={{ width: '100%', padding: '10px 14px', fontSize: '14px', borderRadius: '10px', marginTop: '6px' }}
+                                        placeholder={lang === 'TH' ? 'พิมพ์รหัสผ่านใหม่อีกครั้ง' : 'Confirm new passcode'}
+                                        value={changePasscodeConfirm}
+                                        onChange={(e) => {
+                                            setChangePasscodeConfirm(e.target.value);
+                                            setChangePasscodeError('');
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                handleChangeOwnPasscode();
+                                            }
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px' }}>
+                                    <button 
+                                        type="button"
+                                        className="btn btn-secondary" 
+                                        onClick={() => setShowChangePasscodeModal(false)}
+                                    >
+                                        {lang === 'TH' ? 'ยกเลิก' : 'Cancel'}
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        className="btn btn-primary"
+                                        style={{ padding: '10px 20px', fontWeight: 700, background: '#10b981', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}
+                                        onClick={handleChangeOwnPasscode}
+                                    >
+                                        <i data-lucide="check" style={{ width: '14px', height: '14px' }}></i>
+                                        {lang === 'TH' ? 'บันทึกรหัสผ่านใหม่' : 'Save Passcode'}
                                     </button>
                                 </div>
                             </div>
