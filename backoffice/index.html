@@ -1837,7 +1837,7 @@
 
     <!-- React App Definition (JSX Source for FastBoot Engine) -->
     <script id="mc-app-code" type="text/plain">
-        // [MC Build: 20261001-v2-cachebust]
+        // [MC Build: 20261001-v3-archived-staff]
         // Force recompile and cache bust
         const { useState, useEffect } = React;
 
@@ -2421,6 +2421,9 @@
                 }
                 const isActive = a.is_active !== undefined ? Boolean(a.is_active) : (a.isActive !== undefined ? Boolean(a.isActive) : true);
                 const lastLoginAt = a.last_login_at || a.lastLoginAt || null;
+                const isArchived = Boolean(a.isArchived || (parsedPerms && parsedPerms.isArchived));
+                const archivedAt = a.archivedAt || (parsedPerms && parsedPerms.archivedAt) || null;
+                const archivedBy = a.archivedBy || (parsedPerms && parsedPerms.archivedBy) || null;
                 return {
                     id: a.id || (Date.now() + idx),
                     name: name,
@@ -2429,7 +2432,10 @@
                     passcode: a.passcode || '1234',
                     permissions: (parsedPerms && typeof parsedPerms === 'object') ? { ...defaultPerms, ...parsedPerms } : defaultPerms,
                     isActive: isActive,
-                    lastLoginAt: lastLoginAt
+                    lastLoginAt: lastLoginAt,
+                    isArchived: isArchived,
+                    archivedAt: archivedAt,
+                    archivedBy: archivedBy
                 };
             };
 
@@ -2548,6 +2554,10 @@
 
 
             // DATA PROTECTION: CUSTOMER RECYCLE BIN (SOFT DELETE & RESTORE)
+            // STAFF ARCHIVE & SYSTEM RECYCLE BIN STATES
+            const [archiveAgentModalData, setArchiveAgentModalData] = useState(null);
+            const [recycleBinTab, setRecycleBinTab] = useState('agents'); // 'agents' | 'customers'
+
             const [deletedCustomers, setDeletedCustomers] = useState(() => {
                 try {
                     const saved = localStorage.getItem('mc_deleted_customers');
@@ -2867,7 +2877,7 @@
                 if (window.lucide && typeof window.lucide.createIcons === 'function') {
                     window.lucide.createIcons();
                 }
-            }, [viewMode, customers, agents, activeAgentName, selectedCustForModal, showDbSettings, selectedMonth, isLoginModalOpen, depositMetricMode, editingAgentId, sourceChannels, isAddCustomerDisabled, isAddUsernameDuplicate, showLoginPassword, loginErrorMsg, addSuccessModalData, addConfirmModalData, depositPreviewData, showChangePasscodeModal, deletedCustomers, isLockedDueToInactivity]);
+            }, [viewMode, customers, agents, activeAgentName, selectedCustForModal, showDbSettings, selectedMonth, isLoginModalOpen, depositMetricMode, editingAgentId, sourceChannels, isAddCustomerDisabled, isAddUsernameDuplicate, showLoginPassword, loginErrorMsg, addSuccessModalData, addConfirmModalData, depositPreviewData, showChangePasscodeModal, deletedCustomers, isLockedDueToInactivity, archiveAgentModalData, recycleBinTab]);
 
             // Helper: Console logger & Supabase Cloud mc_logs Writer
             const writeLog = (tag, msg, type = 'info', operator = null) => {
@@ -4276,28 +4286,145 @@
                 }
             };
 
-            const handleDeleteAgent = async (agentId, agentName) => {
-                if (!window.confirm(lang === 'TH' ? `⚠️ ยืนยันการลบพนักงาน MC: ${agentName}? เคสที่พนักงานดูแลอยู่จะยังไม่ถูกลบ` : `⚠️ Confirm deleting staff: ${agentName}? Assigned customer cases will remain.`)) return;
-                const updatedAgents = agents.filter(a => a.id !== agentId);
+            // STAFF SOFT-DELETE / ARCHIVE SYSTEM (30-DAY RETENTION)
+            const handleConfirmArchiveAgent = async (targetAgent) => {
+                if (!targetAgent) return;
+                const nowIso = new Date().toISOString();
+                const updatedAgents = agents.map(a => {
+                    if (a.id === targetAgent.id || a.name === targetAgent.name) {
+                        return {
+                            ...a,
+                            isActive: false,
+                            isArchived: true,
+                            archivedAt: nowIso,
+                            archivedBy: activeAgentName || 'Supervisor',
+                            permissions: {
+                                ...(a.permissions || {}),
+                                isArchived: true,
+                                archivedAt: nowIso,
+                                archivedBy: activeAgentName || 'Supervisor'
+                            }
+                        };
+                    }
+                    return a;
+                });
+
                 setAgents(updatedAgents);
                 localStorage.setItem('mc_agents', JSON.stringify(updatedAgents));
-                
-                writeLog('BACKOFFICE', `ลบเจ้าหน้าที่ MC: ${agentName}`, 'warning');
-                
+                setArchiveAgentModalData(null);
+
+                writeLog('BACKOFFICE', `ย้ายพนักงาน [${targetAgent.name}] ไปยังถังขยะ (เก็บรักษา 30 วัน)`, 'warning', activeAgentName);
+
                 if (supabaseClient) {
                     try {
-                        let query = supabaseClient.from('mc_agents').delete();
-                        if (agentId && typeof agentId === 'number' && agentId < 1000000000) {
-                            query = query.eq('id', agentId);
+                        const updatePayload = {
+                            is_active: false,
+                            permissions: {
+                                ...(targetAgent.permissions || {}),
+                                isArchived: true,
+                                archivedAt: nowIso,
+                                archivedBy: activeAgentName || 'Supervisor'
+                            }
+                        };
+                        let query = supabaseClient.from('mc_agents').update(updatePayload);
+                        if (targetAgent.id && typeof targetAgent.id === 'number' && targetAgent.id < 1000000000) {
+                            query = query.eq('id', targetAgent.id);
                         } else {
-                            query = query.eq('name', agentName);
+                            query = query.eq('name', targetAgent.name);
                         }
                         const { error } = await query;
                         if (error) throw error;
-                        writeLog('SUPABASE', `ลบรายชื่อพนักงาน [${agentName}] จากคลาวด์แล้ว`, 'success');
+                        writeLog('SUPABASE', `เปลี่ยนสถานะพนักงาน [${targetAgent.name}] เป็น "อยู่ในถังขยะ (Archived)" บนคลาวด์เรียบร้อย`, 'success');
                     } catch (e) {
-                        writeLog('SUPABASE', `ลบพนักงานในคลาวด์ล้มเหลว: ${e.message}`, 'danger');
+                        console.error('Supabase archive agent error:', e);
+                        writeLog('SUPABASE', `ซิงค์ถังขยะพนักงานล้มเหลว: ${e.message}`, 'danger');
                     }
+                }
+            };
+
+            const handleRestoreAgent = async (agent) => {
+                if (!agent) return;
+                const updatedAgents = agents.map(a => {
+                    if (a.id === agent.id || a.name === agent.name) {
+                        const cleanPerms = { ...(a.permissions || {}) };
+                        delete cleanPerms.isArchived;
+                        delete cleanPerms.archivedAt;
+                        delete cleanPerms.archivedBy;
+                        return {
+                            ...a,
+                            isActive: true,
+                            isArchived: false,
+                            archivedAt: null,
+                            archivedBy: null,
+                            permissions: cleanPerms
+                        };
+                    }
+                    return a;
+                });
+
+                setAgents(updatedAgents);
+                localStorage.setItem('mc_agents', JSON.stringify(updatedAgents));
+
+                writeLog('BACKOFFICE', `กู้คืนพนักงาน [${agent.name}] กลับสู่ระบบเรียบร้อยแล้ว`, 'success', activeAgentName);
+
+                if (supabaseClient) {
+                    try {
+                        const cleanPerms = { ...(agent.permissions || {}) };
+                        delete cleanPerms.isArchived;
+                        delete cleanPerms.archivedAt;
+                        delete cleanPerms.archivedBy;
+                        const updatePayload = {
+                            is_active: true,
+                            permissions: cleanPerms
+                        };
+                        let query = supabaseClient.from('mc_agents').update(updatePayload);
+                        if (agent.id && typeof agent.id === 'number' && agent.id < 1000000000) {
+                            query = query.eq('id', agent.id);
+                        } else {
+                            query = query.eq('name', agent.name);
+                        }
+                        const { error } = await query;
+                        if (error) throw error;
+                        writeLog('SUPABASE', `กู้คืนสถานะพนักงาน [${agent.name}] บนคลาวด์แล้ว`, 'success');
+                    } catch (e) {
+                        console.error('Supabase restore agent error:', e);
+                    }
+                }
+            };
+
+            const handlePermanentDeleteAgent = async (agent) => {
+                if (!agent) return;
+                if (!window.confirm(lang === 'TH'
+                    ? `⚠️ คำเตือนความปลอดภัยขั้นสูงสุด!\n\nยืนยันการลบพนักงาน [${agent.name}] อย่างถาวรออกจากฐานข้อมูล Supabase?\n\n• ข้อมูลบัญชีนี้จะถูกลบทันทีและไม่สามารถกู้คืนได้อีก\n• ประวัติการดูแลลูกค้าเดิมจะยังคงอยู่`
+                    : `⚠️ Permanent Deletion Warning!\n\nPermanently remove staff [${agent.name}] from Supabase?\nThis action cannot be undone.`)) return;
+
+                const updatedAgents = agents.filter(a => a.id !== agent.id && a.name !== agent.name);
+                setAgents(updatedAgents);
+                localStorage.setItem('mc_agents', JSON.stringify(updatedAgents));
+
+                writeLog('BACKOFFICE', `ลบพนักงานถาวร: ${agent.name}`, 'danger', activeAgentName);
+
+                if (supabaseClient) {
+                    try {
+                        let query = supabaseClient.from('mc_agents').delete();
+                        if (agent.id && typeof agent.id === 'number' && agent.id < 1000000000) {
+                            query = query.eq('id', agent.id);
+                        } else {
+                            query = query.eq('name', agent.name);
+                        }
+                        const { error } = await query;
+                        if (error) throw error;
+                        writeLog('SUPABASE', `ลบพนักงาน [${agent.name}] ออกจากคลาวด์ถาวรแล้ว`, 'success');
+                    } catch (e) {
+                        writeLog('SUPABASE', `ลบพนักงานถาวรล้มเหลว: ${e.message}`, 'danger');
+                    }
+                }
+            };
+
+            const handleDeleteAgent = (agentId, agentName) => {
+                const target = agents.find(a => a.id === agentId || a.name === agentName);
+                if (target) {
+                    setArchiveAgentModalData(target);
                 }
             };
 
@@ -4547,6 +4674,12 @@
                     return;
                 }
                 const matchedAgent = agents.find(a => a.name === chosenAgentName);
+                if (matchedAgent && matchedAgent.isArchived) {
+                    setLoginErrorMsg(lang === 'TH'
+                        ? `⛔ บัญชี [${chosenAgentName}] อยู่ในถังขยะ (Archived) กรุณาติดต่อหัวหน้า (Supervisor) เพื่อกู้คืนบัญชี`
+                        : `⛔ Account [${chosenAgentName}] is archived in Recycle Bin. Please contact Supervisor to restore.`);
+                    return;
+                }
                 if (matchedAgent && matchedAgent.isActive === false) {
                     setLoginErrorMsg(lang === 'TH'
                         ? `⛔ บัญชี [${chosenAgentName}] ถูกระงับหรือพักงานชั่วคราว กรุณาติดต่อหัวหน้า (Supervisor)`
@@ -9184,8 +9317,39 @@
                                             </div>
 
                                             {/* Staff List with Inline Permission Editor */}
-                                            <div className="staff-list-wrapper" style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '420px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '10px', background: 'rgba(0,0,0,0.2)' }}>
-                                                {agents.map(a => {
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                                                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                                    {lang === 'TH' ? `พนักงานที่เปิดใช้งานอยู่: ${agents.filter(a => !a.isArchived).length} คน` : `Active Staff: ${agents.filter(a => !a.isArchived).length}`}
+                                                </span>
+                                                {agents.filter(a => a.isArchived).length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const el = document.getElementById('system-recycle-bin-section');
+                                                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                                            setRecycleBinTab('agents');
+                                                        }}
+                                                        style={{
+                                                            padding: '4px 10px',
+                                                            fontSize: '11.5px',
+                                                            borderRadius: '8px',
+                                                            background: 'rgba(239, 68, 68, 0.15)',
+                                                            color: '#ef4444',
+                                                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                            cursor: 'pointer',
+                                                            fontWeight: 700,
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '5px'
+                                                        }}
+                                                    >
+                                                        <i data-lucide="trash-2" style={{ width: '13px', height: '13px' }}></i>
+                                                        {lang === 'TH' ? `ถังขยะพนักงาน (${agents.filter(a => a.isArchived).length} คน)` : `Archived Staff (${agents.filter(a => a.isArchived).length})`}
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="staff-list-wrapper" style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '420px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '10px', background: 'rgba(0,0,0,0.2)' }}>
+                                                {agents.filter(a => !a.isArchived).map(a => {
                                                     const isEditing = editingAgentId === a.id;
                                                     const isSuper = a.role === 'SUPERVISOR';
                                                     const perms = a.permissions || {};
@@ -9696,8 +9860,8 @@
                                     </div>
                                 </div>
 
-                                {/* Section 2.5: Customer Recycle Bin & Soft Delete Restore (ถังขยะและกู้คืนข้อมูลลูกค้า) */}
-                                <div className="panel" style={{
+                                {/* Section 2.5: System Recycle Bin & Restore (ถังขยะระบบและกู้คืนข้อมูลพนักงาน/ลูกค้า) */}
+                                <div id="system-recycle-bin-section" className="panel" style={{
                                     marginTop: '24px',
                                     background: theme === 'light' ? '#ffffff' : 'rgba(15, 23, 42, 0.75)',
                                     border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(239, 68, 68, 0.25)',
@@ -9722,117 +9886,275 @@
                                             </div>
                                             <div>
                                                 <h3 style={{ fontSize: '17px', fontWeight: 700, margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                    {lang === 'TH' ? 'ถังขยะและระบบกู้คืนข้อมูลลูกค้า (Customer Recycle Bin & Restore)' : 'Customer Recycle Bin & Restore'}
-                                                    <span style={{ fontSize: '11.5px', padding: '3px 10px', borderRadius: '20px', background: deletedCustomers.length > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(148, 163, 184, 0.15)', color: deletedCustomers.length > 0 ? '#ef4444' : 'var(--text-muted)', border: '1px solid rgba(239, 68, 68, 0.25)', fontWeight: 700 }}>
-                                                        {deletedCustomers.length} {lang === 'TH' ? 'รายการ' : 'records'}
+                                                    {lang === 'TH' ? 'ถังขยะระบบและกู้คืนข้อมูล (System Recycle Bin & Restore)' : 'System Recycle Bin & Restore'}
+                                                    <span style={{ fontSize: '11.5px', padding: '3px 10px', borderRadius: '20px', background: (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(148, 163, 184, 0.15)', color: (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 ? '#ef4444' : 'var(--text-muted)', border: '1px solid rgba(239, 68, 68, 0.25)', fontWeight: 700 }}>
+                                                        {agents.filter(a => a.isArchived).length + deletedCustomers.length} {lang === 'TH' ? 'รายการ' : 'records'}
                                                     </span>
                                                 </h3>
                                                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
                                                     {lang === 'TH' 
-                                                        ? 'เมื่อลบรายชื่อลูกค้า ข้อมูลจะถูกเก็บไว้ที่ถังขยะชั่วคราวเพื่อป้องกันการลบผิดพลาด คุณสามารถกด "กู้คืน" ข้อมูลกลับเข้าสู่ระบบได้ทุกเมื่อ' 
-                                                        : 'Deleted customer records are protected in the Recycle Bin. You can restore them anytime.'}
+                                                        ? 'รายการที่ถูกลบจะถูกเปลี่ยนสถานะเป็น "อยู่ในถังขยะ (Archived)" และเก็บรักษาไว้นาน 30 วัน เผื่อกรณีเผลอกดผิด คุณสามารถกด "กู้คืน" กลับเข้าสู่ระบบได้ทุกเมื่อ' 
+                                                        : 'Deleted records are kept safely in the Recycle Bin for 30 days before permanent removal. You can restore them anytime.'}
                                                 </p>
                                             </div>
                                         </div>
 
-                                        {deletedCustomers.length > 0 && (
+                                        {/* Tab Switcher: Staff vs Customers */}
+                                        <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.25)', padding: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
                                             <button
                                                 type="button"
-                                                className="btn btn-secondary"
-                                                onClick={handleClearAllRecycleBin}
+                                                onClick={() => setRecycleBinTab('agents')}
                                                 style={{
-                                                    padding: '8px 14px',
+                                                    padding: '7px 14px',
                                                     fontSize: '12px',
-                                                    fontWeight: 600,
-                                                    color: '#ef4444',
-                                                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                                                    background: 'rgba(239, 68, 68, 0.08)',
+                                                    fontWeight: 700,
+                                                    borderRadius: '8px',
+                                                    border: 'none',
                                                     cursor: 'pointer',
+                                                    background: recycleBinTab === 'agents' ? '#ef4444' : 'transparent',
+                                                    color: recycleBinTab === 'agents' ? '#ffffff' : 'var(--text-muted)',
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
-                                                    gap: '6px'
+                                                    gap: '6px',
+                                                    transition: 'all 0.15s'
                                                 }}
                                             >
-                                                <i data-lucide="trash" style={{ width: '14px', height: '14px' }}></i>
-                                                {lang === 'TH' ? 'ล้างถังขยะทั้งหมด' : 'Empty Recycle Bin'}
+                                                <i data-lucide="users" style={{ width: '13px', height: '13px' }}></i>
+                                                {lang === 'TH' ? `👤 พนักงานในถังขยะ (${agents.filter(a => a.isArchived).length})` : `Staff (${agents.filter(a => a.isArchived).length})`}
                                             </button>
-                                        )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setRecycleBinTab('customers')}
+                                                style={{
+                                                    padding: '7px 14px',
+                                                    fontSize: '12px',
+                                                    fontWeight: 700,
+                                                    borderRadius: '8px',
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                    background: recycleBinTab === 'customers' ? '#ef4444' : 'transparent',
+                                                    color: recycleBinTab === 'customers' ? '#ffffff' : 'var(--text-muted)',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    transition: 'all 0.15s'
+                                                }}
+                                            >
+                                                <i data-lucide="user-check" style={{ width: '13px', height: '13px' }}></i>
+                                                {lang === 'TH' ? `👥 ลูกค้าในถังขยะ (${deletedCustomers.length})` : `Customers (${deletedCustomers.length})`}
+                                            </button>
+                                        </div>
                                     </div>
 
-                                    {deletedCustomers.length === 0 ? (
-                                        <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
-                                            <i data-lucide="check-circle" style={{ width: '32px', height: '32px', margin: '0 auto 8px auto', display: 'block', color: '#10b981', opacity: 0.8 }}></i>
-                                            {lang === 'TH' ? 'ไม่มีรายการลูกค้าในถังขยะ — ข้อมูลทั้งหมดปลอดภัยสมบูรณ์' : 'Recycle bin is empty. All customer records are safe.'}
+                                    {/* TAB 1: ARCHIVED STAFF */}
+                                    {recycleBinTab === 'agents' && (
+                                        <div style={{ marginTop: '16px' }}>
+                                            {agents.filter(a => a.isArchived).length === 0 ? (
+                                                <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                                    <i data-lucide="check-circle" style={{ width: '32px', height: '32px', margin: '0 auto 8px auto', display: 'block', color: '#10b981', opacity: 0.8 }}></i>
+                                                    {lang === 'TH' ? 'ไม่มีรายชื่อพนักงานในถังขยะ — บัญชีพนักงานทั้งหมดปลอดภัยสมบูรณ์' : 'No staff in Recycle Bin. All staff accounts are active.'}
+                                                </div>
+                                            ) : (
+                                                <div className="table-responsive" style={{ maxHeight: '360px', overflowY: 'auto' }}>
+                                                    <table className="data-table" style={{ width: '100%', fontSize: '12.5px' }}>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>{lang === 'TH' ? 'ชื่อพนักงาน' : 'Staff Name'}</th>
+                                                                <th>{lang === 'TH' ? 'บทบาท' : 'Role'}</th>
+                                                                <th>{lang === 'TH' ? 'ยูสเซอร์เนม' : 'Username'}</th>
+                                                                <th>{lang === 'TH' ? 'วันเวลาที่ย้ายลงถังขยะ' : 'Archived At'}</th>
+                                                                <th>{lang === 'TH' ? 'ระยะเวลาเก็บรักษา' : 'Retention'}</th>
+                                                                <th>{lang === 'TH' ? 'ผู้ดำเนินการ' : 'Archived By'}</th>
+                                                                <th style={{ textAlign: 'center' }}>{lang === 'TH' ? 'การจัดการ' : 'Actions'}</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {agents.filter(a => a.isArchived).map(a => {
+                                                                const archivedTime = a.archivedAt ? new Date(a.archivedAt).getTime() : Date.now();
+                                                                const elapsedDays = Math.floor((Date.now() - archivedTime) / (1000 * 60 * 60 * 24));
+                                                                const remainingDays = Math.max(0, 30 - elapsedDays);
+                                                                return (
+                                                                    <tr key={a.id}>
+                                                                        <td>
+                                                                            <strong style={{ color: '#ef4444' }}>{a.name}</strong>
+                                                                        </td>
+                                                                        <td>
+                                                                            <span className="badge badge-owner" style={{ fontSize: '11px' }}>
+                                                                                {a.role === 'SUPERVISOR' ? '👑 หัวหน้า' : '👤 พนักงาน'}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td style={{ fontFamily: 'monospace', color: '#c084fc' }}>
+                                                                            {a.loginUsername ? `@${a.loginUsername}` : '-'}
+                                                                        </td>
+                                                                        <td style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                                                                            {a.archivedAt ? new Date(a.archivedAt).toLocaleString('th-TH') : '-'}
+                                                                        </td>
+                                                                        <td>
+                                                                            <span style={{
+                                                                                padding: '3px 8px',
+                                                                                borderRadius: '6px',
+                                                                                fontSize: '11px',
+                                                                                background: remainingDays <= 5 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                                                                color: remainingDays <= 5 ? '#ef4444' : '#fbbf24',
+                                                                                fontWeight: 700
+                                                                            }}>
+                                                                                ⏳ {lang === 'TH' ? `เหลือ ${remainingDays} วัน` : `${remainingDays}d left`}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td style={{ fontSize: '12px' }}>
+                                                                            <span style={{ color: '#f59e0b', fontWeight: 600 }}>{a.archivedBy || 'Supervisor'}</span>
+                                                                        </td>
+                                                                        <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                                                            <button
+                                                                                type="button"
+                                                                                className="btn btn-primary"
+                                                                                onClick={() => handleRestoreAgent(a)}
+                                                                                style={{
+                                                                                    padding: '5px 12px',
+                                                                                    fontSize: '11.5px',
+                                                                                    fontWeight: 700,
+                                                                                    background: '#10b981',
+                                                                                    marginRight: '8px',
+                                                                                    display: 'inline-flex',
+                                                                                    alignItems: 'center',
+                                                                                    gap: '4px',
+                                                                                    cursor: 'pointer'
+                                                                                }}
+                                                                                title={lang === 'TH' ? 'กู้คืนพนักงานคนนี้กลับสู่ระบบ' : 'Restore staff'}
+                                                                            >
+                                                                                <i data-lucide="rotate-ccw" style={{ width: '12px', height: '12px' }}></i>
+                                                                                {lang === 'TH' ? 'กู้คืน' : 'Restore'}
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handlePermanentDeleteAgent(a)}
+                                                                                style={{
+                                                                                    border: 'none',
+                                                                                    background: 'rgba(239, 68, 68, 0.12)',
+                                                                                    color: '#ef4444',
+                                                                                    padding: '5px 8px',
+                                                                                    borderRadius: '6px',
+                                                                                    cursor: 'pointer'
+                                                                                }}
+                                                                                title={lang === 'TH' ? 'ลบถาวรจากฐานข้อมูล Supabase' : 'Permanently Delete'}
+                                                                            >
+                                                                                <i data-lucide="trash-2" style={{ width: '12px', height: '12px' }}></i>
+                                                                            </button>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
                                         </div>
-                                    ) : (
-                                        <div className="table-responsive" style={{ marginTop: '16px', maxHeight: '360px', overflowY: 'auto' }}>
-                                            <table className="data-table" style={{ width: '100%', fontSize: '12.5px' }}>
-                                                <thead>
-                                                    <tr>
-                                                        <th>{lang === 'TH' ? 'ชื่อลูกค้า / ยูสเซอร์' : 'Customer / User'}</th>
-                                                        <th>{lang === 'TH' ? 'เบอร์โทร' : 'Phone'}</th>
-                                                        <th>{lang === 'TH' ? 'ผู้ดูแลเดิม' : 'Original MC'}</th>
-                                                        <th>{lang === 'TH' ? 'วันเวลาที่ลบ' : 'Deleted At'}</th>
-                                                        <th>{lang === 'TH' ? 'ผู้ที่ลบ' : 'Deleted By'}</th>
-                                                        <th style={{ textAlign: 'center' }}>{lang === 'TH' ? 'การจัดการ' : 'Actions'}</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {deletedCustomers.map(dc => (
-                                                        <tr key={dc.id || dc.deletedAt}>
-                                                            <td>
-                                                                <strong>{dc.fullName || dc.username || `ID#${dc.id}`}</strong>
-                                                                {dc.username && <span style={{ display: 'block', fontSize: '11px', color: 'var(--primary)' }}>@{dc.username}</span>}
-                                                            </td>
-                                                            <td>{dc.phone || '-'}</td>
-                                                            <td><span className="badge badge-source">{dc.createdBy || '-'}</span></td>
-                                                            <td style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                                                                {dc.deletedAt ? new Date(dc.deletedAt).toLocaleString('th-TH') : '-'}
-                                                            </td>
-                                                            <td style={{ fontSize: '12px' }}>
-                                                                <span style={{ color: '#f59e0b', fontWeight: 600 }}>{dc.deletedBy || 'Supervisor'}</span>
-                                                            </td>
-                                                            <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                                                <button
-                                                                    type="button"
-                                                                    className="btn btn-primary"
-                                                                    onClick={() => handleRestoreCustomer(dc)}
-                                                                    style={{
-                                                                        padding: '5px 12px',
-                                                                        fontSize: '11.5px',
-                                                                        fontWeight: 700,
-                                                                        background: '#10b981',
-                                                                        marginRight: '8px',
-                                                                        display: 'inline-flex',
-                                                                        alignItems: 'center',
-                                                                        gap: '4px',
-                                                                        cursor: 'pointer'
-                                                                    }}
-                                                                    title={lang === 'TH' ? 'กู้คืนข้อมูลลูกค้ารายนี้กลับสู่ระบบ' : 'Restore customer'}
-                                                                >
-                                                                    <i data-lucide="rotate-ccw" style={{ width: '12px', height: '12px' }}></i>
-                                                                    {lang === 'TH' ? 'กู้คืน' : 'Restore'}
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handlePermanentDeleteCustomer(dc.id, dc.fullName || dc.username || dc.id)}
-                                                                    style={{
-                                                                        border: 'none',
-                                                                        background: 'rgba(239, 68, 68, 0.12)',
-                                                                        color: '#ef4444',
-                                                                        padding: '5px 8px',
-                                                                        borderRadius: '6px',
-                                                                        cursor: 'pointer'
-                                                                    }}
-                                                                    title={lang === 'TH' ? 'ลบถาวร (ไม่สามารถกู้คืนได้อีก)' : 'Permanently Delete'}
-                                                                >
-                                                                    <i data-lucide="trash-2" style={{ width: '12px', height: '12px' }}></i>
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
+                                    )}
+
+                                    {/* TAB 2: ARCHIVED CUSTOMERS */}
+                                    {recycleBinTab === 'customers' && (
+                                        <div style={{ marginTop: '16px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                                                {deletedCustomers.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-secondary"
+                                                        onClick={handleClearAllRecycleBin}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            fontSize: '11.5px',
+                                                            fontWeight: 600,
+                                                            color: '#ef4444',
+                                                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                            background: 'rgba(239, 68, 68, 0.08)',
+                                                            cursor: 'pointer',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px'
+                                                        }}
+                                                    >
+                                                        <i data-lucide="trash" style={{ width: '13px', height: '13px' }}></i>
+                                                        {lang === 'TH' ? 'ล้างถังขยะลูกค้าทั้งหมด' : 'Empty Customer Recycle Bin'}
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {deletedCustomers.length === 0 ? (
+                                                <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                                    <i data-lucide="check-circle" style={{ width: '32px', height: '32px', margin: '0 auto 8px auto', display: 'block', color: '#10b981', opacity: 0.8 }}></i>
+                                                    {lang === 'TH' ? 'ไม่มีรายการลูกค้าในถังขยะ — ข้อมูลลูกค้าทั้งหมดปลอดภัยสมบูรณ์' : 'Recycle bin is empty. All customer records are safe.'}
+                                                </div>
+                                            ) : (
+                                                <div className="table-responsive" style={{ maxHeight: '360px', overflowY: 'auto' }}>
+                                                    <table className="data-table" style={{ width: '100%', fontSize: '12.5px' }}>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>{lang === 'TH' ? 'ชื่อลูกค้า / ยูสเซอร์' : 'Customer / User'}</th>
+                                                                <th>{lang === 'TH' ? 'เบอร์โทร' : 'Phone'}</th>
+                                                                <th>{lang === 'TH' ? 'ผู้ดูแลเดิม' : 'Original MC'}</th>
+                                                                <th>{lang === 'TH' ? 'วันเวลาที่ลบ' : 'Deleted At'}</th>
+                                                                <th>{lang === 'TH' ? 'ผู้ที่ลบ' : 'Deleted By'}</th>
+                                                                <th style={{ textAlign: 'center' }}>{lang === 'TH' ? 'การจัดการ' : 'Actions'}</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {deletedCustomers.map(dc => (
+                                                                <tr key={dc.id || dc.deletedAt}>
+                                                                    <td>
+                                                                        <strong>{dc.fullName || dc.username || `ID#${dc.id}`}</strong>
+                                                                        {dc.username && <span style={{ display: 'block', fontSize: '11px', color: 'var(--primary)' }}>@{dc.username}</span>}
+                                                                    </td>
+                                                                    <td>{dc.phone || '-'}</td>
+                                                                    <td><span className="badge badge-source">{dc.createdBy || '-'}</span></td>
+                                                                    <td style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                                                                        {dc.deletedAt ? new Date(dc.deletedAt).toLocaleString('th-TH') : '-'}
+                                                                    </td>
+                                                                    <td style={{ fontSize: '12px' }}>
+                                                                        <span style={{ color: '#f59e0b', fontWeight: 600 }}>{dc.deletedBy || 'Supervisor'}</span>
+                                                                    </td>
+                                                                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                                                        <button
+                                                                            type="button"
+                                                                            className="btn btn-primary"
+                                                                            onClick={() => handleRestoreCustomer(dc)}
+                                                                            style={{
+                                                                                padding: '5px 12px',
+                                                                                fontSize: '11.5px',
+                                                                                fontWeight: 700,
+                                                                                background: '#10b981',
+                                                                                marginRight: '8px',
+                                                                                display: 'inline-flex',
+                                                                                alignItems: 'center',
+                                                                                gap: '4px',
+                                                                                cursor: 'pointer'
+                                                                            }}
+                                                                            title={lang === 'TH' ? 'กู้คืนข้อมูลลูกค้ารายนี้กลับสู่ระบบ' : 'Restore customer'}
+                                                                        >
+                                                                            <i data-lucide="rotate-ccw" style={{ width: '12px', height: '12px' }}></i>
+                                                                            {lang === 'TH' ? 'กู้คืน' : 'Restore'}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handlePermanentDeleteCustomer(dc.id, dc.fullName || dc.username || dc.id)}
+                                                                            style={{
+                                                                                border: 'none',
+                                                                                background: 'rgba(239, 68, 68, 0.12)',
+                                                                                color: '#ef4444',
+                                                                                padding: '5px 8px',
+                                                                                borderRadius: '6px',
+                                                                                cursor: 'pointer'
+                                                                            }}
+                                                                            title={lang === 'TH' ? 'ลบถาวร (ไม่สามารถกู้คืนได้อีก)' : 'Permanently Delete'}
+                                                                        >
+                                                                            <i data-lucide="trash-2" style={{ width: '12px', height: '12px' }}></i>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -10466,6 +10788,63 @@
                     )}
 
                     {/* CHANGE PASSCODE MODAL (เปลี่ยนรหัสผ่านส่วนตัว) */}
+                    {archiveAgentModalData && (
+                        <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: '20px' }}>
+                            <div style={{ background: theme === 'light' ? '#ffffff' : '#0f172a', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '20px', maxWidth: '530px', width: '100%', padding: '28px', boxShadow: '0 25px 60px rgba(0,0,0,0.6)', color: 'var(--text-main)', animation: 'scaleIn 0.2s ease-out' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '16px', marginBottom: '18px' }}>
+                                    <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                                        <i data-lucide="trash-2" style={{ width: '24px', height: '24px' }}></i>
+                                    </div>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#ef4444' }}>
+                                            {lang === 'TH' ? 'ย้ายพนักงานเข้าสู่ "ถังขยะ" (Archived)?' : 'Move Staff to Recycle Bin (Archived)?'}
+                                        </h3>
+                                        <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>
+                                            {lang === 'TH' ? `พนักงาน: ${archiveAgentModalData.name} (${archiveAgentModalData.loginUsername ? `@${archiveAgentModalData.loginUsername}` : 'ไม่มียูส'})` : `Staff: ${archiveAgentModalData.name}`}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div style={{ background: theme === 'light' ? '#f8fafc' : 'rgba(2, 6, 23, 0.55)', padding: '16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)', fontSize: '13px', lineHeight: '1.7', marginBottom: '22px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}>
+                                        <span style={{ fontSize: '16px' }}>📦</span>
+                                        <span><strong>{lang === 'TH' ? 'สถานะอยู่ในถังขยะ:' : 'Archived Status:'}</strong> {lang === 'TH' ? 'ข้อมูลจะไม่ถูกลบออกจาก Supabase ทันที แต่จะเปลี่ยนสถานะเป็น "อยู่ในถังขยะ (Archived)" และถูกระงับสิทธิ์การล็อกอินชั่วคราว' : 'Data is not deleted immediately from Supabase. Account is suspended and archived.'}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}>
+                                        <span style={{ fontSize: '16px' }}>⏳</span>
+                                        <span><strong>{lang === 'TH' ? 'เก็บรักษาไว้นาน 30 วัน:' : '30-Day Retention:'}</strong> {lang === 'TH' ? 'ระบบจะเก็บรักษาข้อมูลไว้ในถังขยะ 30 วัน เผื่อกรณีเผลอกดผิด ก่อนจะอนุญาตให้ลบถาวรได้' : 'Stored safely in Recycle Bin for 30 days before permanent deletion.'}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}>
+                                        <span style={{ fontSize: '16px' }}>🔄</span>
+                                        <span><strong>{lang === 'TH' ? 'กู้คืนได้ตลอดเวลา:' : 'Restore Anytime:'}</strong> {lang === 'TH' ? 'หัวหน้า (Supervisor) สามารถกด "กู้คืน (Restore)" ให้พนักงานกลับมาทำงานได้ตลอดเวลาจากเมนูถังขยะ' : 'Supervisors can restore this staff account anytime from Recycle Bin.'}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                                        <span style={{ fontSize: '16px' }}>👥</span>
+                                        <span><strong>{lang === 'TH' ? 'เคสลูกค้าเดิมปลอดภัย 100%:' : 'Customer Records Safe:'}</strong> {lang === 'TH' ? 'รายชื่อลูกค้าและประวัติการดูแลเดิมที่พนักงานคนนี้เคยรับผิดชอบจะยังคงอยู่ครบถ้วน ไม่สูญหาย' : 'All assigned customer cases and history remain 100% safe and intact.'}</span>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                                    <button 
+                                        type="button" 
+                                        className="btn btn-secondary" 
+                                        onClick={() => setArchiveAgentModalData(null)}
+                                        style={{ padding: '10px 18px', fontSize: '13px', fontWeight: 600, borderRadius: '10px' }}
+                                    >
+                                        {lang === 'TH' ? 'ยกเลิก' : 'Cancel'}
+                                    </button>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => handleConfirmArchiveAgent(archiveAgentModalData)}
+                                        style={{ padding: '10px 22px', fontSize: '13px', fontWeight: 700, background: '#ef4444', color: '#ffffff', border: 'none', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)' }}
+                                    >
+                                        <i data-lucide="trash-2" style={{ width: '15px', height: '15px' }}></i>
+                                        {lang === 'TH' ? 'ย้ายเข้าถังขยะ' : 'Move to Trash'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     {showChangePasscodeModal && (
                         <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={() => setShowChangePasscodeModal(false)}>
                             <div className="modal-content" style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
@@ -10912,12 +11291,12 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && (k.indexOf('mc_jsx_cache_v1_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
+                    if (k && (k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v2_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v3_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
