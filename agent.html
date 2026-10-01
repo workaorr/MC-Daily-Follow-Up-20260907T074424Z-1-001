@@ -1837,7 +1837,7 @@
 
     <!-- React App Definition (JSX Source for FastBoot Engine) -->
     <script id="mc-app-code" type="text/plain">
-        // [MC Build: 20261001-v3-archived-staff]
+        // [MC Build: 20261001-v4-remote-passcode-fallback]
         // Force recompile and cache bust
         const { useState, useEffect } = React;
 
@@ -4693,7 +4693,28 @@
                     return;
                 }
 
-                const isMatch = await verifyPasscode(loginPasswordInput, requiredPasscode);
+                let isMatch = await verifyPasscode(loginPasswordInput, requiredPasscode);
+                if (!isMatch && supabaseClient) {
+                    try {
+                        const { data: remoteAgent } = await supabaseClient
+                            .from('mc_agents')
+                            .select('passcode')
+                            .eq('name', chosenAgentName)
+                            .maybeSingle();
+                        if (remoteAgent && remoteAgent.passcode) {
+                            isMatch = await verifyPasscode(loginPasswordInput, remoteAgent.passcode);
+                            if (isMatch) {
+                                setAgents(prev => prev.map(a => a.name === chosenAgentName ? { ...a, passcode: remoteAgent.passcode } : a));
+                                try {
+                                    const updated = agents.map(a => a.name === chosenAgentName ? { ...a, passcode: remoteAgent.passcode } : a);
+                                    localStorage.setItem('mc_agents', JSON.stringify(updated));
+                                } catch(e) {}
+                            }
+                        }
+                    } catch(e) {
+                        console.warn('Fallback remote passcode verification error', e);
+                    }
+                }
                 if (!isMatch) {
                     const nextAttempts = loginFailedAttempts + 1;
                     setLoginFailedAttempts(nextAttempts);
@@ -11296,7 +11317,7 @@
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v3_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v4_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
