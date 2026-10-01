@@ -2544,11 +2544,6 @@
             const [changePasscodeError, setChangePasscodeError] = useState('');
             const [isDismissedDefaultPasscodeBanner, setIsDismissedDefaultPasscodeBanner] = useState(false);
 
-            const DEFAULT_PASSCODE_HASH = '26a18de478539f81d4b69424fdc2c6e86f842f3f5e45668c0990d48605c44ec1';
-            const isUsingDefaultPasscode = Boolean(
-                currentActiveAgent &&
-                (currentActiveAgent.passcode === '1234' || currentActiveAgent.passcode === DEFAULT_PASSCODE_HASH)
-            );
 
             // DATA PROTECTION: CUSTOMER RECYCLE BIN (SOFT DELETE & RESTORE)
             const [deletedCustomers, setDeletedCustomers] = useState(() => {
@@ -4906,6 +4901,11 @@
 
             // ACTIVE AGENT & PERMISSION SYSTEM
             const currentActiveAgent = agents.find(a => a.name === activeAgentName);
+            const DEFAULT_PASSCODE_HASH = '26a18de478539f81d4b69424fdc2c6e86f842f3f5e45668c0990d48605c44ec1';
+            const isUsingDefaultPasscode = Boolean(
+                currentActiveAgent &&
+                (currentActiveAgent.passcode === '1234' || currentActiveAgent.passcode === DEFAULT_PASSCODE_HASH)
+            );
             const isSupervisor = Boolean(currentActiveAgent && currentActiveAgent.role === 'SUPERVISOR');
             const activePermissions = currentActiveAgent?.permissions || (isSupervisor ? {
                 canDashboard: true, canFollowUp: true, canNewCustomer: true, canAudit: true, canBackOffice: true
