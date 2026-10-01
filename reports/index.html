@@ -4619,6 +4619,28 @@
                     }
                 }
 
+            // Auto-upgrade legacy plain text passcode to SHA-256 hash in storage & Supabase
+                if (matchedAgent && matchedAgent.passcode && matchedAgent.passcode.length < 32) {
+                    try {
+                        const hashed = await hashPasscode(loginPasswordInput.trim());
+                        const updatedAgents = agents.map(a => a.id === matchedAgent.id ? { ...a, passcode: hashed } : a);
+                        setAgents(updatedAgents);
+                        localStorage.setItem('mc_agents', JSON.stringify(updatedAgents));
+                        if (supabaseClient) {
+                            let query = supabaseClient.from('mc_agents').update({ passcode: hashed });
+                            if (matchedAgent.id && typeof matchedAgent.id === 'number' && matchedAgent.id < 1000000000) {
+                                query = query.eq('id', matchedAgent.id);
+                            } else {
+                                query = query.eq('name', chosenAgentName);
+                            }
+                            query.then();
+                        }
+                    } catch (e) {
+                        console.warn('Auto-upgrade passcode error', e);
+                    }
+                }
+            };
+
                 // PERSONAL PASSCODE MANAGEMENT (SHA-256 + SYSTEM SALT)
             const handleChangeOwnPasscode = async () => {
                 const cleanNew = changePasscodeNew.trim();
@@ -4664,27 +4686,6 @@
                 }
             };
 
-            // Auto-upgrade legacy plain text passcode to SHA-256 hash in storage & Supabase
-                if (matchedAgent && matchedAgent.passcode && matchedAgent.passcode.length < 32) {
-                    try {
-                        const hashed = await hashPasscode(loginPasswordInput.trim());
-                        const updatedAgents = agents.map(a => a.id === matchedAgent.id ? { ...a, passcode: hashed } : a);
-                        setAgents(updatedAgents);
-                        localStorage.setItem('mc_agents', JSON.stringify(updatedAgents));
-                        if (supabaseClient) {
-                            let query = supabaseClient.from('mc_agents').update({ passcode: hashed });
-                            if (matchedAgent.id && typeof matchedAgent.id === 'number' && matchedAgent.id < 1000000000) {
-                                query = query.eq('id', matchedAgent.id);
-                            } else {
-                                query = query.eq('name', chosenAgentName);
-                            }
-                            query.then();
-                        }
-                    } catch (e) {
-                        console.warn('Auto-upgrade passcode error', e);
-                    }
-                }
-            };
 
             // DISASTER RECOVERY: 1-CLICK FULL DATABASE JSON BACKUP
             const handleFullSystemBackup = async () => {
