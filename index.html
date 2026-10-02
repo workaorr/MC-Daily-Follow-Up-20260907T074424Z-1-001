@@ -6475,8 +6475,8 @@
 
                     {/* MAIN WORKING AREA */}
                     <main className="app-main">
-                        {/* DEFAULT PASSCODE SECURITY NOTICE BANNER */}
-                        {currentActiveAgent && isUsingDefaultPasscode && !isDismissedDefaultPasscodeBanner && (
+                        {/* DEFAULT PASSCODE SECURITY NOTICE BANNER (SHOW ONLY ON DASHBOARD) */}
+                        {viewMode === 'supervisor' && currentActiveAgent && isUsingDefaultPasscode && !isDismissedDefaultPasscodeBanner && (
                             <div style={{
                                 background: 'linear-gradient(90deg, rgba(239, 68, 68, 0.12) 0%, rgba(245, 158, 11, 0.12) 100%)',
                                 border: '1px solid rgba(239, 68, 68, 0.35)',
