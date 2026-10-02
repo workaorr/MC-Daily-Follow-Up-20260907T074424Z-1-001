@@ -2560,7 +2560,7 @@
             // STAFF ARCHIVE & SYSTEM RECYCLE BIN STATES
             const [archiveAgentModalData, setArchiveAgentModalData] = useState(null);
             const [recycleBinTab, setRecycleBinTab] = useState('agents'); // 'agents' | 'customers'
-            const [backOfficeSubTab, setBackOfficeSubTab] = useState('all'); // 'all' | 'staff' | 'channels' | 'customers' | 'trash' | 'backup'
+            const [backOfficeSubTab, setBackOfficeSubTab] = useState('all'); // 'all' | 'staff' | 'channels' | 'customers' | 'backup'
 
             const [deletedCustomers, setDeletedCustomers] = useState(() => {
                 try {
@@ -9785,48 +9785,6 @@
                                             <span>{lang === 'TH' ? '🗄️ จัดการฐานข้อมูลลูกค้ารวม' : '🗄️ Customer DB'}</span>
                                         </button>
 
-                                        <button
-                                            type="button"
-                                            className={`btn ${backOfficeSubTab === 'trash' ? 'btn-danger' : 'btn-secondary'}`}
-                                            onClick={() => setBackOfficeSubTab('trash')}
-                                            style={{
-                                                padding: '7px 14px',
-                                                fontSize: '12px',
-                                                fontWeight: 700,
-                                                borderRadius: '10px',
-                                                background: backOfficeSubTab === 'trash' 
-                                                    ? '#ef4444' 
-                                                    : (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 
-                                                        ? 'rgba(239, 68, 68, 0.15)' 
-                                                        : undefined,
-                                                color: backOfficeSubTab === 'trash' 
-                                                    ? '#ffffff' 
-                                                    : (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 
-                                                        ? '#ef4444' 
-                                                        : undefined,
-                                                borderColor: (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 
-                                                    ? 'rgba(239, 68, 68, 0.4)' 
-                                                    : undefined,
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '6px'
-                                            }}
-                                        >
-                                            <i data-lucide="trash-2" style={{ width: '13px', height: '13px' }}></i>
-                                            <span>{lang === 'TH' ? '🗑️ ถังขยะระบบและกู้คืน' : '🗑️ Recycle Bin & Restore'}</span>
-                                            {(agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 && (
-                                                <span style={{
-                                                    background: backOfficeSubTab === 'trash' ? '#ffffff' : '#ef4444',
-                                                    color: backOfficeSubTab === 'trash' ? '#ef4444' : '#ffffff',
-                                                    padding: '1px 6px',
-                                                    borderRadius: '10px',
-                                                    fontSize: '10px',
-                                                    fontWeight: 800
-                                                }}>
-                                                    {agents.filter(a => a.isArchived).length + deletedCustomers.length}
-                                                </span>
-                                            )}
-                                        </button>
 
                                         <button
                                             type="button"
@@ -9859,7 +9817,7 @@
                                                     <button
                                                         type="button"
                                                         onClick={() => {
-                                                            setBackOfficeSubTab('trash');
+                                                            switchViewMode('recycle-bin');
                                                             setRecycleBinTab('agents');
                                                             window.scrollTo({ top: 0, behavior: 'smooth' });
                                                         }}
@@ -10064,7 +10022,7 @@
                                                 <button
                                                     type="button"
                                                     onClick={() => {
-                                                        setBackOfficeSubTab('trash');
+                                                            switchViewMode('recycle-bin');
                                                         setRecycleBinTab('agents');
                                                         window.scrollTo({ top: 0, behavior: 'smooth' });
                                                     }}
@@ -10609,8 +10567,6 @@
 
                                 )}
 
-                                {/* Section 2.5: System Recycle Bin & Restore (ถังขยะระบบและกู้คืนข้อมูลพนักงาน/ลูกค้า) */}
-                                {(backOfficeSubTab === 'all' || backOfficeSubTab === 'trash') && renderRecycleBinSection()}
 
                                 {/* Section 3: Disaster Recovery & Database Backup/Restore (กู้คืนและสำรองข้อมูลฉุกเฉิน) */}
                                 {(backOfficeSubTab === 'all' || backOfficeSubTab === 'backup') && (
