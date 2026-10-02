@@ -1846,7 +1846,7 @@
             const getInitialViewMode = () => {
                 const searchParams = new URLSearchParams(window.location.search);
                 const viewParam = searchParams.get('view');
-                const validModes = ['supervisor', 'agent', 'upload-deposits', 'new-customer', 'audit', 'backoffice', 'audit-logs', 'reports'];
+                const validModes = ['supervisor', 'agent', 'upload-deposits', 'new-customer', 'audit', 'backoffice', 'audit-logs', 'reports', 'recycle-bin'];
                 if (validModes.includes(viewParam)) return viewParam;
                 const path = window.location.pathname.replace(/^\/+|\/+$/g, '');
                 if (validModes.includes(path)) return path;
@@ -1869,7 +1869,7 @@
                 const handlePopState = () => {
                     const searchParams = new URLSearchParams(window.location.search);
                     const viewParam = searchParams.get('view');
-                    const validModes = ['supervisor', 'agent', 'upload-deposits', 'new-customer', 'audit', 'backoffice', 'audit-logs', 'reports'];
+                    const validModes = ['supervisor', 'agent', 'upload-deposits', 'new-customer', 'audit', 'backoffice', 'audit-logs', 'reports', 'recycle-bin'];
                     if (validModes.includes(viewParam)) {
                         setViewModeState(viewParam);
                     } else {
@@ -2560,6 +2560,7 @@
             // STAFF ARCHIVE & SYSTEM RECYCLE BIN STATES
             const [archiveAgentModalData, setArchiveAgentModalData] = useState(null);
             const [recycleBinTab, setRecycleBinTab] = useState('agents'); // 'agents' | 'customers'
+            const [backOfficeSubTab, setBackOfficeSubTab] = useState('all'); // 'all' | 'staff' | 'channels' | 'customers' | 'trash' | 'backup'
 
             const [deletedCustomers, setDeletedCustomers] = useState(() => {
                 try {
@@ -2880,7 +2881,7 @@
                 if (window.lucide && typeof window.lucide.createIcons === 'function') {
                     window.lucide.createIcons();
                 }
-            }, [viewMode, customers, agents, activeAgentName, selectedCustForModal, showDbSettings, selectedMonth, isLoginModalOpen, depositMetricMode, editingAgentId, sourceChannels, isAddCustomerDisabled, isAddUsernameDuplicate, showLoginPassword, loginErrorMsg, addSuccessModalData, addConfirmModalData, depositPreviewData, showChangePasscodeModal, deletedCustomers, isLockedDueToInactivity, archiveAgentModalData, recycleBinTab]);
+            }, [viewMode, customers, agents, activeAgentName, selectedCustForModal, showDbSettings, selectedMonth, isLoginModalOpen, depositMetricMode, editingAgentId, sourceChannels, isAddCustomerDisabled, isAddUsernameDuplicate, showLoginPassword, loginErrorMsg, addSuccessModalData, addConfirmModalData, depositPreviewData, showChangePasscodeModal, deletedCustomers, isLockedDueToInactivity, archiveAgentModalData, recycleBinTab, backOfficeSubTab]);
 
             // Helper: Console logger & Supabase Cloud mc_logs Writer
             const writeLog = (tag, msg, type = 'info', operator = null) => {
@@ -5276,7 +5277,7 @@
                     (viewMode === 'upload-deposits') ||
                     (viewMode === 'new-customer' && canNewCustomer) ||
                     (viewMode === 'audit' && canAudit) ||
-                    ((viewMode === 'backoffice' || viewMode === 'audit-logs') && canBackOffice);
+                    ((viewMode === 'backoffice' || viewMode === 'audit-logs' || viewMode === 'recycle-bin') && canBackOffice);
 
                 if (!isCurrentModeAllowed) {
                     if (canFollowUp) switchViewMode('agent');
@@ -5846,6 +5847,328 @@
                 );
             }
 
+
+            // ==========================================
+            // REUSABLE SYSTEM RECYCLE BIN SECTION RENDERER
+            // ==========================================
+            const renderRecycleBinSection = () => (
+                                <div id="system-recycle-bin-section" className="panel" style={{
+                                    marginTop: '24px',
+                                    background: theme === 'light' ? '#ffffff' : 'rgba(15, 23, 42, 0.75)',
+                                    border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(239, 68, 68, 0.25)',
+                                    borderRadius: '16px',
+                                    padding: '24px',
+                                    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderBottom: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '16px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                                            <div style={{
+                                                width: '42px',
+                                                height: '42px',
+                                                borderRadius: '12px',
+                                                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: '#ffffff',
+                                                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)'
+                                            }}>
+                                                <i data-lucide="trash-2" style={{ width: '22px', height: '22px' }}></i>
+                                            </div>
+                                            <div>
+                                                <h3 style={{ fontSize: '17px', fontWeight: 700, margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    {lang === 'TH' ? 'ถังขยะระบบและกู้คืนข้อมูล (System Recycle Bin & Restore)' : 'System Recycle Bin & Restore'}
+                                                    <span style={{ fontSize: '11.5px', padding: '3px 10px', borderRadius: '20px', background: (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(148, 163, 184, 0.15)', color: (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 ? '#ef4444' : 'var(--text-muted)', border: '1px solid rgba(239, 68, 68, 0.25)', fontWeight: 700 }}>
+                                                        {agents.filter(a => a.isArchived).length + deletedCustomers.length} {lang === 'TH' ? 'รายการ' : 'records'}
+                                                    </span>
+                                                </h3>
+                                                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                                                    {lang === 'TH' 
+                                                        ? 'รายการที่ถูกลบจะถูกเปลี่ยนสถานะเป็น "อยู่ในถังขยะ (Archived)" และเก็บรักษาไว้นาน 30 วัน เผื่อกรณีเผลอกดผิด คุณสามารถกด "กู้คืน" กลับเข้าสู่ระบบได้ทุกเมื่อ' 
+                                                        : 'Deleted records are kept safely in the Recycle Bin for 30 days before permanent removal. You can restore them anytime.'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Tab Switcher: Staff vs Customers */}
+                                        <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.25)', padding: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setRecycleBinTab('agents')}
+                                                style={{
+                                                    padding: '7px 14px',
+                                                    fontSize: '12px',
+                                                    fontWeight: 700,
+                                                    borderRadius: '8px',
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                    background: recycleBinTab === 'agents' ? '#ef4444' : 'transparent',
+                                                    color: recycleBinTab === 'agents' ? '#ffffff' : 'var(--text-muted)',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    transition: 'all 0.15s'
+                                                }}
+                                            >
+                                                <i data-lucide="users" style={{ width: '13px', height: '13px' }}></i>
+                                                {lang === 'TH' ? `👤 พนักงานในถังขยะ (${agents.filter(a => a.isArchived).length})` : `Staff (${agents.filter(a => a.isArchived).length})`}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setRecycleBinTab('customers')}
+                                                style={{
+                                                    padding: '7px 14px',
+                                                    fontSize: '12px',
+                                                    fontWeight: 700,
+                                                    borderRadius: '8px',
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                    background: recycleBinTab === 'customers' ? '#ef4444' : 'transparent',
+                                                    color: recycleBinTab === 'customers' ? '#ffffff' : 'var(--text-muted)',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    transition: 'all 0.15s'
+                                                }}
+                                            >
+                                                <i data-lucide="user-check" style={{ width: '13px', height: '13px' }}></i>
+                                                {lang === 'TH' ? `👥 ลูกค้าในถังขยะ (${deletedCustomers.length})` : `Customers (${deletedCustomers.length})`}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* TAB 1: ARCHIVED STAFF */}
+                                    {recycleBinTab === 'agents' && (
+                                        <div style={{ marginTop: '16px' }}>
+                                            {agents.filter(a => a.isArchived).length === 0 ? (
+                                                <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                                    <i data-lucide="check-circle" style={{ width: '32px', height: '32px', margin: '0 auto 8px auto', display: 'block', color: '#10b981', opacity: 0.8 }}></i>
+                                                    {lang === 'TH' ? 'ไม่มีรายชื่อพนักงานในถังขยะ — บัญชีพนักงานทั้งหมดปลอดภัยสมบูรณ์' : 'No staff in Recycle Bin. All staff accounts are active.'}
+                                                </div>
+                                            ) : (
+                                                <div className="table-responsive" style={{ maxHeight: '360px', overflowY: 'auto' }}>
+                                                    <table className="data-table" style={{ width: '100%', fontSize: '12.5px' }}>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>{lang === 'TH' ? 'ชื่อพนักงาน' : 'Staff Name'}</th>
+                                                                <th>{lang === 'TH' ? 'บทบาท' : 'Role'}</th>
+                                                                <th>{lang === 'TH' ? 'ยูสเซอร์เนม' : 'Username'}</th>
+                                                                <th>{lang === 'TH' ? 'วันเวลาที่ย้ายลงถังขยะ' : 'Archived At'}</th>
+                                                                <th>{lang === 'TH' ? 'ระยะเวลาเก็บรักษา' : 'Retention'}</th>
+                                                                <th>{lang === 'TH' ? 'ผู้ดำเนินการ' : 'Archived By'}</th>
+                                                                <th style={{ textAlign: 'center' }}>{lang === 'TH' ? 'การจัดการ' : 'Actions'}</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {agents.filter(a => a.isArchived).map(a => {
+                                                                const archivedTime = a.archivedAt ? new Date(a.archivedAt).getTime() : Date.now();
+                                                                const elapsedDays = Math.floor((Date.now() - archivedTime) / (1000 * 60 * 60 * 24));
+                                                                const remainingDays = Math.max(0, 30 - elapsedDays);
+                                                                return (
+                                                                    <tr key={a.id}>
+                                                                        <td>
+                                                                            <strong style={{ color: '#ef4444' }}>{a.name}</strong>
+                                                                        </td>
+                                                                        <td>
+                                                                            <span className="badge badge-owner" style={{ fontSize: '11px' }}>
+                                                                                {a.role === 'SUPERVISOR' ? '👑 หัวหน้า' : '👤 พนักงาน'}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td style={{ fontFamily: 'monospace', color: '#c084fc' }}>
+                                                                            {a.loginUsername ? `@${a.loginUsername}` : '-'}
+                                                                        </td>
+                                                                        <td style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                                                                            {a.archivedAt ? new Date(a.archivedAt).toLocaleString('th-TH') : '-'}
+                                                                        </td>
+                                                                        <td>
+                                                                            <span style={{
+                                                                                padding: '3px 8px',
+                                                                                borderRadius: '6px',
+                                                                                fontSize: '11px',
+                                                                                background: remainingDays <= 5 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                                                                color: remainingDays <= 5 ? '#ef4444' : '#fbbf24',
+                                                                                fontWeight: 700
+                                                                            }}>
+                                                                                ⏳ {lang === 'TH' ? `เหลือ ${remainingDays} วัน` : `${remainingDays}d left`}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td style={{ fontSize: '12px' }}>
+                                                                            <span style={{ color: '#f59e0b', fontWeight: 600 }}>{a.archivedBy || 'Supervisor'}</span>
+                                                                        </td>
+                                                                        <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                                                            <button
+                                                                                type="button"
+                                                                                className="btn btn-primary"
+                                                                                onClick={() => handleRestoreAgent(a)}
+                                                                                style={{
+                                                                                    padding: '5px 12px',
+                                                                                    fontSize: '11.5px',
+                                                                                    fontWeight: 700,
+                                                                                    background: '#10b981',
+                                                                                    marginRight: '8px',
+                                                                                    display: 'inline-flex',
+                                                                                    alignItems: 'center',
+                                                                                    gap: '4px',
+                                                                                    cursor: 'pointer'
+                                                                                }}
+                                                                                title={lang === 'TH' ? 'กู้คืนพนักงานคนนี้กลับสู่ระบบ' : 'Restore staff'}
+                                                                            >
+                                                                                <i data-lucide="rotate-ccw" style={{ width: '12px', height: '12px' }}></i>
+                                                                                {lang === 'TH' ? 'กู้คืน' : 'Restore'}
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handlePermanentDeleteAgent(a)}
+                                                                                style={{
+                                                                                    border: 'none',
+                                                                                    background: 'rgba(239, 68, 68, 0.12)',
+                                                                                    color: '#ef4444',
+                                                                                    padding: '5px 8px',
+                                                                                    borderRadius: '6px',
+                                                                                    cursor: 'pointer'
+                                                                                }}
+                                                                                title={lang === 'TH' ? 'ลบถาวรจากฐานข้อมูล Supabase' : 'Permanently Delete'}
+                                                                            >
+                                                                                <i data-lucide="trash-2" style={{ width: '12px', height: '12px' }}></i>
+                                                                            </button>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* TAB 2: ARCHIVED CUSTOMERS */}
+                                    {recycleBinTab === 'customers' && (
+                                        <div style={{ marginTop: '16px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                                                {deletedCustomers.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-secondary"
+                                                        onClick={handleClearAllRecycleBin}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            fontSize: '11.5px',
+                                                            fontWeight: 600,
+                                                            color: '#ef4444',
+                                                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                            background: 'rgba(239, 68, 68, 0.08)',
+                                                            cursor: 'pointer',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px'
+                                                        }}
+                                                    >
+                                                        <i data-lucide="trash" style={{ width: '13px', height: '13px' }}></i>
+                                                        {lang === 'TH' ? 'ล้างถังขยะลูกค้าทั้งหมด' : 'Empty Customer Recycle Bin'}
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {deletedCustomers.length === 0 ? (
+                                                <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                                    <i data-lucide="check-circle" style={{ width: '32px', height: '32px', margin: '0 auto 8px auto', display: 'block', color: '#10b981', opacity: 0.8 }}></i>
+                                                    {lang === 'TH' ? 'ไม่มีรายการลูกค้าในถังขยะ — ข้อมูลลูกค้าทั้งหมดปลอดภัยสมบูรณ์' : 'Recycle bin is empty. All customer records are safe.'}
+                                                </div>
+                                            ) : (
+                                                <div className="table-responsive" style={{ maxHeight: '360px', overflowY: 'auto' }}>
+                                                    <table className="data-table" style={{ width: '100%', fontSize: '12.5px' }}>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>{lang === 'TH' ? 'ชื่อลูกค้า / ยูสเซอร์' : 'Customer / User'}</th>
+                                                                <th>{lang === 'TH' ? 'เบอร์โทร' : 'Phone'}</th>
+                                                                <th>{lang === 'TH' ? 'ผู้ดูแลเดิม' : 'Original MC'}</th>
+                                                                <th>{lang === 'TH' ? 'วันเวลาที่ลบ' : 'Deleted At'}</th>
+                                                                <th>{lang === 'TH' ? 'ระยะเวลาเก็บรักษา' : 'Retention'}</th>
+                                                                <th>{lang === 'TH' ? 'ผู้ที่ลบ' : 'Deleted By'}</th>
+                                                                <th style={{ textAlign: 'center' }}>{lang === 'TH' ? 'การจัดการ' : 'Actions'}</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {deletedCustomers.map(dc => {
+                                                                const deletedTime = dc.deletedAt ? new Date(dc.deletedAt).getTime() : Date.now();
+                                                                const elapsedDays = Math.floor((Date.now() - deletedTime) / (1000 * 60 * 60 * 24));
+                                                                const remainingDays = Math.max(0, 30 - elapsedDays);
+                                                                return (
+                                                                <tr key={dc.id || dc.deletedAt}>
+                                                                    <td>
+                                                                        <strong>{dc.fullName || dc.username || `ID#${dc.id}`}</strong>
+                                                                        {dc.username && <span style={{ display: 'block', fontSize: '11px', color: 'var(--primary)' }}>@{dc.username}</span>}
+                                                                    </td>
+                                                                    <td>{dc.phone || '-'}</td>
+                                                                    <td><span className="badge badge-source">{dc.createdBy || '-'}</span></td>
+                                                                    <td style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                                                                        {dc.deletedAt ? new Date(dc.deletedAt).toLocaleString('th-TH') : '-'}
+                                                                    </td>
+                                                                    <td>
+                                                                        <span style={{
+                                                                            padding: '3px 8px',
+                                                                            borderRadius: '6px',
+                                                                            fontSize: '11px',
+                                                                            background: remainingDays <= 5 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                                                            color: remainingDays <= 5 ? '#ef4444' : '#fbbf24',
+                                                                            fontWeight: 700
+                                                                        }}>
+                                                                            ⏳ {lang === 'TH' ? `เหลือ ${remainingDays} วัน` : `${remainingDays}d left`}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td style={{ fontSize: '12px' }}>
+                                                                        <span style={{ color: '#f59e0b', fontWeight: 600 }}>{dc.deletedBy || 'Supervisor'}</span>
+                                                                    </td>
+                                                                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                                                        <button
+                                                                            type="button"
+                                                                            className="btn btn-primary"
+                                                                            onClick={() => handleRestoreCustomer(dc)}
+                                                                            style={{
+                                                                                padding: '5px 12px',
+                                                                                fontSize: '11.5px',
+                                                                                fontWeight: 700,
+                                                                                background: '#10b981',
+                                                                                marginRight: '8px',
+                                                                                display: 'inline-flex',
+                                                                                alignItems: 'center',
+                                                                                gap: '4px',
+                                                                                cursor: 'pointer'
+                                                                            }}
+                                                                            title={lang === 'TH' ? 'กู้คืนข้อมูลลูกค้ารายนี้กลับสู่ระบบ' : 'Restore customer'}
+                                                                        >
+                                                                            <i data-lucide="rotate-ccw" style={{ width: '12px', height: '12px' }}></i>
+                                                                            {lang === 'TH' ? 'กู้คืน' : 'Restore'}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handlePermanentDeleteCustomer(dc.id, dc.fullName || dc.username || dc.id)}
+                                                                            style={{
+                                                                                border: 'none',
+                                                                                background: 'rgba(239, 68, 68, 0.12)',
+                                                                                color: '#ef4444',
+                                                                                padding: '5px 8px',
+                                                                                borderRadius: '6px',
+                                                                                cursor: 'pointer'
+                                                                            }}
+                                                                            title={lang === 'TH' ? 'ลบถาวรจากฐานข้อมูล Supabase' : 'Permanently Delete'}
+                                                                        >
+                                                                            <i data-lucide="trash-2" style={{ width: '12px', height: '12px' }}></i>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+            );
+
             return (
                 <div style={{ minHeight: '100vh', display: 'flex' }}>
                     {/* FULL-WIDTH TOP NAVIGATION HEADER BAR */}
@@ -6115,6 +6438,31 @@
                                 >
                                     <i data-lucide="history"></i> 
                                     <span>{lang === 'TH' ? 'ประวัติการแก้ไข (Audit Logs)' : 'Audit Logs & History'}</span>
+                                </button>
+                            )}
+                            {canBackOffice && (
+                                <button 
+                                    className={`sidebar-btn ${viewMode === 'recycle-bin' ? 'active' : ''}`}
+                                    onClick={() => switchViewMode('recycle-bin')}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <i data-lucide="trash-2"></i> 
+                                        <span>{lang === 'TH' ? 'ถังขยะระบบ (Recycle Bin)' : 'System Recycle Bin'}</span>
+                                    </div>
+                                    {(agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 && (
+                                        <span style={{
+                                            background: '#ef4444',
+                                            color: '#ffffff',
+                                            fontSize: '10.5px',
+                                            fontWeight: 800,
+                                            padding: '2px 7px',
+                                            borderRadius: '10px',
+                                            boxShadow: '0 2px 6px rgba(239, 68, 68, 0.35)'
+                                        }}>
+                                            {agents.filter(a => a.isArchived).length + deletedCustomers.length}
+                                        </span>
+                                    )}
                                 </button>
                             )}
                         </div>
@@ -9349,8 +9697,159 @@
                                             </span>
                                         </div>
                                     </div>
+                                    {/* BACKOFFICE SUB-TABS NAVIGATION */}
+                                    <div className="panel" style={{
+                                        padding: '10px 14px',
+                                        background: theme === 'light' ? '#f8fafc' : 'rgba(15, 23, 42, 0.65)',
+                                        border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255, 255, 255, 0.08)',
+                                        borderRadius: '14px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        flexWrap: 'wrap'
+                                    }}>
+                                        <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '6px' }}>
+                                            <i data-lucide="layers" style={{ width: '15px', height: '15px', color: '#c084fc' }}></i>
+                                            <span>{lang === 'TH' ? 'หมวดหมู่การจัดการ:' : 'Admin Sections:'}</span>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            className={`btn ${backOfficeSubTab === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+                                            onClick={() => setBackOfficeSubTab('all')}
+                                            style={{
+                                                padding: '7px 14px',
+                                                fontSize: '12px',
+                                                fontWeight: backOfficeSubTab === 'all' ? 700 : 500,
+                                                borderRadius: '10px',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}
+                                        >
+                                            <i data-lucide="layout-grid" style={{ width: '13px', height: '13px' }}></i>
+                                            <span>{lang === 'TH' ? '📑 ทั้งหมด (All Sections)' : '📑 All Sections'}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className={`btn ${backOfficeSubTab === 'staff' ? 'btn-primary' : 'btn-secondary'}`}
+                                            onClick={() => setBackOfficeSubTab('staff')}
+                                            style={{
+                                                padding: '7px 14px',
+                                                fontSize: '12px',
+                                                fontWeight: backOfficeSubTab === 'staff' ? 700 : 500,
+                                                borderRadius: '10px',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}
+                                        >
+                                            <i data-lucide="users" style={{ width: '13px', height: '13px' }}></i>
+                                            <span>{lang === 'TH' ? `👥 พนักงาน & สิทธิ์ (${agents.filter(a => !a.isArchived).length})` : `👥 Staff & Roles (${agents.filter(a => !a.isArchived).length})`}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className={`btn ${backOfficeSubTab === 'channels' ? 'btn-primary' : 'btn-secondary'}`}
+                                            onClick={() => setBackOfficeSubTab('channels')}
+                                            style={{
+                                                padding: '7px 14px',
+                                                fontSize: '12px',
+                                                fontWeight: backOfficeSubTab === 'channels' ? 700 : 500,
+                                                borderRadius: '10px',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}
+                                        >
+                                            <i data-lucide="tag" style={{ width: '13px', height: '13px' }}></i>
+                                            <span>{lang === 'TH' ? `🏷️ ช่องทางการตลาด (${sourceChannels.length})` : `🏷️ Channels (${sourceChannels.length})`}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className={`btn ${backOfficeSubTab === 'customers' ? 'btn-primary' : 'btn-secondary'}`}
+                                            onClick={() => setBackOfficeSubTab('customers')}
+                                            style={{
+                                                padding: '7px 14px',
+                                                fontSize: '12px',
+                                                fontWeight: backOfficeSubTab === 'customers' ? 700 : 500,
+                                                borderRadius: '10px',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}
+                                        >
+                                            <i data-lucide="server" style={{ width: '13px', height: '13px' }}></i>
+                                            <span>{lang === 'TH' ? '🗄️ จัดการฐานข้อมูลลูกค้ารวม' : '🗄️ Customer DB'}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className={`btn ${backOfficeSubTab === 'trash' ? 'btn-danger' : 'btn-secondary'}`}
+                                            onClick={() => setBackOfficeSubTab('trash')}
+                                            style={{
+                                                padding: '7px 14px',
+                                                fontSize: '12px',
+                                                fontWeight: 700,
+                                                borderRadius: '10px',
+                                                background: backOfficeSubTab === 'trash' 
+                                                    ? '#ef4444' 
+                                                    : (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 
+                                                        ? 'rgba(239, 68, 68, 0.15)' 
+                                                        : undefined,
+                                                color: backOfficeSubTab === 'trash' 
+                                                    ? '#ffffff' 
+                                                    : (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 
+                                                        ? '#ef4444' 
+                                                        : undefined,
+                                                borderColor: (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 
+                                                    ? 'rgba(239, 68, 68, 0.4)' 
+                                                    : undefined,
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}
+                                        >
+                                            <i data-lucide="trash-2" style={{ width: '13px', height: '13px' }}></i>
+                                            <span>{lang === 'TH' ? '🗑️ ถังขยะระบบและกู้คืน' : '🗑️ Recycle Bin & Restore'}</span>
+                                            {(agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 && (
+                                                <span style={{
+                                                    background: backOfficeSubTab === 'trash' ? '#ffffff' : '#ef4444',
+                                                    color: backOfficeSubTab === 'trash' ? '#ef4444' : '#ffffff',
+                                                    padding: '1px 6px',
+                                                    borderRadius: '10px',
+                                                    fontSize: '10px',
+                                                    fontWeight: 800
+                                                }}>
+                                                    {agents.filter(a => a.isArchived).length + deletedCustomers.length}
+                                                </span>
+                                            )}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className={`btn ${backOfficeSubTab === 'backup' ? 'btn-primary' : 'btn-secondary'}`}
+                                            onClick={() => setBackOfficeSubTab('backup')}
+                                            style={{
+                                                padding: '7px 14px',
+                                                fontSize: '12px',
+                                                fontWeight: backOfficeSubTab === 'backup' ? 700 : 500,
+                                                borderRadius: '10px',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}
+                                        >
+                                            <i data-lucide="database" style={{ width: '13px', height: '13px' }}></i>
+                                            <span>{lang === 'TH' ? '💾 สำรองข้อมูลฉุกเฉิน' : '💾 Emergency Backup'}</span>
+                                        </button>
+                                    </div>
+
 
                                     {/* Section 1: MC Agent Account & Role Manager */}
+                                    {(backOfficeSubTab === 'all' || backOfficeSubTab === 'staff') && (
                                     <div className="panel">
                                             <h3 className="panel-title" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                                                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -9360,9 +9859,9 @@
                                                     <button
                                                         type="button"
                                                         onClick={() => {
-                                                            const el = document.getElementById('system-recycle-bin-section');
-                                                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                                            setBackOfficeSubTab('trash');
                                                             setRecycleBinTab('agents');
+                                                            window.scrollTo({ top: 0, behavior: 'smooth' });
                                                         }}
                                                         style={{
                                                             padding: '4px 10px',
@@ -9565,9 +10064,9 @@
                                                 <button
                                                     type="button"
                                                     onClick={() => {
-                                                        const el = document.getElementById('system-recycle-bin-section');
-                                                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                                        setBackOfficeSubTab('trash');
                                                         setRecycleBinTab('agents');
+                                                        window.scrollTo({ top: 0, behavior: 'smooth' });
                                                     }}
                                                     style={{
                                                         padding: '6px 14px',
@@ -9828,7 +10327,10 @@
                                             </div>
                                     </div>
 
+                                    )}
+
                                     {/* Section 2: Source Channels Manager Card */}
+                                    {(backOfficeSubTab === 'all' || backOfficeSubTab === 'channels') && (
                                     <div className="panel">
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -9968,7 +10470,10 @@
                                     </div>
                                 </div>
 
+                                )}
+
                                 {/* Section 2: Full Database Data Grid with Delete Operations */}
+                                {(backOfficeSubTab === 'all' || backOfficeSubTab === 'customers') && (
                                 <div className="panel">
                                     <div className="panel-header">
                                         <h3 className="panel-title">
@@ -10102,324 +10607,13 @@
                                     </div>
                                 </div>
 
+                                )}
+
                                 {/* Section 2.5: System Recycle Bin & Restore (ถังขยะระบบและกู้คืนข้อมูลพนักงาน/ลูกค้า) */}
-                                <div id="system-recycle-bin-section" className="panel" style={{
-                                    marginTop: '24px',
-                                    background: theme === 'light' ? '#ffffff' : 'rgba(15, 23, 42, 0.75)',
-                                    border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(239, 68, 68, 0.25)',
-                                    borderRadius: '16px',
-                                    padding: '24px',
-                                    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)'
-                                }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderBottom: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '16px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                                            <div style={{
-                                                width: '42px',
-                                                height: '42px',
-                                                borderRadius: '12px',
-                                                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                color: '#ffffff',
-                                                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)'
-                                            }}>
-                                                <i data-lucide="trash-2" style={{ width: '22px', height: '22px' }}></i>
-                                            </div>
-                                            <div>
-                                                <h3 style={{ fontSize: '17px', fontWeight: 700, margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                    {lang === 'TH' ? 'ถังขยะระบบและกู้คืนข้อมูล (System Recycle Bin & Restore)' : 'System Recycle Bin & Restore'}
-                                                    <span style={{ fontSize: '11.5px', padding: '3px 10px', borderRadius: '20px', background: (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(148, 163, 184, 0.15)', color: (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 ? '#ef4444' : 'var(--text-muted)', border: '1px solid rgba(239, 68, 68, 0.25)', fontWeight: 700 }}>
-                                                        {agents.filter(a => a.isArchived).length + deletedCustomers.length} {lang === 'TH' ? 'รายการ' : 'records'}
-                                                    </span>
-                                                </h3>
-                                                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                                                    {lang === 'TH' 
-                                                        ? 'รายการที่ถูกลบจะถูกเปลี่ยนสถานะเป็น "อยู่ในถังขยะ (Archived)" และเก็บรักษาไว้นาน 30 วัน เผื่อกรณีเผลอกดผิด คุณสามารถกด "กู้คืน" กลับเข้าสู่ระบบได้ทุกเมื่อ' 
-                                                        : 'Deleted records are kept safely in the Recycle Bin for 30 days before permanent removal. You can restore them anytime.'}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {/* Tab Switcher: Staff vs Customers */}
-                                        <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.25)', padding: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                                            <button
-                                                type="button"
-                                                onClick={() => setRecycleBinTab('agents')}
-                                                style={{
-                                                    padding: '7px 14px',
-                                                    fontSize: '12px',
-                                                    fontWeight: 700,
-                                                    borderRadius: '8px',
-                                                    border: 'none',
-                                                    cursor: 'pointer',
-                                                    background: recycleBinTab === 'agents' ? '#ef4444' : 'transparent',
-                                                    color: recycleBinTab === 'agents' ? '#ffffff' : 'var(--text-muted)',
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '6px',
-                                                    transition: 'all 0.15s'
-                                                }}
-                                            >
-                                                <i data-lucide="users" style={{ width: '13px', height: '13px' }}></i>
-                                                {lang === 'TH' ? `👤 พนักงานในถังขยะ (${agents.filter(a => a.isArchived).length})` : `Staff (${agents.filter(a => a.isArchived).length})`}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setRecycleBinTab('customers')}
-                                                style={{
-                                                    padding: '7px 14px',
-                                                    fontSize: '12px',
-                                                    fontWeight: 700,
-                                                    borderRadius: '8px',
-                                                    border: 'none',
-                                                    cursor: 'pointer',
-                                                    background: recycleBinTab === 'customers' ? '#ef4444' : 'transparent',
-                                                    color: recycleBinTab === 'customers' ? '#ffffff' : 'var(--text-muted)',
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '6px',
-                                                    transition: 'all 0.15s'
-                                                }}
-                                            >
-                                                <i data-lucide="user-check" style={{ width: '13px', height: '13px' }}></i>
-                                                {lang === 'TH' ? `👥 ลูกค้าในถังขยะ (${deletedCustomers.length})` : `Customers (${deletedCustomers.length})`}
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* TAB 1: ARCHIVED STAFF */}
-                                    {recycleBinTab === 'agents' && (
-                                        <div style={{ marginTop: '16px' }}>
-                                            {agents.filter(a => a.isArchived).length === 0 ? (
-                                                <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
-                                                    <i data-lucide="check-circle" style={{ width: '32px', height: '32px', margin: '0 auto 8px auto', display: 'block', color: '#10b981', opacity: 0.8 }}></i>
-                                                    {lang === 'TH' ? 'ไม่มีรายชื่อพนักงานในถังขยะ — บัญชีพนักงานทั้งหมดปลอดภัยสมบูรณ์' : 'No staff in Recycle Bin. All staff accounts are active.'}
-                                                </div>
-                                            ) : (
-                                                <div className="table-responsive" style={{ maxHeight: '360px', overflowY: 'auto' }}>
-                                                    <table className="data-table" style={{ width: '100%', fontSize: '12.5px' }}>
-                                                        <thead>
-                                                            <tr>
-                                                                <th>{lang === 'TH' ? 'ชื่อพนักงาน' : 'Staff Name'}</th>
-                                                                <th>{lang === 'TH' ? 'บทบาท' : 'Role'}</th>
-                                                                <th>{lang === 'TH' ? 'ยูสเซอร์เนม' : 'Username'}</th>
-                                                                <th>{lang === 'TH' ? 'วันเวลาที่ย้ายลงถังขยะ' : 'Archived At'}</th>
-                                                                <th>{lang === 'TH' ? 'ระยะเวลาเก็บรักษา' : 'Retention'}</th>
-                                                                <th>{lang === 'TH' ? 'ผู้ดำเนินการ' : 'Archived By'}</th>
-                                                                <th style={{ textAlign: 'center' }}>{lang === 'TH' ? 'การจัดการ' : 'Actions'}</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {agents.filter(a => a.isArchived).map(a => {
-                                                                const archivedTime = a.archivedAt ? new Date(a.archivedAt).getTime() : Date.now();
-                                                                const elapsedDays = Math.floor((Date.now() - archivedTime) / (1000 * 60 * 60 * 24));
-                                                                const remainingDays = Math.max(0, 30 - elapsedDays);
-                                                                return (
-                                                                    <tr key={a.id}>
-                                                                        <td>
-                                                                            <strong style={{ color: '#ef4444' }}>{a.name}</strong>
-                                                                        </td>
-                                                                        <td>
-                                                                            <span className="badge badge-owner" style={{ fontSize: '11px' }}>
-                                                                                {a.role === 'SUPERVISOR' ? '👑 หัวหน้า' : '👤 พนักงาน'}
-                                                                            </span>
-                                                                        </td>
-                                                                        <td style={{ fontFamily: 'monospace', color: '#c084fc' }}>
-                                                                            {a.loginUsername ? `@${a.loginUsername}` : '-'}
-                                                                        </td>
-                                                                        <td style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                                                                            {a.archivedAt ? new Date(a.archivedAt).toLocaleString('th-TH') : '-'}
-                                                                        </td>
-                                                                        <td>
-                                                                            <span style={{
-                                                                                padding: '3px 8px',
-                                                                                borderRadius: '6px',
-                                                                                fontSize: '11px',
-                                                                                background: remainingDays <= 5 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                                                                                color: remainingDays <= 5 ? '#ef4444' : '#fbbf24',
-                                                                                fontWeight: 700
-                                                                            }}>
-                                                                                ⏳ {lang === 'TH' ? `เหลือ ${remainingDays} วัน` : `${remainingDays}d left`}
-                                                                            </span>
-                                                                        </td>
-                                                                        <td style={{ fontSize: '12px' }}>
-                                                                            <span style={{ color: '#f59e0b', fontWeight: 600 }}>{a.archivedBy || 'Supervisor'}</span>
-                                                                        </td>
-                                                                        <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                                                            <button
-                                                                                type="button"
-                                                                                className="btn btn-primary"
-                                                                                onClick={() => handleRestoreAgent(a)}
-                                                                                style={{
-                                                                                    padding: '5px 12px',
-                                                                                    fontSize: '11.5px',
-                                                                                    fontWeight: 700,
-                                                                                    background: '#10b981',
-                                                                                    marginRight: '8px',
-                                                                                    display: 'inline-flex',
-                                                                                    alignItems: 'center',
-                                                                                    gap: '4px',
-                                                                                    cursor: 'pointer'
-                                                                                }}
-                                                                                title={lang === 'TH' ? 'กู้คืนพนักงานคนนี้กลับสู่ระบบ' : 'Restore staff'}
-                                                                            >
-                                                                                <i data-lucide="rotate-ccw" style={{ width: '12px', height: '12px' }}></i>
-                                                                                {lang === 'TH' ? 'กู้คืน' : 'Restore'}
-                                                                            </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => handlePermanentDeleteAgent(a)}
-                                                                                style={{
-                                                                                    border: 'none',
-                                                                                    background: 'rgba(239, 68, 68, 0.12)',
-                                                                                    color: '#ef4444',
-                                                                                    padding: '5px 8px',
-                                                                                    borderRadius: '6px',
-                                                                                    cursor: 'pointer'
-                                                                                }}
-                                                                                title={lang === 'TH' ? 'ลบถาวรจากฐานข้อมูล Supabase' : 'Permanently Delete'}
-                                                                            >
-                                                                                <i data-lucide="trash-2" style={{ width: '12px', height: '12px' }}></i>
-                                                                            </button>
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* TAB 2: ARCHIVED CUSTOMERS */}
-                                    {recycleBinTab === 'customers' && (
-                                        <div style={{ marginTop: '16px' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
-                                                {deletedCustomers.length > 0 && (
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-secondary"
-                                                        onClick={handleClearAllRecycleBin}
-                                                        style={{
-                                                            padding: '6px 12px',
-                                                            fontSize: '11.5px',
-                                                            fontWeight: 600,
-                                                            color: '#ef4444',
-                                                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                                                            background: 'rgba(239, 68, 68, 0.08)',
-                                                            cursor: 'pointer',
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: '6px'
-                                                        }}
-                                                    >
-                                                        <i data-lucide="trash" style={{ width: '13px', height: '13px' }}></i>
-                                                        {lang === 'TH' ? 'ล้างถังขยะลูกค้าทั้งหมด' : 'Empty Customer Recycle Bin'}
-                                                    </button>
-                                                )}
-                                            </div>
-
-                                            {deletedCustomers.length === 0 ? (
-                                                <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
-                                                    <i data-lucide="check-circle" style={{ width: '32px', height: '32px', margin: '0 auto 8px auto', display: 'block', color: '#10b981', opacity: 0.8 }}></i>
-                                                    {lang === 'TH' ? 'ไม่มีรายการลูกค้าในถังขยะ — ข้อมูลลูกค้าทั้งหมดปลอดภัยสมบูรณ์' : 'Recycle bin is empty. All customer records are safe.'}
-                                                </div>
-                                            ) : (
-                                                <div className="table-responsive" style={{ maxHeight: '360px', overflowY: 'auto' }}>
-                                                    <table className="data-table" style={{ width: '100%', fontSize: '12.5px' }}>
-                                                        <thead>
-                                                            <tr>
-                                                                <th>{lang === 'TH' ? 'ชื่อลูกค้า / ยูสเซอร์' : 'Customer / User'}</th>
-                                                                <th>{lang === 'TH' ? 'เบอร์โทร' : 'Phone'}</th>
-                                                                <th>{lang === 'TH' ? 'ผู้ดูแลเดิม' : 'Original MC'}</th>
-                                                                <th>{lang === 'TH' ? 'วันเวลาที่ลบ' : 'Deleted At'}</th>
-                                                                <th>{lang === 'TH' ? 'ระยะเวลาเก็บรักษา' : 'Retention'}</th>
-                                                                <th>{lang === 'TH' ? 'ผู้ที่ลบ' : 'Deleted By'}</th>
-                                                                <th style={{ textAlign: 'center' }}>{lang === 'TH' ? 'การจัดการ' : 'Actions'}</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {deletedCustomers.map(dc => {
-                                                                const deletedTime = dc.deletedAt ? new Date(dc.deletedAt).getTime() : Date.now();
-                                                                const elapsedDays = Math.floor((Date.now() - deletedTime) / (1000 * 60 * 60 * 24));
-                                                                const remainingDays = Math.max(0, 30 - elapsedDays);
-                                                                return (
-                                                                <tr key={dc.id || dc.deletedAt}>
-                                                                    <td>
-                                                                        <strong>{dc.fullName || dc.username || `ID#${dc.id}`}</strong>
-                                                                        {dc.username && <span style={{ display: 'block', fontSize: '11px', color: 'var(--primary)' }}>@{dc.username}</span>}
-                                                                    </td>
-                                                                    <td>{dc.phone || '-'}</td>
-                                                                    <td><span className="badge badge-source">{dc.createdBy || '-'}</span></td>
-                                                                    <td style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                                                                        {dc.deletedAt ? new Date(dc.deletedAt).toLocaleString('th-TH') : '-'}
-                                                                    </td>
-                                                                    <td>
-                                                                        <span style={{
-                                                                            padding: '3px 8px',
-                                                                            borderRadius: '6px',
-                                                                            fontSize: '11px',
-                                                                            background: remainingDays <= 5 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                                                                            color: remainingDays <= 5 ? '#ef4444' : '#fbbf24',
-                                                                            fontWeight: 700
-                                                                        }}>
-                                                                            ⏳ {lang === 'TH' ? `เหลือ ${remainingDays} วัน` : `${remainingDays}d left`}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td style={{ fontSize: '12px' }}>
-                                                                        <span style={{ color: '#f59e0b', fontWeight: 600 }}>{dc.deletedBy || 'Supervisor'}</span>
-                                                                    </td>
-                                                                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                                                        <button
-                                                                            type="button"
-                                                                            className="btn btn-primary"
-                                                                            onClick={() => handleRestoreCustomer(dc)}
-                                                                            style={{
-                                                                                padding: '5px 12px',
-                                                                                fontSize: '11.5px',
-                                                                                fontWeight: 700,
-                                                                                background: '#10b981',
-                                                                                marginRight: '8px',
-                                                                                display: 'inline-flex',
-                                                                                alignItems: 'center',
-                                                                                gap: '4px',
-                                                                                cursor: 'pointer'
-                                                                            }}
-                                                                            title={lang === 'TH' ? 'กู้คืนข้อมูลลูกค้ารายนี้กลับสู่ระบบ' : 'Restore customer'}
-                                                                        >
-                                                                            <i data-lucide="rotate-ccw" style={{ width: '12px', height: '12px' }}></i>
-                                                                            {lang === 'TH' ? 'กู้คืน' : 'Restore'}
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => handlePermanentDeleteCustomer(dc.id, dc.fullName || dc.username || dc.id)}
-                                                                            style={{
-                                                                                border: 'none',
-                                                                                background: 'rgba(239, 68, 68, 0.12)',
-                                                                                color: '#ef4444',
-                                                                                padding: '5px 8px',
-                                                                                borderRadius: '6px',
-                                                                                cursor: 'pointer'
-                                                                            }}
-                                                                            title={lang === 'TH' ? 'ลบถาวรจากฐานข้อมูล Supabase' : 'Permanently Delete'}
-                                                                        >
-                                                                            <i data-lucide="trash-2" style={{ width: '12px', height: '12px' }}></i>
-                                                                        </button>
-                                                                    </td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
+                                {(backOfficeSubTab === 'all' || backOfficeSubTab === 'trash') && renderRecycleBinSection()}
 
                                 {/* Section 3: Disaster Recovery & Database Backup/Restore (กู้คืนและสำรองข้อมูลฉุกเฉิน) */}
+                                {(backOfficeSubTab === 'all' || backOfficeSubTab === 'backup') && (
                                 <div className="panel" style={{
                                     marginTop: '24px',
                                     background: theme === 'light' ? '#ffffff' : 'rgba(15, 23, 42, 0.75)',
@@ -10554,6 +10748,7 @@
                                         </div>
                                     </div>
                                 </div>
+                                )}
                             </div>
                         )
                     )}
@@ -10833,6 +11028,123 @@
                         )
                     )}
 
+
+
+                        {/* VIEW 5: DEDICATED RECYCLE BIN & DATA RESTORE */}
+                        {viewMode === 'recycle-bin' && (
+                            !canBackOffice ? (
+                                <div className="restricted-access-card" style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '48px 24px',
+                                    background: 'rgba(15, 23, 42, 0.85)',
+                                    border: '1px solid rgba(244, 63, 94, 0.25)',
+                                    borderRadius: '24px',
+                                    boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
+                                    textAlign: 'center',
+                                    maxWidth: '560px',
+                                    margin: '40px auto'
+                                }}>
+                                    <div style={{
+                                        padding: '16px',
+                                        borderRadius: '20px',
+                                        background: 'rgba(244, 63, 94, 0.12)',
+                                        color: '#fb7185',
+                                        border: '1px solid rgba(244, 63, 94, 0.3)',
+                                        marginBottom: '16px'
+                                    }}>
+                                        <i data-lucide="shield-alert" style={{ width: '42px', height: '42px' }}></i>
+                                    </div>
+                                    <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginBottom: '8px' }}>
+                                        {lang === 'TH' ? '⛔ สิทธิ์การเข้าถึงพื้นที่สงวน (Access Restricted)' : '⛔ Access Restricted'}
+                                    </h3>
+                                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '24px' }}>
+                                        {lang === 'TH' 
+                                            ? 'พื้นที่ถังขยะระบบและกู้คืนข้อมูล อนุญาตให้เข้าถึงเฉพาะผู้ใช้ระดับผู้จัดการหรือหัวหน้า (Supervisor) เท่านั้น' 
+                                            : 'System Recycle Bin and Data Recovery is restricted to Supervisor accounts only.'}
+                                    </p>
+                                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                        <button 
+                                            className="btn btn-primary"
+                                            onClick={() => {
+                                                setLoginPasswordInput('');
+                                                setLoginErrorMsg('');
+                                                setIsLoginModalOpen(true);
+                                            }}
+                                            style={{ padding: '12px 20px', fontSize: '13px', fontWeight: 700 }}
+                                        >
+                                            <i data-lucide="log-in" style={{ width: '16px', height: '16px' }}></i> {lang === 'TH' ? 'เข้าสู่ระบบด้วยบัญชีระดับหัวหน้า (Supervisor)' : 'Sign In with Supervisor Account'}
+                                        </button>
+                                        <button 
+                                            className="btn btn-secondary"
+                                            onClick={() => switchViewMode('agent')}
+                                            style={{ padding: '10px 20px', fontSize: '12px' }}
+                                        >
+                                            {lang === 'TH' ? 'กลับไปยังหน้าการติดตามลูกค้า (MC Agent)' : 'Back to Follow-Up Table (MC Agent)'}
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                    {/* Dedicated Header Banner */}
+                                    <div className="panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                                            <div style={{
+                                                width: '46px',
+                                                height: '46px',
+                                                borderRadius: '14px',
+                                                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.2) 100%)',
+                                                color: '#ef4444',
+                                                border: '1px solid rgba(239, 68, 68, 0.35)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.2)'
+                                            }}>
+                                                <i data-lucide="trash-2" style={{ width: '26px', height: '26px' }}></i>
+                                            </div>
+                                            <div>
+                                                <h3 className="banner-title" style={{ fontSize: '18px', fontWeight: 800, color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    {lang === 'TH' ? 'ถังขยะระบบและกู้คืนข้อมูล (System Recycle Bin & Restore)' : 'System Recycle Bin & Restore'}
+                                                    <span style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '20px', background: (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(148, 163, 184, 0.15)', color: (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 ? '#ef4444' : 'var(--text-muted)', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 700 }}>
+                                                        {agents.filter(a => a.isArchived).length + deletedCustomers.length} {lang === 'TH' ? 'รายการในถังขยะ' : 'items'}
+                                                    </span>
+                                                </h3>
+                                                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                                                    {lang === 'TH' 
+                                                        ? 'เมนูจัดการและกู้คืนข้อมูลแบบแยกเดี่ยว — กู้คืนบัญชีพนักงานและข้อมูลลูกค้าที่ถูกลบได้ทันทีภายใน 30 วัน' 
+                                                        : 'Dedicated Recycle Bin View — Safely restore deleted staff accounts and customer records within 30 days.'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                            <button
+                                                type="button"
+                                                className="btn btn-secondary"
+                                                onClick={() => switchViewMode('backoffice')}
+                                                style={{ padding: '8px 16px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                            >
+                                                <i data-lucide="shield" style={{ width: '14px', height: '14px' }}></i>
+                                                <span>{lang === 'TH' ? 'ไปยังจัดการหลังบ้าน' : 'Go to Back Office'}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn btn-secondary"
+                                                onClick={() => switchViewMode('supervisor')}
+                                                style={{ padding: '8px 16px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                            >
+                                                <i data-lucide="pie-chart" style={{ width: '14px', height: '14px' }}></i>
+                                                <span>{lang === 'TH' ? 'แดชบอร์ดหัวหน้า' : 'Dashboard'}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {renderRecycleBinSection()}
+                                </div>
+                            )
+                        )}
 
                     </main>
 
