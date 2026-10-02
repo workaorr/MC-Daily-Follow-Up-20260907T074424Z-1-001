@@ -10627,13 +10627,44 @@
                                             {lang === 'TH' ? 'ระบบบันทึกประวัติการเพิ่ม แก้ไข ติ๊กติดตาม และการซิงค์ข้อมูลลูกค้าทุกคนอย่างครบถ้วน' : 'Detailed historical log of all customer edits, follow-ups, and cloud sync actions.'}
                                         </p>
                                     </div>
-                                    <button 
-                                        className="btn btn-secondary" 
-                                        style={{ padding: '8px 16px', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)', fontWeight: 600 }}
-                                        onClick={() => exportLogsToCSV()}
-                                    >
-                                        📥 {lang === 'TH' ? 'ดาวน์โหลดประวัติ CSV (Export Audit Logs)' : 'Export Audit Logs to CSV'}
-                                    </button>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                        <button 
+                                            type="button"
+                                            className="btn btn-secondary" 
+                                            style={{
+                                                padding: '8px 16px',
+                                                background: 'rgba(168, 85, 247, 0.2)',
+                                                color: '#c084fc',
+                                                border: '1px solid rgba(168, 85, 247, 0.4)',
+                                                fontWeight: 700,
+                                                cursor: isLoadingMoreLogs || (totalCloudLogsCount && logs.length >= totalCloudLogsCount) ? 'not-allowed' : 'pointer',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}
+                                            disabled={isLoadingMoreLogs || (totalCloudLogsCount && logs.length >= totalCloudLogsCount)}
+                                            onClick={handleLoadMoreLogs}
+                                        >
+                                            {isLoadingMoreLogs ? (
+                                                <span>⏳ {lang === 'TH' ? 'กำลังโหลด...' : 'Loading...'}</span>
+                                            ) : totalCloudLogsCount && logs.length >= totalCloudLogsCount ? (
+                                                <span>✅ {lang === 'TH' ? `โหลดครบแล้ว (${logs.length})` : `All Loaded (${logs.length})`}</span>
+                                            ) : (
+                                                <>
+                                                    <i data-lucide="download" style={{ width: '13px', height: '13px' }}></i>
+                                                    <span>{lang === 'TH' ? `📥 โหลดประวัติเพิ่ม (+300) [${logs.length}${totalCloudLogsCount ? `/${totalCloudLogsCount.toLocaleString()}` : ''}]` : `Load More (+300)`}</span>
+                                                </>
+                                            )}
+                                        </button>
+
+                                        <button 
+                                            className="btn btn-secondary" 
+                                            style={{ padding: '8px 16px', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)', fontWeight: 600 }}
+                                            onClick={() => exportLogsToCSV()}
+                                        >
+                                            📥 {lang === 'TH' ? 'ดาวน์โหลดประวัติ CSV (Export Audit Logs)' : 'Export Audit Logs to CSV'}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
@@ -10697,7 +10728,7 @@
 
                                     return (
                                         <>
-                                            <div className="table-wrapper">
+                                            <div className="table-wrapper" style={{ maxHeight: '620px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.08)' }}>
                                                 <table>
                                                     <thead>
                                                         <tr>
