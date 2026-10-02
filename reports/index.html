@@ -1908,6 +1908,9 @@
             const [auditTagFilter, setAuditTagFilter] = useState('ALL');
             const [auditAgentFilter, setAuditAgentFilter] = useState('ทั้งหมด');
             const [auditSearchQuery, setAuditSearchQuery] = useState('');
+            const [logLimit, setLogLimit] = useState(300);
+            const [isLoadingMoreLogs, setIsLoadingMoreLogs] = useState(false);
+            const [totalCloudLogsCount, setTotalCloudLogsCount] = useState(null);
             const [reportChannelFilter, setReportChannelFilter] = useState('ทั้งหมด');
             const [reportDepositStatusFilter, setReportDepositStatusFilter] = useState('ทั้งหมด');
             const [recentDeposits, setRecentDeposits] = useState([]);
@@ -2926,26 +2929,64 @@
                     if (custsError) throw custsError;
 
                     if (dbCusts && dbCusts.length > 0) {
-                        const mapped = dbCusts.map(c => ({
-                            id: c.id,
-                            createdAt: c.created_at || new Date().toISOString(),
-                            username: (c.username || '').trim(),
-                            fullName: (c.full_name || c.fullname || c.name || c.customer_name || c.fullName || '').trim(),
-                            phone: c.phone || '',
-                            lineOA: c.line_oa || '',
-                            lineLek: c.line_lek || '',
-                            sourceChannel: c.source_channel || 'Facebook',
-                            totalDeposit: parseFloat(c.total_deposit || 0),
-                            createdBy: c.created_by || 'ระบบกลาง',
-                            campaignMonth: c.campaign_month || (c.created_at ? c.created_at.substring(0, 7) : currentMonthStr),
-                            followUp: typeof c.follow_up === 'object' && c.follow_up !== null ? c.follow_up : { Mon: false, Tue: false, Wed: false, Thu: false, Fri: false, Sat: false, Sun: false },
-                            notes: c.notes || '',
-                            hasDeposited: c.has_deposited || false,
-                            returnedDepositAmount: parseFloat(c.returned_deposit_amount || 0)
-                        }));
+                        const activeList = [];
+                        const cloudDeletedList = [];
 
-                        setCustomers(mapped);
-                        writeLog('SUPABASE', `ดาวน์โหลดข้อมูลลูกค้าของ MC สำเร็จ: นำเข้ารายชื่อ ${mapped.length} คน`, 'success');
+                        dbCusts.forEach(c => {
+                            const isArchived = Boolean(
+                                (c.follow_up_by_month && c.follow_up_by_month._archived && c.follow_up_by_month._archived.isArchived) ||
+                                (c.follow_up && c.follow_up._archived && c.follow_up._archived.isArchived) ||
+                                c.is_deleted
+                            );
+                            const archiveMeta = (c.follow_up_by_month && c.follow_up_by_month._archived) || 
+                                                (c.follow_up && c.follow_up._archived) || {};
+
+                            const mappedCust = {
+                                id: c.id,
+                                createdAt: c.created_at || new Date().toISOString(),
+                                username: (c.username || '').trim(),
+                                fullName: (c.full_name || c.fullname || c.name || c.customer_name || c.fullName || '').trim(),
+                                phone: c.phone || '',
+                                lineOA: c.line_oa || '',
+                                lineLek: c.line_lek || '',
+                                sourceChannel: c.source_channel || 'Facebook',
+                                totalDeposit: parseFloat(c.total_deposit || 0),
+                                createdBy: c.created_by || 'ระบบกลาง',
+                                campaignMonth: c.campaign_month || (c.created_at ? c.created_at.substring(0, 7) : currentMonthStr),
+                                followUp: typeof c.follow_up === 'object' && c.follow_up !== null ? c.follow_up : { Mon: false, Tue: false, Wed: false, Thu: false, Fri: false, Sat: false, Sun: false },
+                                followUpByMonth: typeof c.follow_up_by_month === 'object' && c.follow_up_by_month !== null ? c.follow_up_by_month : {},
+                                notes: c.notes || '',
+                                hasDeposited: c.has_deposited || false,
+                                returnedDepositAmount: parseFloat(c.returned_deposit_amount || 0),
+                                deletedAt: archiveMeta.archivedAt || c.deleted_at || null,
+                                deletedBy: archiveMeta.archivedBy || c.deleted_by || 'Supervisor',
+                                isDeleted: isArchived
+                            };
+
+                            if (isArchived) {
+                                cloudDeletedList.push(mappedCust);
+                            } else {
+                                activeList.push(mappedCust);
+                            }
+                        });
+
+                        setCustomers(activeList);
+                        try { localStorage.setItem('mc_customers', JSON.stringify(activeList)); } catch (e) {}
+
+                        // Sync cloud deleted customers with local recycle bin
+                        setDeletedCustomers(prev => {
+                            const map = new Map();
+                            cloudDeletedList.forEach(item => map.set(item.id || item.username, item));
+                            (Array.isArray(prev) ? prev : []).forEach(item => {
+                                const key = item.id || item.username;
+                                if (!map.has(key)) map.set(key, item);
+                            });
+                            const merged = Array.from(map.values());
+                            try { localStorage.setItem('mc_deleted_customers', JSON.stringify(merged)); } catch (e) {}
+                            return merged;
+                        });
+
+                        writeLog('SUPABASE', `ดาวน์โหลดข้อมูลลูกค้าของ MC สำเร็จ: นำเข้ารายชื่อ ${activeList.length} คน (ในถังขยะ ${cloudDeletedList.length} คน)`, 'success');
                     } else {
                         writeLog('SUPABASE', 'ไม่พบรายชื่อในระบบ Supabase กำลังใช้ฐานข้อมูลจำลองชั่วคราว', 'info');
                     }
@@ -2984,11 +3025,15 @@
 
                     // Fetch audit logs from mc_logs on Supabase Cloud
                     try {
-                        const { data: dbLogs, error: logsError } = await client
+                        const { data: dbLogs, error: logsError, count } = await client
                             .from('mc_logs')
-                            .select('*')
+                            .select('*', { count: 'exact' })
                             .order('id', { ascending: false })
-                            .limit(300);
+                            .range(0, 299);
+
+                        if (count !== null && count !== undefined) {
+                            setTotalCloudLogsCount(count);
+                        }
 
                         if (!logsError && dbLogs && dbLogs.length > 0) {
                             const mappedLogs = dbLogs.map(l => {
@@ -3091,36 +3136,83 @@
                                 } else if (eventType === 'UPDATE') {
                                     const r = payload.new;
                                     if (!r || !r.id) return;
-                                    setCustomers(prev => {
-                                        const cur = Array.isArray(prev) ? prev : [];
-                                        return cur.map(c => {
-                                            if (c.id === r.id) {
-                                                return {
-                                                    ...c,
-                                                    username: r.username !== undefined ? (r.username || '').trim() : c.username,
-                                                    fullName: r.full_name !== undefined ? (r.full_name || '').trim() : c.fullName,
-                                                    phone: r.phone !== undefined ? r.phone : c.phone,
-                                                    lineOA: r.line_oa !== undefined ? r.line_oa : c.lineOA,
-                                                    lineLek: r.line_lek !== undefined ? r.line_lek : c.lineLek,
-                                                    sourceChannel: r.source_channel !== undefined ? r.source_channel : c.sourceChannel,
-                                                    totalDeposit: r.total_deposit !== undefined ? parseFloat(r.total_deposit || 0) : c.totalDeposit,
-                                                    createdBy: r.created_by !== undefined ? r.created_by : c.createdBy,
-                                                    campaignMonth: r.campaign_month !== undefined ? r.campaign_month : c.campaignMonth,
-                                                    followUp: r.follow_up !== undefined ? (typeof r.follow_up === 'object' && r.follow_up !== null ? r.follow_up : c.followUp) : c.followUp,
-                                                    notes: r.notes !== undefined ? r.notes : c.notes,
-                                                    hasDeposited: r.has_deposited !== undefined ? r.has_deposited : c.hasDeposited,
-                                                    returnedDepositAmount: r.returned_deposit_amount !== undefined ? parseFloat(r.returned_deposit_amount || 0) : c.returnedDepositAmount
-                                                };
-                                            }
-                                            return c;
+                                    const isArchived = Boolean(
+                                        (r.follow_up_by_month && r.follow_up_by_month._archived && r.follow_up_by_month._archived.isArchived) ||
+                                        (r.follow_up && r.follow_up._archived && r.follow_up._archived.isArchived) ||
+                                        r.is_deleted
+                                    );
+                                    if (isArchived) {
+                                        setCustomers(prev => (Array.isArray(prev) ? prev : []).filter(c => c.id !== r.id));
+                                        const archiveMeta = (r.follow_up_by_month && r.follow_up_by_month._archived) || 
+                                                            (r.follow_up && r.follow_up._archived) || {};
+                                        const deletedItem = {
+                                            id: r.id,
+                                            createdAt: r.created_at || new Date().toISOString(),
+                                            username: (r.username || '').trim(),
+                                            fullName: (r.full_name || r.fullname || r.name || r.customer_name || '').trim(),
+                                            phone: r.phone || '',
+                                            lineOA: r.line_oa || '',
+                                            lineLek: r.line_lek || '',
+                                            sourceChannel: r.source_channel || 'Facebook',
+                                            totalDeposit: parseFloat(r.total_deposit || 0),
+                                            createdBy: r.created_by || 'ระบบกลาง',
+                                            campaignMonth: r.campaign_month || (r.created_at ? r.created_at.substring(0, 7) : currentMonthStr),
+                                            followUp: typeof r.follow_up === 'object' && r.follow_up !== null ? r.follow_up : {},
+                                            followUpByMonth: typeof r.follow_up_by_month === 'object' && r.follow_up_by_month !== null ? r.follow_up_by_month : {},
+                                            notes: r.notes || '',
+                                            hasDeposited: r.has_deposited || false,
+                                            returnedDepositAmount: parseFloat(r.returned_deposit_amount || 0),
+                                            deletedAt: archiveMeta.archivedAt || new Date().toISOString(),
+                                            deletedBy: archiveMeta.archivedBy || 'Supervisor',
+                                            isDeleted: true
+                                        };
+                                        setDeletedCustomers(prev => {
+                                            const cur = (Array.isArray(prev) ? prev : []).filter(c => c.id !== r.id);
+                                            const next = [deletedItem, ...cur];
+                                            try { localStorage.setItem('mc_deleted_customers', JSON.stringify(next)); } catch (e) {}
+                                            return next;
                                         });
-                                    });
+                                    } else {
+                                        setDeletedCustomers(prev => {
+                                            const cur = (Array.isArray(prev) ? prev : []).filter(c => c.id !== r.id);
+                                            try { localStorage.setItem('mc_deleted_customers', JSON.stringify(cur)); } catch (e) {}
+                                            return cur;
+                                        });
+                                        setCustomers(prev => {
+                                            const cur = Array.isArray(prev) ? prev : [];
+                                            const exists = cur.some(c => c.id === r.id);
+                                            const updatedCust = {
+                                                id: r.id,
+                                                createdAt: r.created_at || new Date().toISOString(),
+                                                username: r.username !== undefined ? (r.username || '').trim() : '',
+                                                fullName: r.full_name !== undefined ? (r.full_name || '').trim() : '',
+                                                phone: r.phone !== undefined ? r.phone : '',
+                                                lineOA: r.line_oa !== undefined ? r.line_oa : '',
+                                                lineLek: r.line_lek !== undefined ? r.line_lek : '',
+                                                sourceChannel: r.source_channel !== undefined ? r.source_channel : 'Facebook',
+                                                totalDeposit: r.total_deposit !== undefined ? parseFloat(r.total_deposit || 0) : 0,
+                                                createdBy: r.created_by !== undefined ? r.created_by : 'ระบบกลาง',
+                                                campaignMonth: r.campaign_month !== undefined ? r.campaign_month : currentMonthStr,
+                                                followUp: r.follow_up !== undefined ? (typeof r.follow_up === 'object' && r.follow_up !== null ? r.follow_up : {}) : {},
+                                                followUpByMonth: r.follow_up_by_month !== undefined ? (typeof r.follow_up_by_month === 'object' && r.follow_up_by_month !== null ? r.follow_up_by_month : {}) : {},
+                                                notes: r.notes !== undefined ? r.notes : '',
+                                                hasDeposited: r.has_deposited !== undefined ? r.has_deposited : false,
+                                                returnedDepositAmount: r.returned_deposit_amount !== undefined ? parseFloat(r.returned_deposit_amount || 0) : 0
+                                            };
+                                            if (exists) {
+                                                return cur.map(c => c.id === r.id ? { ...c, ...updatedCust } : c);
+                                            }
+                                            return [updatedCust, ...cur];
+                                        });
+                                    }
                                 } else if (eventType === 'DELETE') {
                                     const r = payload.old;
                                     if (!r || !r.id) return;
-                                    setCustomers(prev => {
-                                        const cur = Array.isArray(prev) ? prev : [];
-                                        return cur.filter(c => c.id !== r.id);
+                                    setCustomers(prev => (Array.isArray(prev) ? prev : []).filter(c => c.id !== r.id));
+                                    setDeletedCustomers(prev => {
+                                        const cur = (Array.isArray(prev) ? prev : []).filter(c => c.id !== r.id);
+                                        try { localStorage.setItem('mc_deleted_customers', JSON.stringify(cur)); } catch (e) {}
+                                        return cur;
                                     });
                                 }
                             })
@@ -3255,6 +3347,44 @@
 
                 } catch (err) {
                     writeLog('SUPABASE', `ดึงข้อมูลล้มเหลว: ${err.message}`, 'danger');
+                }
+            };
+
+            // SUPABASE AUDIT LOG PAGINATION: LOAD MORE LOGS
+            const handleLoadMoreLogs = async () => {
+                const client = supabaseClientRef.current || supabaseClient;
+                if (!client) return;
+                setIsLoadingMoreLogs(true);
+                try {
+                    const currentCount = Array.isArray(logs) ? logs.length : 0;
+                    const nextLimit = Math.max(currentCount, logLimit || 300) + 300;
+                    const { data: moreLogs, error, count } = await client
+                        .from('mc_logs')
+                        .select('*', { count: 'exact' })
+                        .order('id', { ascending: false })
+                        .range(0, nextLimit - 1);
+
+                    if (!error && moreLogs) {
+                        const mappedLogs = moreLogs.map(l => {
+                            const d = l.created_at ? new Date(l.created_at) : new Date();
+                            return {
+                                id: l.id,
+                                time: d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('th-TH'),
+                                tag: l.tag || 'SYSTEM',
+                                msg: l.msg || '',
+                                type: l.type || 'info',
+                                operator: l.operator || 'System'
+                            };
+                        });
+                        setLogs(mappedLogs);
+                        setLogLimit(nextLimit);
+                        if (count !== null && count !== undefined) setTotalCloudLogsCount(count);
+                        writeLog('SUPABASE', `ดาวน์โหลดประวัติการทำงานเพิ่มเติมสำเร็จ (${mappedLogs.length}/${count || mappedLogs.length} รายการ)`, 'info');
+                    }
+                } catch (e) {
+                    console.error('Load more logs error:', e);
+                } finally {
+                    setIsLoadingMoreLogs(false);
                 }
             };
 
@@ -4428,17 +4558,30 @@
                 }
             };
 
-            // DATA LOSS PREVENTION: SOFT DELETE & RECYCLE BIN HANDLERS
+            // DATA LOSS PREVENTION: SOFT DELETE & RECYCLE BIN HANDLERS (CLOUD SYNCED 30 DAYS)
             const handleDeleteCustomer = async (custId, username) => {
                 const targetCust = customers.find(c => c.id === custId);
                 const displayName = username || (targetCust && targetCust.fullName) || custId;
-                if (!window.confirm(lang === 'TH' ? `⚠️ ยืนยันการย้ายลูกค้า [${displayName}] ไปยังถังขยะ? (สามารถกู้คืนได้ทุกเมื่อจากหน้า Backoffice)` : `⚠️ Move customer [${displayName}] to Recycle Bin? (Can be restored anytime in Backoffice)`)) return;
+                if (!window.confirm(lang === 'TH' ? `⚠️ ยืนยันการย้ายลูกค้า [${displayName}] ไปยังถังขยะ? (ระบบจะเก็บรักษาไว้ 30 วัน สามารถกู้คืนได้ทุกเมื่อจากหน้า Backoffice)` : `⚠️ Move customer [${displayName}] to Recycle Bin? (Kept for 30 days, can be restored anytime in Backoffice)`)) return;
+
+                const nowIso = new Date().toISOString();
+                const existingFollowUpByMonth = (targetCust && typeof targetCust.followUpByMonth === 'object' && targetCust.followUpByMonth !== null) ? targetCust.followUpByMonth : {};
+                const updatedFollowUpByMonth = {
+                    ...existingFollowUpByMonth,
+                    _archived: {
+                        isArchived: true,
+                        archivedAt: nowIso,
+                        archivedBy: activeAgentName || 'Supervisor'
+                    }
+                };
 
                 if (targetCust) {
                     const deletedRecord = {
                         ...targetCust,
-                        deletedAt: new Date().toISOString(),
-                        deletedBy: activeAgentName || 'Supervisor'
+                        followUpByMonth: updatedFollowUpByMonth,
+                        deletedAt: nowIso,
+                        deletedBy: activeAgentName || 'Supervisor',
+                        isDeleted: true
                     };
                     const updatedDeleted = [deletedRecord, ...deletedCustomers.filter(c => c.id !== custId)];
                     setDeletedCustomers(updatedDeleted);
@@ -4449,11 +4592,13 @@
                 setCustomers(updated);
                 try { localStorage.setItem('mc_customers', JSON.stringify(updated)); } catch (e) {}
 
-                writeLog('CUSTOMER_DELETE', `ย้ายลูกค้า [${displayName}] ไปยังถังขยะ (Soft Delete) โดย ${activeAgentName}`, 'warning', activeAgentName);
+                writeLog('CUSTOMER_DELETE', `ย้ายลูกค้า [${displayName}] ไปยังถังขยะ (Soft Delete เก็บรักษา 30 วัน) โดย ${activeAgentName}`, 'warning', activeAgentName);
 
                 if (supabaseClient) {
                     try {
-                        let query = supabaseClient.from('mc_customers').delete();
+                        let query = supabaseClient.from('mc_customers').update({
+                            follow_up_by_month: updatedFollowUpByMonth
+                        });
                         if (custId) {
                             query = query.eq('id', custId);
                         } else if (username) {
@@ -4461,9 +4606,10 @@
                         }
                         const { error } = await query;
                         if (error) throw error;
-                        writeLog('SUPABASE', `ลบลูกค้า [${displayName}] จากคลาวด์แล้ว (สำรองในถังขยะเรียบร้อย)`, 'success', activeAgentName);
+                        writeLog('SUPABASE', `ย้ายลูกค้า [${displayName}] ลงถังขยะบนคลาวด์เรียบร้อย (สามารถกู้คืนได้จากทุกเครื่อง)`, 'success', activeAgentName);
                     } catch (e) {
-                        writeLog('SUPABASE', `ลบลูกค้าในคลาวด์ล้มเหลว: ${e.message}`, 'danger', activeAgentName);
+                        console.error('Supabase archive customer error:', e);
+                        writeLog('SUPABASE', `ซิงค์ถังขยะลูกค้าขึ้นคลาวด์ล้มเหลว: ${e.message}`, 'danger', activeAgentName);
                     }
                 }
             };
@@ -4477,12 +4623,16 @@
                     return;
                 }
 
-                const { deletedAt, deletedBy, ...cleanRestored } = deletedCust;
+                const { deletedAt, deletedBy, isDeleted, ...cleanRestored } = deletedCust;
+                const cleanFollowUpByMonth = { ...(cleanRestored.followUpByMonth || {}) };
+                delete cleanFollowUpByMonth._archived;
+                cleanRestored.followUpByMonth = cleanFollowUpByMonth;
+
                 const nextCustomers = [cleanRestored, ...customers];
                 setCustomers(nextCustomers);
                 try { localStorage.setItem('mc_customers', JSON.stringify(nextCustomers)); } catch (e) {}
 
-                const nextDeleted = deletedCustomers.filter(c => c.id !== deletedCust.id);
+                const nextDeleted = deletedCustomers.filter(c => c.id !== deletedCust.id && (!deletedCust.username || c.username !== deletedCust.username));
                 setDeletedCustomers(nextDeleted);
                 try { localStorage.setItem('mc_deleted_customers', JSON.stringify(nextDeleted)); } catch (e) {}
 
@@ -4490,26 +4640,40 @@
 
                 if (supabaseClient) {
                     try {
-                        const rowToUpsert = {
-                            id: cleanRestored.id,
-                            username: cleanRestored.username || null,
-                            full_name: cleanRestored.fullName || '',
-                            phone: cleanRestored.phone || '',
-                            line_oa: cleanRestored.lineOA || '',
-                            line_lek: cleanRestored.lineLek || '',
-                            source: cleanRestored.source || '',
-                            notes: cleanRestored.notes || '',
-                            first_deposit: cleanRestored.firstDeposit || 0,
-                            total_deposit: cleanRestored.totalDeposit || cleanRestored.firstDeposit || 0,
-                            created_by: cleanRestored.createdBy || activeAgentName,
-                            created_date: cleanRestored.createdDate || new Date().toISOString(),
-                            interest_status: cleanRestored.interestStatus || 'สนใจ',
-                            status: cleanRestored.status || 'รอทัก'
-                        };
-                        const { error } = await supabaseClient.from('mc_customers').upsert(rowToUpsert);
-                        if (error) writeLog('SUPABASE', `กู้คืนลูกค้าขึ้นคลาวด์ล้มเหลว: ${error.message}`, 'danger', activeAgentName);
-                        else writeLog('SUPABASE', `กู้คืนลูกค้า [${displayName}] ขึ้นคลาวด์เรียบร้อย`, 'success', activeAgentName);
+                        let query = supabaseClient.from('mc_customers').update({
+                            follow_up_by_month: cleanFollowUpByMonth
+                        });
+                        if (deletedCust.id) {
+                            query = query.eq('id', deletedCust.id);
+                        } else if (deletedCust.username) {
+                            query = query.eq('username', deletedCust.username);
+                        }
+                        const { error } = await query;
+                        if (error) {
+                            // Fallback upsert if record was previously hard-deleted
+                            const rowToUpsert = {
+                                id: cleanRestored.id,
+                                username: cleanRestored.username || null,
+                                full_name: cleanRestored.fullName || '',
+                                phone: cleanRestored.phone || '',
+                                line_oa: cleanRestored.lineOA || '',
+                                line_lek: cleanRestored.lineLek || '',
+                                source_channel: cleanRestored.sourceChannel || 'Facebook',
+                                notes: cleanRestored.notes || '',
+                                total_deposit: cleanRestored.totalDeposit || 0,
+                                created_by: cleanRestored.createdBy || activeAgentName,
+                                campaign_month: cleanRestored.campaignMonth || currentMonthStr,
+                                follow_up: cleanRestored.followUp || {},
+                                follow_up_by_month: cleanFollowUpByMonth,
+                                has_deposited: cleanRestored.hasDeposited || false,
+                                returned_deposit_amount: cleanRestored.returnedDepositAmount || 0
+                            };
+                            const { error: upsertErr } = await supabaseClient.from('mc_customers').upsert(rowToUpsert);
+                            if (upsertErr) throw upsertErr;
+                        }
+                        writeLog('SUPABASE', `กู้คืนลูกค้า [${displayName}] บนคลาวด์เรียบร้อย`, 'success', activeAgentName);
                     } catch (e) {
+                        console.error('Supabase customer restore error:', e);
                         writeLog('SUPABASE', `กู้คืนลูกค้าในคลาวด์ล้มเหลว: ${e.message}`, 'danger', activeAgentName);
                     }
                 }
@@ -4517,20 +4681,49 @@
                 alert(lang === 'TH' ? `✅ กู้คืนลูกค้า [${displayName}] กลับเข้าสู่ระบบสำเร็จเรียบร้อยแล้ว!` : `✅ Customer [${displayName}] restored successfully!`);
             };
 
-            const handlePermanentDeleteCustomer = (custId, displayName) => {
-                if (!window.confirm(lang === 'TH' ? `🚨 ยืนยันการลบลูกค้า [${displayName}] ถาวร?\n\nข้อมูลนี้จะถูกลบออกจากถังขยะและไม่สามารถกู้คืนได้อีก!` : `🚨 Permanently delete [${displayName}]? This cannot be undone!`)) return;
+            const handlePermanentDeleteCustomer = async (custId, displayName) => {
+                if (!window.confirm(lang === 'TH' ? `🚨 ยืนยันการลบลูกค้า [${displayName}] ถาวร?\n\nข้อมูลนี้จะถูกลบออกจากถังขยะและคลาวด์ Supabase ไม่สามารถกู้คืนได้อีก!` : `🚨 Permanently delete [${displayName}]? This cannot be undone!`)) return;
                 const nextDeleted = deletedCustomers.filter(c => c.id !== custId);
                 setDeletedCustomers(nextDeleted);
                 try { localStorage.setItem('mc_deleted_customers', JSON.stringify(nextDeleted)); } catch (e) {}
                 writeLog('CUSTOMER_PURGE', `ลบข้อมูลลูกค้า [${displayName}] ออกจากถังขยะอย่างถาวร`, 'danger', activeAgentName);
+
+                if (supabaseClient) {
+                    try {
+                        let query = supabaseClient.from('mc_customers').delete();
+                        if (custId) {
+                            query = query.eq('id', custId);
+                        } else if (displayName) {
+                            query = query.eq('username', displayName);
+                        }
+                        const { error } = await query;
+                        if (error) throw error;
+                        writeLog('SUPABASE', `ลบลูกค้า [${displayName}] ออกจากคลาวด์ถาวรแล้ว`, 'success', activeAgentName);
+                    } catch (e) {
+                        console.error('Supabase permanent delete customer error:', e);
+                        writeLog('SUPABASE', `ลบลูกค้าถาวรล้มเหลว: ${e.message}`, 'danger', activeAgentName);
+                    }
+                }
             };
 
-            const handleClearAllRecycleBin = () => {
-                if (!window.confirm(lang === 'TH' ? `🚨 ยืนยันการล้างถังขยะทั้งหมด (${deletedCustomers.length} รายการ)?\n\nข้อมูลลูกค้าทั้งหมดที่ลบแล้วจะไม่สามารถกู้คืนได้อีก!` : `🚨 Empty all ${deletedCustomers.length} records from Recycle Bin?`)) return;
+            const handleClearAllRecycleBin = async () => {
+                if (!window.confirm(lang === 'TH' ? `🚨 ยืนยันการล้างถังขยะลูกค้าทั้งหมด (${deletedCustomers.length} รายการ)?\n\nข้อมูลลูกค้าทั้งหมดที่ลบแล้วจะไม่สามารถกู้คืนได้อีก!` : `🚨 Empty all ${deletedCustomers.length} records from Recycle Bin?`)) return;
                 const count = deletedCustomers.length;
+                const toDeleteIds = deletedCustomers.map(c => c.id).filter(Boolean);
                 setDeletedCustomers([]);
                 try { localStorage.removeItem('mc_deleted_customers'); } catch (e) {}
                 writeLog('CUSTOMER_PURGE', `ล้างถังขยะลูกค้าทั้งหมด (${count} รายการ)`, 'danger', activeAgentName);
+
+                if (supabaseClient && toDeleteIds.length > 0) {
+                    try {
+                        const { error } = await supabaseClient.from('mc_customers').delete().in('id', toDeleteIds);
+                        if (error) throw error;
+                        writeLog('SUPABASE', `ล้างถังขยะลูกค้าบนคลาวด์สำเร็จ (${count} รายการ)`, 'success', activeAgentName);
+                    } catch (e) {
+                        console.error('Supabase clear customer recycle bin error:', e);
+                        writeLog('SUPABASE', `ล้างถังขยะลูกค้าบนคลาวด์ล้มเหลว: ${e.message}`, 'danger', activeAgentName);
+                    }
+                }
             };
 
             // MODAL EDIT ACTION
@@ -10142,12 +10335,17 @@
                                                                 <th>{lang === 'TH' ? 'เบอร์โทร' : 'Phone'}</th>
                                                                 <th>{lang === 'TH' ? 'ผู้ดูแลเดิม' : 'Original MC'}</th>
                                                                 <th>{lang === 'TH' ? 'วันเวลาที่ลบ' : 'Deleted At'}</th>
+                                                                <th>{lang === 'TH' ? 'ระยะเวลาเก็บรักษา' : 'Retention'}</th>
                                                                 <th>{lang === 'TH' ? 'ผู้ที่ลบ' : 'Deleted By'}</th>
                                                                 <th style={{ textAlign: 'center' }}>{lang === 'TH' ? 'การจัดการ' : 'Actions'}</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {deletedCustomers.map(dc => (
+                                                            {deletedCustomers.map(dc => {
+                                                                const deletedTime = dc.deletedAt ? new Date(dc.deletedAt).getTime() : Date.now();
+                                                                const elapsedDays = Math.floor((Date.now() - deletedTime) / (1000 * 60 * 60 * 24));
+                                                                const remainingDays = Math.max(0, 30 - elapsedDays);
+                                                                return (
                                                                 <tr key={dc.id || dc.deletedAt}>
                                                                     <td>
                                                                         <strong>{dc.fullName || dc.username || `ID#${dc.id}`}</strong>
@@ -10157,6 +10355,18 @@
                                                                     <td><span className="badge badge-source">{dc.createdBy || '-'}</span></td>
                                                                     <td style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
                                                                         {dc.deletedAt ? new Date(dc.deletedAt).toLocaleString('th-TH') : '-'}
+                                                                    </td>
+                                                                    <td>
+                                                                        <span style={{
+                                                                            padding: '3px 8px',
+                                                                            borderRadius: '6px',
+                                                                            fontSize: '11px',
+                                                                            background: remainingDays <= 5 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                                                            color: remainingDays <= 5 ? '#ef4444' : '#fbbf24',
+                                                                            fontWeight: 700
+                                                                        }}>
+                                                                            ⏳ {lang === 'TH' ? `เหลือ ${remainingDays} วัน` : `${remainingDays}d left`}
+                                                                        </span>
                                                                     </td>
                                                                     <td style={{ fontSize: '12px' }}>
                                                                         <span style={{ color: '#f59e0b', fontWeight: 600 }}>{dc.deletedBy || 'Supervisor'}</span>
@@ -10193,13 +10403,14 @@
                                                                                 borderRadius: '6px',
                                                                                 cursor: 'pointer'
                                                                             }}
-                                                                            title={lang === 'TH' ? 'ลบถาวร (ไม่สามารถกู้คืนได้อีก)' : 'Permanently Delete'}
+                                                                            title={lang === 'TH' ? 'ลบถาวรจากฐานข้อมูล Supabase' : 'Permanently Delete'}
                                                                         >
                                                                             <i data-lucide="trash-2" style={{ width: '12px', height: '12px' }}></i>
                                                                         </button>
                                                                     </td>
                                                                 </tr>
-                                                            ))}
+                                                            );
+                                                        })}
                                                         </tbody>
                                                     </table>
                                                 </div>
@@ -10428,12 +10639,15 @@
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                                         {[
-                                            { id: 'ALL', th: 'ประวัติแก้ไขทั้งหมด', en: 'All Activity' },
+                                            { id: 'ALL', th: 'ประวัติทั้งหมด', en: 'All Activity' },
+                                            { id: 'SECURITY', th: '🔐 ความปลอดภัย & เข้าสู่ระบบ', en: 'Security & Auth' },
+                                            { id: 'RECYCLE', th: '🗑️ ลบ/กู้คืนข้อมูล', en: 'Recycle & Deletions' },
                                             { id: 'EDIT_CUSTOMER', th: '✏️ ข้อมูล/ไลน์เล็ก', en: 'User & Line Edits' },
                                             { id: 'ADD_CUSTOMER', th: '👤 เพิ่มลูกค้าใหม่', en: 'New Customer Entry' },
                                             { id: 'FOLLOW_UP', th: '📞 ติ๊กติดตาม 1-31', en: 'Daily Follow-Ups' },
                                             { id: 'DEPOSIT_MATCH', th: '🟢 ปิดยอดฝากสำเร็จ', en: 'Deposit Matches' },
                                             { id: 'BACKOFFICE', th: '🏢 จัดการหลังบ้าน', en: 'Back Office' },
+                                            { id: 'BACKUP', th: '💾 สำรองข้อมูล', en: 'Backup & Recovery' },
                                             { id: 'SUPABASE', th: '⚙️ ระบบคลาวด์', en: 'Cloud Sync' }
                                         ].map(cat => (
                                             <button 
@@ -10457,71 +10671,133 @@
                                     />
                                 </div>
 
-                                <div className="table-wrapper">
-                                    <table>
-                                        <thead>
-                                            <tr>
-                                                <th>{lang === 'TH' ? 'เวลาที่บันทึก' : 'Timestamp'}</th>
-                                                <th>{lang === 'TH' ? 'หมวดหมู่' : 'Category'}</th>
-                                                <th>{lang === 'TH' ? 'รายละเอียดกิจกรรม/การแก้ไข' : 'Action Details'}</th>
-                                                <th>{lang === 'TH' ? 'ระดับประเภท' : 'Log Type'}</th>
-                                                <th>{lang === 'TH' ? 'ผู้ดำเนินการ' : 'Operator'}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {(() => {
-                                                const matchesCategory = (l, cat) => {
-                                                    if (cat === 'ALL') return l.tag !== 'SUPABASE';
-                                                    if (cat === 'ADD_CUSTOMER') return l.tag === 'ADD_CUSTOMER' || l.tag === 'REGISTRATION';
-                                                    if (cat === 'FOLLOW_UP') return l.tag === 'FOLLOW_UP' || l.tag === 'CRM_ACTION';
-                                                    if (cat === 'DEPOSIT_MATCH') return l.tag === 'DEPOSIT_MATCH' || l.tag === 'MATCH_ENGINE';
-                                                    if (cat === 'BACKOFFICE') return l.tag === 'BACKOFFICE';
-                                                    if (cat === 'SUPABASE') return l.tag === 'SUPABASE';
-                                                    return l.tag === cat;
-                                                };
-                                                const q = auditSearch.trim().toLowerCase();
-                                                const filtered = logs.filter(l => {
-                                                    if (!matchesCategory(l, auditTagFilter)) return false;
-                                                    if (!q) return true;
-                                                    return (l.msg || '').toLowerCase().includes(q) ||
-                                                           (l.tag || '').toLowerCase().includes(q) ||
-                                                           (l.operator || '').toLowerCase().includes(q) ||
-                                                           (l.time || '').toLowerCase().includes(q);
-                                                });
+                                {(() => {
+                                    const matchesCategory = (l, cat) => {
+                                        if (cat === 'ALL') return true;
+                                        if (cat === 'SECURITY') return l.tag === 'AUTH' || l.tag === 'SECURITY' || l.tag === 'SESSION';
+                                        if (cat === 'RECYCLE') return l.tag === 'CUSTOMER_DELETE' || l.tag === 'CUSTOMER_RESTORE' || l.tag === 'CUSTOMER_PURGE' || l.tag === 'STAFF_AUDIT';
+                                        if (cat === 'EDIT_CUSTOMER') return l.tag === 'EDIT_CUSTOMER' || l.tag === 'CUSTOMER_AUDIT';
+                                        if (cat === 'ADD_CUSTOMER') return l.tag === 'ADD_CUSTOMER' || l.tag === 'REGISTRATION' || l.tag === 'CUSTOMER_ADD';
+                                        if (cat === 'FOLLOW_UP') return l.tag === 'FOLLOW_UP' || l.tag === 'CRM_ACTION';
+                                        if (cat === 'DEPOSIT_MATCH') return l.tag === 'DEPOSIT_MATCH' || l.tag === 'MATCH_ENGINE' || l.tag === 'DEPOSIT_SCAN' || l.tag === 'DEPOSIT_UPLOAD';
+                                        if (cat === 'BACKOFFICE') return l.tag === 'BACKOFFICE';
+                                        if (cat === 'BACKUP') return l.tag === 'BACKUP' || l.tag === 'DISASTER_RECOVERY';
+                                        if (cat === 'SUPABASE') return l.tag === 'SUPABASE';
+                                        return l.tag === cat;
+                                    };
+                                    const q = auditSearch.trim().toLowerCase();
+                                    const filtered = logs.filter(l => {
+                                        if (!matchesCategory(l, auditTagFilter)) return false;
+                                        if (!q) return true;
+                                        return (l.msg || '').toLowerCase().includes(q) ||
+                                               (l.tag || '').toLowerCase().includes(q) ||
+                                               (l.operator || '').toLowerCase().includes(q) ||
+                                               (l.time || '').toLowerCase().includes(q);
+                                    });
 
-                                                if (filtered.length === 0) {
-                                                    return (
+                                    return (
+                                        <>
+                                            <div className="table-wrapper">
+                                                <table>
+                                                    <thead>
                                                         <tr>
-                                                            <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
-                                                                {lang === 'TH' ? 'ยังไม่มีประวัติการแก้ไขในระบบ' : 'No audit log history found.'}
-                                                            </td>
+                                                            <th>{lang === 'TH' ? 'เวลาที่บันทึก' : 'Timestamp'}</th>
+                                                            <th>{lang === 'TH' ? 'หมวดหมู่' : 'Category'}</th>
+                                                            <th>{lang === 'TH' ? 'รายละเอียดกิจกรรม/การแก้ไข' : 'Action Details'}</th>
+                                                            <th>{lang === 'TH' ? 'ระดับประเภท' : 'Log Type'}</th>
+                                                            <th>{lang === 'TH' ? 'ผู้ดำเนินการ' : 'Operator'}</th>
                                                         </tr>
-                                                    );
-                                                }
+                                                    </thead>
+                                                    <tbody>
+                                                        {filtered.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                                                                    {lang === 'TH' ? 'ยังไม่มีประวัติการแก้ไขในระบบ' : 'No audit log history found.'}
+                                                                </td>
+                                                            </tr>
+                                                        ) : (
+                                                            filtered.map((l, index) => (
+                                                                <tr key={l.id || index}>
+                                                                    <td style={{ fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                                                        ⏱️ {l.time}
+                                                                    </td>
+                                                                    <td>
+                                                                        <span className="badge badge-source">{l.tag}</span>
+                                                                    </td>
+                                                                    <td style={{ fontWeight: 500 }}>{l.msg}</td>
+                                                                    <td>
+                                                                        <span className={`badge ${l.type === 'success' ? 'badge-saved' : l.type === 'danger' ? 'badge-pending' : 'badge-owner'}`}>
+                                                                            {(l.type || 'info').toUpperCase()}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                                                                        👤 {l.operator || (lang === 'TH' ? 'ระบบกลาง' : 'System')}
+                                                                    </td>
+                                                                </tr>
+                                                            ))
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
 
-                                                return filtered.map((l, index) => (
-                                                    <tr key={l.id || index}>
-                                                        <td style={{ fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                                                            ⏱️ {l.time}
-                                                        </td>
-                                                        <td>
-                                                            <span className="badge badge-source">{l.tag}</span>
-                                                        </td>
-                                                        <td style={{ fontWeight: 500 }}>{l.msg}</td>
-                                                        <td>
-                                                            <span className={`badge ${l.type === 'success' ? 'badge-saved' : l.type === 'danger' ? 'badge-pending' : 'badge-owner'}`}>
-                                                                {(l.type || 'info').toUpperCase()}
-                                                            </span>
-                                                        </td>
-                                                        <td style={{ color: 'var(--primary)', fontWeight: 600 }}>
-                                                            👤 {l.operator || (lang === 'TH' ? 'ระบบกลาง' : 'System')}
-                                                        </td>
-                                                    </tr>
-                                                ));
-                                            })()}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                            {/* Footer: Load more logs pagination & counter */}
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                flexWrap: 'wrap',
+                                                gap: '12px',
+                                                marginTop: '16px',
+                                                padding: '12px 16px',
+                                                borderRadius: '10px',
+                                                background: 'rgba(0,0,0,0.25)',
+                                                border: '1px solid rgba(255,255,255,0.06)'
+                                            }}>
+                                                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                                    {lang === 'TH' ? (
+                                                        <>แสดง <strong>{filtered.length}</strong> รายการ (โหลดมาแล้ว <strong>{logs.length}</strong>{totalCloudLogsCount ? <> จากทั้งหมด <strong>{totalCloudLogsCount.toLocaleString()}</strong> รายการในคลาวด์</> : ''})</>
+                                                    ) : (
+                                                        <>Showing <strong>{filtered.length}</strong> entries (loaded <strong>{logs.length}</strong>{totalCloudLogsCount ? <> of <strong>{totalCloudLogsCount.toLocaleString()}</strong> on cloud</> : ''})</>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    {totalCloudLogsCount && logs.length >= totalCloudLogsCount ? (
+                                                        <span style={{ fontSize: '11.5px', color: '#10b981', fontWeight: 600 }}>
+                                                            ✅ {lang === 'TH' ? 'โหลดข้อมูลจากคลาวด์ครบทั้งหมดแล้ว' : 'All cloud logs loaded'}
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-secondary"
+                                                            disabled={isLoadingMoreLogs}
+                                                            onClick={handleLoadMoreLogs}
+                                                            style={{
+                                                                padding: '6px 14px',
+                                                                fontSize: '12px',
+                                                                fontWeight: 600,
+                                                                borderColor: '#a855f7',
+                                                                color: '#c084fc',
+                                                                cursor: isLoadingMoreLogs ? 'not-allowed' : 'pointer',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '6px'
+                                                            }}
+                                                        >
+                                                            {isLoadingMoreLogs ? (
+                                                                <span>⏳ {lang === 'TH' ? 'กำลังโหลดข้อมูล...' : 'Loading...'}</span>
+                                                            ) : (
+                                                                <>
+                                                                    <i data-lucide="download" style={{ width: '13px', height: '13px' }}></i>
+                                                                    <span>{lang === 'TH' ? 'โหลดประวัติเพิ่มเติม (+300 รายการ)' : 'Load More Logs (+300)'}</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
                         )
                     )}
