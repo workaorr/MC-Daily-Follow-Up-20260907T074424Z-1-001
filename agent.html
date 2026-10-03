@@ -2352,7 +2352,7 @@
                 return String(val);
             };
 
-            const formatKeyedDateTime = (isoStr) => {
+            const formatKeyedDateTime = (isoStr, customLang) => {
                 if (!isoStr) return '-';
                 try {
                     const d = new Date(isoStr);
@@ -2367,6 +2367,10 @@
                     const str = String(isoStr);
                     if (str.length === 10 || str.endsWith('T00:00:00.000Z')) {
                         return `${day}/${month}/${year}`;
+                    }
+                    const activeLang = customLang || (typeof lang !== 'undefined' ? lang : 'TH');
+                    if (activeLang === 'EN') {
+                        return `${day}/${month}/${year} ${hours}:${minutes}`;
                     }
                     return `${day}/${month}/${year} ${hours}:${minutes} น.`;
                 } catch (e) {
@@ -2767,6 +2771,30 @@
                 return '🏷️';
             };
 
+            const formatChannelDisplayName = (chName, currentLang = lang) => {
+                if (!chName) return '';
+                const trimmed = String(chName).trim();
+                const lower = trimmed.toLowerCase();
+
+                if (currentLang === 'EN') {
+                    if (lower === 'ค้นหาหน้า google' || lower === 'google') return 'Google Search';
+                    if (lower === 'เพื่อนแนะนำ' || lower === 'เพื่อน' || lower === 'referral') return 'Friend Referral';
+                    if (lower === 'เซียน' || lower === 'sian') return 'Master / Expert';
+                    if (lower === 'facebook' || lower === 'fb') return 'Facebook';
+                    if (lower === 'line') return 'LINE';
+                    if (lower === 'tiktok') return 'TikTok';
+                    if (lower === 'doopenteam') return 'Doopenteam';
+                    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+                }
+
+                // In Thai (TH)
+                if (lower === 'facebook') return 'Facebook';
+                if (lower === 'line') return 'Line';
+                if (lower === 'tiktok') return 'TikTok';
+                if (lower === 'doopenteam') return 'Doopenteam';
+                return trimmed;
+            };
+
             const getChannelDetails = (ch) => {
                 const isDefault = DEFAULT_SOURCE_CHANNELS.includes(ch);
                 const meta = (sourceChannelsMeta && sourceChannelsMeta[ch]) || {};
@@ -2785,7 +2813,7 @@
                 let createdAtText = '';
                 let createdAtExact = meta.createdAt || null;
                 if (createdAtExact) {
-                    createdAtText = formatKeyedDateTime(createdAtExact);
+                    createdAtText = formatKeyedDateTime(createdAtExact, lang);
                 } else if (isDefault) {
                     createdAtText = lang === 'TH' ? '⚡ ค่าเริ่มต้นระบบ (System)' : '⚡ System Default';
                 } else {
@@ -2801,7 +2829,7 @@
                             return (!min || dt < min) ? dt : min;
                         }, null);
                         if (earliest) {
-                            createdAtText = formatKeyedDateTime(earliest);
+                            createdAtText = formatKeyedDateTime(earliest, lang);
                         } else {
                             createdAtText = lang === 'TH' ? 'บันทึกก่อนหน้า (Legacy)' : 'Legacy Record';
                         }
@@ -2811,7 +2839,17 @@
                 }
 
                 // Created By
-                let createdByText = meta.createdBy || (isDefault ? (lang === 'TH' ? 'ระบบส่วนกลาง' : 'System') : (lang === 'TH' ? 'หัวหน้างาน' : 'Supervisor'));
+                let rawCreator = meta.createdBy || (isDefault ? 'ระบบกลาง' : 'หัวหน้า');
+                let createdByText = rawCreator;
+                if (lang === 'EN') {
+                    if (rawCreator === 'ระบบกลาง' || rawCreator === 'ระบบส่วนกลาง' || rawCreator === 'System') createdByText = 'System';
+                    else if (rawCreator === 'หัวหน้า' || rawCreator === 'หัวหน้างาน' || rawCreator === 'Supervisor') createdByText = 'Supervisor';
+                    else createdByText = rawCreator;
+                } else {
+                    if (rawCreator === 'System' || rawCreator === 'ระบบกลาง' || rawCreator === 'ระบบส่วนกลาง') createdByText = 'ระบบกลาง';
+                    else if (rawCreator === 'Supervisor' || rawCreator === 'หัวหน้า' || rawCreator === 'หัวหน้างาน') createdByText = 'หัวหน้า';
+                    else createdByText = rawCreator;
+                }
 
                 return {
                     isDefault,
@@ -8049,7 +8087,7 @@
                                                                     </td>
                                                                     <td>
                                                                         <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 8px', borderRadius: '8px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}>
-                                                                            {cust.sourceChannel || 'facebook'}
+                                                                            {formatChannelDisplayName(cust.sourceChannel || 'facebook', lang)}
                                                                         </span>
                                                                     </td>
                                                                     <td>
@@ -8182,7 +8220,7 @@
                                             >
                                                 <option value="ทั้งหมด">{lang === 'TH' ? 'ช่องทางทั้งหมด' : 'All Channels'}</option>
                                                 {repSourceChannelsList.map(ch => (
-                                                    <option key={ch} value={ch}>{ch}</option>
+                                                    <option key={ch} value={ch}>{formatChannelDisplayName(ch, lang)}</option>
                                                 ))}
                                             </select>
                                         </div>
@@ -8636,7 +8674,7 @@
                                         <label>{lang === 'TH' ? 'ช่องทางสมัคร (Source Channel)' : 'Source Channel'}</label>
                                         <select value={formSource} onChange={(e) => setFormSource(e.target.value)}>
                                             {sourceChannels.map(ch => (
-                                                <option key={ch} value={ch}>{ch}</option>
+                                                <option key={ch} value={ch}>{formatChannelDisplayName(ch, lang)}</option>
                                             ))}
                                         </select>
                                         {formSource === 'เพื่อนแนะนำ' && (
@@ -8975,7 +9013,7 @@
                                                                     </td>
                                                                     <td>
                                                                         <span className="badge" style={{ background: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.3)' }}>
-                                                                            {cust.sourceChannel}
+                                                                            {formatChannelDisplayName(cust.sourceChannel, lang)}
                                                                         </span>
                                                                     </td>
                                                                     <td>
@@ -9631,7 +9669,7 @@
                                                                   {!cust.phone && !cust.lineOA && !cust.lineLek && <span style={{ color: 'var(--text-muted)' }}>{lang === 'TH' ? '(ไม่มีข้อมูลติดต่อ)' : '(No contact info)'}</span>}
                                                               </div>
                                                           </td>
-                                                            <td style={{ width: '90px', minWidth: '85px', textAlign: 'center', whiteSpace: 'nowrap' }}><span className="badge badge-source">{cust.sourceChannel}</span></td>
+                                                            <td style={{ width: '90px', minWidth: '85px', textAlign: 'center', whiteSpace: 'nowrap' }}><span className="badge badge-source">{formatChannelDisplayName(cust.sourceChannel, lang)}</span></td>
                                                             <td style={{ width: '90px', minWidth: '85px', textAlign: 'center', whiteSpace: 'nowrap' }}><strong>฿{(cust.totalDeposit || 0).toLocaleString()}</strong></td>
                                                             <td style={{ width: '220px', minWidth: '215px', verticalAlign: 'middle', padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                                                 {/* Numbered boxes grid representing days in selected month (7 days per row) */}
@@ -10570,8 +10608,15 @@
                                                                         <td>
                                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
                                                                                 <span style={{ fontSize: '16px', lineHeight: 1 }}>{getChannelIcon(ch)}</span>
-                                                                                <div>
-                                                                                    <span style={{ color: 'var(--text-main)', fontSize: '13px', fontWeight: 700 }}>{ch}</span>
+                                                                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
+                                                                                    <span style={{ color: 'var(--text-main)', fontSize: '13px', fontWeight: 700 }}>
+                                                                                        {formatChannelDisplayName(ch, lang)}
+                                                                                    </span>
+                                                                                    {lang === 'EN' && (ch === 'ค้นหาหน้า google' || ch === 'เพื่อนแนะนำ' || ch === 'เซียน') && (
+                                                                                        <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                                                                            ({ch})
+                                                                                        </span>
+                                                                                    )}
                                                                                 </div>
                                                                             </div>
                                                                         </td>
