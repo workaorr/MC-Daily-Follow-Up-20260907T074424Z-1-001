@@ -9474,7 +9474,7 @@
                             const effectiveFollowUpAgent = isSupervisor ? supervisorFollowUpFilter : activeAgentName;
                             const isDepositedAsOfDate = (c) => Boolean(c.hasDeposited);
 
-                            const agentCusts = monthCustomers.filter(c => effectiveFollowUpAgent === 'ทั้งหมด' || c.createdBy === effectiveFollowUpAgent);
+                            const agentCusts = customersArray.filter(c => effectiveFollowUpAgent === 'ทั้งหมด' || c.createdBy === effectiveFollowUpAgent);
                             
                             const cAll = agentCusts.length;
                             const cNotReg = agentCusts.filter(c => !c.username || c.username.trim() === '').length;
@@ -9602,12 +9602,12 @@
                                         <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 24px 10px 24px' }}>
                                             {effectiveFollowUpAgent === 'ทั้งหมด' ? (
                                                 lang === 'TH'
-                                                    ? <>ระบบแสดงรายการลูกค้าทั้งหมดในพอร์ตทุกพนักงาน ประจำรอบเดือน <strong>{selectedMonth}</strong></>
-                                                    : <>Showing all portfolio customer records across all agents for month <strong>{selectedMonth}</strong></>
+                                                    ? <>ระบบแสดงรายการลูกค้าทั้งหมดในพอร์ตทุกพนักงาน {pastMonthSpecificFilter === 'ALL' ? '(ข้อมูลรวมทุกรอบเดือน)' : pastMonthSpecificFilter === 'CURRENT' ? <>ประจำรอบเดือน <strong>{selectedMonth}</strong></> : pastMonthSpecificFilter === 'PAST_ALL' ? '(รวมทุกเดือนย้อนหลัง)' : <>ประจำรอบเดือน <strong>{pastMonthSpecificFilter}</strong></>}</>
+                                                    : <>Showing all portfolio customer records across all agents {pastMonthSpecificFilter === 'ALL' ? '(All Months Data)' : pastMonthSpecificFilter === 'CURRENT' ? <>for month <strong>{selectedMonth}</strong></> : pastMonthSpecificFilter === 'PAST_ALL' ? '(All Past Months)' : <>for month <strong>{pastMonthSpecificFilter}</strong></>}</>
                                             ) : (
                                                 lang === 'TH'
-                                                    ? <>ระบบกรองเฉพาะลูกค้าในพอร์ตความรับผิดชอบของ <strong>{effectiveFollowUpAgent}</strong> ประจำรอบเดือน <strong>{selectedMonth}</strong> พนักงานสามารถติ๊กเช็กงานโทรรายวันและจดโน้ตเพื่อบันทึกพฤติกรรมลูกค้าได้ทันทีครับ</>
-                                                    : <>Filtered customers assigned to <strong>{effectiveFollowUpAgent}</strong> for month <strong>{selectedMonth}</strong>. Track daily follow-up calls and log customer notes.</>
+                                                    ? <>ระบบกรองเฉพาะลูกค้าในพอร์ตความรับผิดชอบของ <strong>{effectiveFollowUpAgent}</strong> {pastMonthSpecificFilter === 'ALL' ? '(ข้อมูลรวมทุกรอบเดือน)' : pastMonthSpecificFilter === 'CURRENT' ? <>ประจำรอบเดือน <strong>{selectedMonth}</strong></> : pastMonthSpecificFilter === 'PAST_ALL' ? '(รวมทุกเดือนย้อนหลัง)' : <>ประจำรอบเดือน <strong>{pastMonthSpecificFilter}</strong></>} พนักงานสามารถติ๊กเช็กงานโทรรายวันและจดโน้ตเพื่อบันทึกพฤติกรรมลูกค้าได้ทันทีครับ</>
+                                                    : <>Filtered customers assigned to <strong>{effectiveFollowUpAgent}</strong> {pastMonthSpecificFilter === 'ALL' ? '(All Months Data)' : pastMonthSpecificFilter === 'CURRENT' ? <>for month <strong>{selectedMonth}</strong></> : pastMonthSpecificFilter === 'PAST_ALL' ? '(All Past Months)' : <>for month <strong>{pastMonthSpecificFilter}</strong></>}. Track daily follow-up calls and log customer notes.</>
                                             )}
                                         </p>
 
@@ -9708,7 +9708,7 @@
                                                         <button 
                                                             className={`btn ${statusFilter === 'DEPOSITED' ? 'btn-primary' : 'btn-secondary'}`} 
                                                             style={{ padding: '4px 9px', fontSize: '11px', color: statusFilter === 'DEPOSITED' ? '#fff' : 'var(--secondary)' }} 
-                                                            onClick={() => setStatusFilter('DEPOSITED')}
+                                                            onClick={() => setStatusFilter(statusFilter === 'DEPOSITED' ? 'ALL' : 'DEPOSITED')}
                                                         >
                                                             {lang === 'TH' ? `🟢 สมัครและฝาก (${cScopeDep})` : `🟢 Reg & Deposited (${cScopeDep})`}
                                                         </button>
@@ -10111,10 +10111,14 @@
                                                                 }}>
                                                                     {Array.from({ length: daysInMonth }, (_, idx) => {
                                                                         const dayNum = String(idx + 1);
-                                                                        const isTicked = Boolean(cust.followUp && cust.followUp[dayNum]);
                                                                         const now = new Date();
                                                                         const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
                                                                         const todayDayNum = String(now.getDate());
+                                                                        const activeCustMonth = (pastMonthSpecificFilter && pastMonthSpecificFilter !== 'ALL' && pastMonthSpecificFilter !== 'CURRENT' && pastMonthSpecificFilter !== 'PAST_ALL')
+                                                                            ? pastMonthSpecificFilter
+                                                                            : (cust.campaignMonth || currentMonthStr);
+                                                                        const fMap = (cust.followUpByMonth && cust.followUpByMonth[activeCustMonth]) || cust.followUp || {};
+                                                                        const isTicked = Boolean(fMap[dayNum]);
                                                                         const isCurrentMonthView = selectedMonth === 'ALL'
                                                                             ? cust.campaignMonth === currentMonthStr
                                                                             : selectedMonth === currentMonthStr;
