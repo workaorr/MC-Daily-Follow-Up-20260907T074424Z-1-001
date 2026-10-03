@@ -65,8 +65,10 @@
                     document.documentElement.classList.add('light-theme');
                     var s = document.createElement('style');
                     s.id = 'theme-init';
-                    s.innerHTML = 'html, body, html.light-theme body { background-color: #f1f5f9 !important; color: #0f172a !important; } html.light-theme .app-topbar, html.light-theme .app-sidebar, html.light-theme .panel, html.light-theme .kpi-card, html.light-theme .agent-sticky-header-container { background: #ffffff !important; border-color: #e2e8f0 !important; }';
+                    s.innerHTML = 'html.light-theme, body.light-theme { background-color: #f1f5f9 !important; color: #0f172a !important; } html.light-theme .app-topbar, html.light-theme .app-sidebar, html.light-theme .panel, html.light-theme .kpi-card, html.light-theme .agent-sticky-header-container { background: #ffffff !important; border-color: #e2e8f0 !important; }';
                     document.head.appendChild(s);
+                } else {
+                    document.documentElement.classList.remove('light-theme');
                 }
             } catch (e) {}
         })();
@@ -75,10 +77,10 @@
     <style>
         :root {
             --bg-base: #060913;
-            --bg-surface: rgba(15, 23, 42, 0.75);
-            --bg-card: rgba(30, 41, 59, 0.5);
-            --border-glow: rgba(168, 85, 247, 0.15); /* Purple tint */
-            --border-hover: rgba(168, 85, 247, 0.4);
+            --bg-surface: #0b1120;
+            --bg-card: #0d1527;
+            --border-glow: rgba(168, 85, 247, 0.2); /* Purple tint */
+            --border-hover: rgba(168, 85, 247, 0.45);
             --primary: #a855f7; /* Purple accent */
             --primary-glow: rgba(168, 85, 247, 0.35);
             --secondary: #10b981; /* Green success */
@@ -87,7 +89,7 @@
             --warning: #f59e0b;
             --danger: #ef4444;
             --text-main: #ffffff;
-            --text-muted: #cbd5e1;
+            --text-muted: #94a3b8;
             --transition-speed: 0.25s;
         }
 
@@ -2082,7 +2084,59 @@
             border-color: rgba(168, 85, 247, 0.4) !important;
         }
 
-        /* General Dark Mode Typography Sharpness */
+        /* ==========================================================================
+           COMPREHENSIVE DARK THEME SYSTEM OVERRIDES (โหมดมืด คมชัด ลุ่มลึก 100% ทุกจุด)
+           ========================================================================== */
+        html:not(.light-theme),
+        body:not(.light-theme) {
+            --bg-base: #060913;
+            --bg-surface: #0b1120;
+            --bg-card: #0d1527;
+            --border-glow: rgba(168, 85, 247, 0.2);
+            --border-hover: rgba(168, 85, 247, 0.45);
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            background-color: #060913 !important;
+            color: #ffffff !important;
+            background-image: 
+                radial-gradient(circle at 5% 5%, rgba(168, 85, 247, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 95% 95%, rgba(16, 185, 129, 0.05) 0%, transparent 40%) !important;
+        }
+
+        body:not(.light-theme) #root,
+        body:not(.light-theme) .app-main {
+            background-color: #060913 !important;
+            color: #ffffff !important;
+        }
+
+        body:not(.light-theme) .app-topbar {
+            background: rgba(11, 17, 32, 0.98) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45) !important;
+        }
+
+        body:not(.light-theme) .app-sidebar {
+            background: #090e1a !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+            box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35) !important;
+        }
+
+        body:not(.light-theme) .panel,
+        body:not(.light-theme) .kpi-card,
+        body:not(.light-theme) .registration-form,
+        body:not(.light-theme) .upload-box,
+        body:not(.light-theme) .modal-content,
+        body:not(.light-theme) .table-wrapper {
+            background: #0d1527 !important;
+            border: 1px solid rgba(168, 85, 247, 0.2) !important;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45) !important;
+            color: #ffffff !important;
+        }
+
+        body:not(.light-theme) .panel-header {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+
         body:not(.light-theme) .panel-title {
             color: #ffffff !important;
             font-weight: 800 !important;
@@ -2090,7 +2144,7 @@
 
         body:not(.light-theme) .panel p,
         body:not(.light-theme) .text-muted {
-            color: #cbd5e1 !important;
+            color: #94a3b8 !important;
         }
 
         body:not(.light-theme) .form-group label {
@@ -2098,24 +2152,151 @@
             font-weight: 600 !important;
         }
 
-        body:not(.light-theme) table th {
+        /* TABLES IN DARK MODE (คมชัด สบายตา พื้นหลังดำเข้ม ลุ่มลึก ไม่เพี้ยน) */
+        body:not(.light-theme) table {
+            background-color: #0d1527 !important;
+        }
+
+        body:not(.light-theme) table thead th,
+        body:not(.light-theme) th {
+            background-color: #080d19 !important;
             color: #ffffff !important;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.12) !important;
             font-weight: 700 !important;
         }
 
-        body:not(.light-theme) table td {
+        body:not(.light-theme) table tbody tr,
+        body:not(.light-theme) td {
+            background-color: #0d1527 !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
             color: #f1f5f9 !important;
         }
 
-        body:not(.light-theme) .day-box.inactive {
-            color: #cbd5e1 !important;
-            background: rgba(30, 41, 59, 0.6) !important;
+        body:not(.light-theme) table tbody tr:nth-child(even) td {
+            background-color: #0a1120 !important;
+        }
+
+        body:not(.light-theme) table tbody tr:hover td {
+            background-color: #141f36 !important;
+        }
+
+        /* AGENT VIEW STICKY HEADER & FILTER CARD */
+        body:not(.light-theme) .agent-sticky-header-container {
+            background: #0d1527 !important;
+            border-bottom: 1px solid rgba(168, 85, 247, 0.25) !important;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+        }
+
+        body:not(.light-theme) .agent-sticky-header-container .filter-card-box {
+            background: #0f1a30 !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+
+        body:not(.light-theme) .btn-secondary {
+            background: rgba(255, 255, 255, 0.06) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            color: #f1f5f9 !important;
+        }
+
+        body:not(.light-theme) .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.14) !important;
+            border-color: rgba(255, 255, 255, 0.25) !important;
+        }
+
+        /* DAY CHECKLIST BOXES IN DARK MODE (1-31 คมชัดทุกสถานะ ไม่กลืนกับพื้นหลัง) */
+        body:not(.light-theme) .day-box {
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+
+        /* วันนี้ - ยังไม่ได้ติ๊ก (Active Today Unticked: ม่วงสด คมชัด ชวนคลิก) */
+        body:not(.light-theme) .is-today-unticked,
+        body:not(.light-theme) .day-box:not(.disabled):not(.active) {
+            background-color: #1e1b4b !important;
+            border: 2px solid #a855f7 !important;
+            color: #ffffff !important;
+            font-weight: 900 !important;
+            box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.35) !important;
+            transform: scale(1.1) !important;
+        }
+
+        /* วันนี้ - ติ๊กแล้ว (Active Today Ticked: เขียวสด เด่นชัด) */
+        body:not(.light-theme) .is-today-ticked,
+        body:not(.light-theme) .day-box.active:not(.disabled) {
+            background-color: #10b981 !important;
+            border: 2px solid #34d399 !important;
+            color: #ffffff !important;
+            font-weight: 900 !important;
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.5) !important;
+            transform: scale(1.15) !important;
+        }
+
+        /* วันอื่นๆ - ยังไม่ได้ติ๊ก (Disabled Unticked: มืด ไม่แย่งสายตา) */
+        body:not(.light-theme) .is-disabled-unticked,
+        body:not(.light-theme) .day-box.disabled.inactive,
+        body:not(.light-theme) .day-box.disabled:not(.active) {
+            background-color: #131a2b !important;
+            border-color: rgba(255, 255, 255, 0.06) !important;
+            color: #64748b !important;
+            opacity: 0.5 !important;
+        }
+
+        /* วันอื่นๆ - เคยติ๊กไปแล้ว (Disabled Ticked: ม่วงสวยงาม ไม่จางหาย) */
+        body:not(.light-theme) .is-disabled-ticked,
+        body:not(.light-theme) .day-box.disabled.active {
+            background-color: rgba(168, 85, 247, 0.35) !important;
+            border: 1px solid rgba(168, 85, 247, 0.6) !important;
+            color: #f3e8ff !important;
+            font-weight: 800 !important;
+            opacity: 0.85 !important;
         }
 
         body:not(.light-theme) .day-box.inactive:hover {
             color: #ffffff !important;
-            background: rgba(168, 85, 247, 0.25) !important;
+            background: rgba(168, 85, 247, 0.3) !important;
             border-color: #a855f7 !important;
+        }
+
+        /* MODALS IN DARK MODE */
+        body:not(.light-theme) .modal-overlay {
+            background: rgba(2, 6, 23, 0.8) !important;
+            backdrop-filter: blur(8px) !important;
+        }
+
+        body:not(.light-theme) .modal-content {
+            background: #0d1527 !important;
+            border: 1px solid rgba(168, 85, 247, 0.35) !important;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75) !important;
+            color: #ffffff !important;
+        }
+
+        body:not(.light-theme) .modal-content h2,
+        body:not(.light-theme) .modal-content h3,
+        body:not(.light-theme) .modal-content h4,
+        body:not(.light-theme) .modal-title {
+            color: #ffffff !important;
+            font-weight: 800 !important;
+        }
+
+        body:not(.light-theme) .modal-field label,
+        body:not(.light-theme) .form-group label {
+            color: #e2e8f0 !important;
+            font-weight: 600 !important;
+        }
+
+        body:not(.light-theme) .modal-field input,
+        body:not(.light-theme) .modal-field select,
+        body:not(.light-theme) .modal-field textarea {
+            background: #0f1a30 !important;
+            border: 1.5px solid rgba(168, 85, 247, 0.35) !important;
+            color: #ffffff !important;
+        }
+
+        body:not(.light-theme) .modal-field textarea:focus,
+        body:not(.light-theme) .modal-field input:focus,
+        body:not(.light-theme) .modal-field select:focus {
+            border-color: #c084fc !important;
+            box-shadow: 0 0 14px rgba(168, 85, 247, 0.4) !important;
+            background: #111e38 !important;
         }
     </style>
 </head>
@@ -2251,12 +2432,16 @@
 
             useEffect(() => {
                 localStorage.setItem('mc_theme', theme);
+                var themeInitStyle = document.getElementById('theme-init');
                 if (theme === 'light') {
                     document.documentElement.classList.add('light-theme');
                     document.body.classList.add('light-theme');
                 } else {
                     document.documentElement.classList.remove('light-theme');
                     document.body.classList.remove('light-theme');
+                    if (themeInitStyle && themeInitStyle.parentNode) {
+                        themeInitStyle.parentNode.removeChild(themeInitStyle);
+                    }
                 }
             }, [theme]);
 
@@ -9752,8 +9937,8 @@
                                                 marginTop: '10px',
                                                 marginBottom: '10px',
                                                 borderRadius: '10px',
-                                                background: theme === 'light' ? '#f8fafc' : 'rgba(15, 23, 42, 0.75)',
-                                                border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255, 255, 255, 0.1)',
+                                                background: theme === 'light' ? '#f8fafc' : '#0f1a30',
+                                                border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255, 255, 255, 0.08)',
                                                 boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
                                             }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -9765,7 +9950,7 @@
                                                         fontWeight: 700,
                                                         padding: '3px 10px',
                                                         borderRadius: '6px',
-                                                        background: theme === 'light' ? '#ffffff' : 'rgba(255, 255, 255, 0.06)',
+                                                        background: theme === 'light' ? '#ffffff' : '#14203b',
                                                         border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255, 255, 255, 0.1)',
                                                         color: theme === 'light' ? '#0f172a' : '#f8fafc'
                                                     }}>
@@ -9912,8 +10097,8 @@
                                                         </tr>
                                                         {/* KPI TOTALS SUB-HEADER ROW (DIRECTLY UNDER COLUMN HEADERS AS MARKED BY USER) */}
                                                         <tr style={{
-                                                            background: theme === 'light' ? '#f8fafc' : 'rgba(15, 23, 42, 0.95)',
-                                                            borderBottom: theme === 'light' ? '2px solid #cbd5e1' : '2px solid rgba(255, 255, 255, 0.12)'
+                                                            background: theme === 'light' ? '#f8fafc' : '#080d19',
+                                                            borderBottom: theme === 'light' ? '2px solid #cbd5e1' : '2px solid rgba(255, 255, 255, 0.08)'
                                                         }}>
                                                             <th colSpan="3" style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, fontSize: '11.5px', color: 'var(--text-muted)' }}>
                                                                 <span>📊 {lang === 'TH' ? 'ยอดรวมตามตัวกรอง' : 'Filtered Totals'}: </span>
@@ -10180,8 +10365,8 @@
                                         {displayList.length > 0 && (
                                             <tfoot>
                                                 <tr style={{
-                                                    background: theme === 'light' ? '#f1f5f9' : 'rgba(30, 41, 59, 0.8)',
-                                                    borderTop: '2px solid var(--border-color)',
+                                                    background: theme === 'light' ? '#f1f5f9' : '#080d19',
+                                                    borderTop: theme === 'light' ? '2px solid #cbd5e1' : '2px solid rgba(255, 255, 255, 0.08)',
                                                     fontWeight: 700,
                                                     fontSize: '12.5px'
                                                 }}>
