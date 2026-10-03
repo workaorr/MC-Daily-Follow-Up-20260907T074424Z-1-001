@@ -10571,17 +10571,17 @@
                                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
                                                                                 <span style={{ fontSize: '16px', lineHeight: 1 }}>{getChannelIcon(ch)}</span>
                                                                                 <div>
-                                                                                    <strong style={{ color: '#fff', fontSize: '13px' }}>{ch}</strong>
+                                                                                    <span style={{ color: 'var(--text-main)', fontSize: '13px', fontWeight: 700 }}>{ch}</span>
                                                                                 </div>
                                                                             </div>
                                                                         </td>
                                                                         <td style={{ textAlign: 'center' }}>
                                                                             {isDefault ? (
-                                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: 700, padding: '3px 8px', borderRadius: '12px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+                                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: 700, padding: '3px 8px', borderRadius: '12px', background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
                                                                                     ⭐ {lang === 'TH' ? 'ช่องทางหลัก' : 'Default'}
                                                                                 </span>
                                                                             ) : (
-                                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: 700, padding: '3px 8px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: 700, padding: '3px 8px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.15)', color: '#0284c7', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
                                                                                     🏷️ {lang === 'TH' ? 'ช่องทางเพิ่มเติม' : 'Custom'}
                                                                                 </span>
                                                                             )}
@@ -10596,7 +10596,7 @@
                                                                                     padding: '3px 10px',
                                                                                     borderRadius: '12px',
                                                                                     background: custCount > 0 ? 'rgba(16, 185, 129, 0.18)' : 'rgba(255, 255, 255, 0.05)',
-                                                                                    color: custCount > 0 ? '#34d399' : 'var(--text-muted)',
+                                                                                    color: custCount > 0 ? '#10b981' : 'var(--text-muted)',
                                                                                     fontWeight: 700,
                                                                                     border: custCount > 0 ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(255, 255, 255, 0.08)'
                                                                                 }}
@@ -10606,13 +10606,13 @@
                                                                             </span>
                                                                         </td>
                                                                         <td>
-                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: details.createdAtExact ? '#cbd5e1' : 'var(--text-muted)' }}>
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--text-main)' }}>
                                                                                 <i data-lucide="clock" style={{ width: '12px', height: '12px', color: '#a855f7', flexShrink: 0 }}></i>
                                                                                 <span>{details.createdAtText}</span>
                                                                             </div>
                                                                         </td>
                                                                         <td>
-                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#94a3b8' }}>
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--text-muted)' }}>
                                                                                 <i data-lucide="user" style={{ width: '12px', height: '12px', color: '#64748b', flexShrink: 0 }}></i>
                                                                                 <span>{details.createdByText}</span>
                                                                             </div>
