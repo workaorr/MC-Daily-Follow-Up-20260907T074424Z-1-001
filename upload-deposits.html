@@ -2741,7 +2741,86 @@
                     return DEFAULT_SOURCE_CHANNELS;
                 }
             });
+            const [sourceChannelsMeta, setSourceChannelsMeta] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('mc_source_channels_meta');
+                    return saved ? JSON.parse(saved) : {};
+                } catch(e) {
+                    return {};
+                }
+            });
             const [newChannelInput, setNewChannelInput] = useState('');
+
+            const getChannelIcon = (chName) => {
+                const lower = (chName || '').toLowerCase();
+                if (lower.includes('facebook') || lower.includes('fb')) return '🌐';
+                if (lower.includes('line')) return '💬';
+                if (lower.includes('google')) return '🔍';
+                if (lower.includes('tiktok')) return '🎵';
+                if (lower.includes('doopen') || lower.includes('team')) return '👥';
+                if (lower.includes('เพื่อน') || lower.includes('friend')) return '🤝';
+                if (lower.includes('เซียน')) return '👑';
+                if (lower.includes('ig') || lower.includes('instagram')) return '📸';
+                if (lower.includes('youtube')) return '▶️';
+                if (lower.includes('telegram')) return '✈️';
+                if (lower.includes('twitter') || lower.includes('x')) return '🐦';
+                return '🏷️';
+            };
+
+            const getChannelDetails = (ch) => {
+                const isDefault = DEFAULT_SOURCE_CHANNELS.includes(ch);
+                const meta = (sourceChannelsMeta && sourceChannelsMeta[ch]) || {};
+
+                // Customer count
+                const custCount = (customers || []).filter(c => {
+                    const src = (c.sourceChannel || '').trim().toLowerCase();
+                    const target = (ch || '').trim().toLowerCase();
+                    if (target === 'ค้นหาหน้า google' || target === 'google') {
+                        return src === 'ค้นหาหน้า google' || src === 'google';
+                    }
+                    return src === target;
+                }).length;
+
+                // Created At date and time
+                let createdAtText = '';
+                let createdAtExact = meta.createdAt || null;
+                if (createdAtExact) {
+                    createdAtText = formatKeyedDateTime(createdAtExact);
+                } else if (isDefault) {
+                    createdAtText = lang === 'TH' ? '⚡ ค่าเริ่มต้นระบบ (System)' : '⚡ System Default';
+                } else {
+                    // Fallback to earliest customer using this channel
+                    const matchedCusts = (customers || []).filter(c => {
+                        const src = (c.sourceChannel || '').trim().toLowerCase();
+                        return src === ch.trim().toLowerCase();
+                    });
+                    if (matchedCusts.length > 0) {
+                        const earliest = matchedCusts.reduce((min, c) => {
+                            const dt = c.createdAt || c.registrationDate || c.date;
+                            if (!dt) return min;
+                            return (!min || dt < min) ? dt : min;
+                        }, null);
+                        if (earliest) {
+                            createdAtText = formatKeyedDateTime(earliest);
+                        } else {
+                            createdAtText = lang === 'TH' ? 'บันทึกก่อนหน้า (Legacy)' : 'Legacy Record';
+                        }
+                    } else {
+                        createdAtText = lang === 'TH' ? 'บันทึกก่อนหน้า (Legacy)' : 'Legacy Record';
+                    }
+                }
+
+                // Created By
+                let createdByText = meta.createdBy || (isDefault ? (lang === 'TH' ? 'ระบบส่วนกลาง' : 'System') : (lang === 'TH' ? 'หัวหน้างาน' : 'Supervisor'));
+
+                return {
+                    isDefault,
+                    custCount,
+                    createdAtText,
+                    createdAtExact,
+                    createdByText
+                };
+            };
 
             const handleAddSourceChannel = async (channel) => {
                 const trimmed = (channel || '').trim().toLowerCase();
@@ -2750,9 +2829,21 @@
                     alert(lang === 'TH' ? 'ช่องทางนี้มีอยู่ในระบบแล้ว' : 'This channel already exists in the system');
                     return;
                 }
+                const nowIso = new Date().toISOString();
+                const creator = activeAgentName || (lang === 'TH' ? 'หัวหน้า' : 'Supervisor');
                 const updated = [...sourceChannels, trimmed];
                 setSourceChannels(updated);
                 localStorage.setItem('mc_source_channels', JSON.stringify(updated));
+
+                const newMeta = {
+                    createdAt: nowIso,
+                    createdBy: creator,
+                    isDefault: false
+                };
+                const updatedMeta = { ...sourceChannelsMeta, [trimmed]: newMeta };
+                setSourceChannelsMeta(updatedMeta);
+                localStorage.setItem('mc_source_channels_meta', JSON.stringify(updatedMeta));
+
                 writeLog('BACKOFFICE', `เพิ่มช่องทางสมัครใหม่: ${trimmed}`, 'success', activeAgentName);
 
                 if (supabaseClient) {
@@ -2762,7 +2853,8 @@
                             .insert({
                                 name: trimmed,
                                 is_default: false,
-                                created_by: activeAgentName || 'หัวหน้า'
+                                created_by: creator,
+                                created_at: nowIso
                             });
                         if (error) {
                             console.warn('Supabase mc_source_channels insert warning:', error.message);
@@ -2796,6 +2888,12 @@
                 const updated = sourceChannels.filter(c => c !== channel);
                 setSourceChannels(updated);
                 localStorage.setItem('mc_source_channels', JSON.stringify(updated));
+
+                const updatedMeta = { ...sourceChannelsMeta };
+                delete updatedMeta[channel];
+                setSourceChannelsMeta(updatedMeta);
+                localStorage.setItem('mc_source_channels_meta', JSON.stringify(updatedMeta));
+
                 writeLog('BACKOFFICE', `ลบช่องทางสมัคร: ${channel}`, 'warning', activeAgentName);
 
                 if (supabaseClient) {
@@ -2881,7 +2979,7 @@
                 if (window.lucide && typeof window.lucide.createIcons === 'function') {
                     window.lucide.createIcons();
                 }
-            }, [viewMode, customers, agents, activeAgentName, selectedCustForModal, showDbSettings, selectedMonth, isLoginModalOpen, depositMetricMode, editingAgentId, sourceChannels, isAddCustomerDisabled, isAddUsernameDuplicate, showLoginPassword, loginErrorMsg, addSuccessModalData, addConfirmModalData, depositPreviewData, showChangePasscodeModal, deletedCustomers, isLockedDueToInactivity, archiveAgentModalData, recycleBinTab, backOfficeSubTab]);
+            }, [viewMode, customers, agents, activeAgentName, selectedCustForModal, showDbSettings, selectedMonth, isLoginModalOpen, depositMetricMode, editingAgentId, sourceChannels, sourceChannelsMeta, isAddCustomerDisabled, isAddUsernameDuplicate, showLoginPassword, loginErrorMsg, addSuccessModalData, addConfirmModalData, depositPreviewData, showChangePasscodeModal, deletedCustomers, isLockedDueToInactivity, archiveAgentModalData, recycleBinTab, backOfficeSubTab]);
 
             // Helper: Console logger & Supabase Cloud mc_logs Writer
             const writeLog = (tag, msg, type = 'info', operator = null) => {
@@ -3299,6 +3397,24 @@
                             const mergedChannels = [...new Set([...DEFAULT_SOURCE_CHANNELS, ...cloudChannels])];
                             setSourceChannels(mergedChannels);
                             localStorage.setItem('mc_source_channels', JSON.stringify(mergedChannels));
+
+                            const metaMap = {};
+                            dbChannels.forEach(c => {
+                                if (c && c.name) {
+                                    const key = c.name.trim().toLowerCase();
+                                    metaMap[key] = {
+                                        createdAt: c.created_at || null,
+                                        createdBy: c.created_by || (c.is_default ? 'ระบบกลาง' : 'หัวหน้า'),
+                                        isDefault: !!c.is_default
+                                    };
+                                }
+                            });
+                            setSourceChannelsMeta(prev => {
+                                const updated = { ...prev, ...metaMap };
+                                localStorage.setItem('mc_source_channels_meta', JSON.stringify(updated));
+                                return updated;
+                            });
+
                             writeLog('SUPABASE', `ดาวน์โหลดช่องทางการตลาดสำเร็จ: ${mergedChannels.length} ช่องทาง`, 'success');
                         } else if (!chErr && (!dbChannels || dbChannels.length === 0)) {
                             const seed = DEFAULT_SOURCE_CHANNELS.map(name => ({
@@ -3329,6 +3445,18 @@
                                         localStorage.setItem('mc_source_channels', JSON.stringify(next));
                                         return next;
                                     });
+                                    setSourceChannelsMeta(prev => {
+                                        const next = {
+                                            ...prev,
+                                            [newCh]: {
+                                                createdAt: r.created_at || new Date().toISOString(),
+                                                createdBy: r.created_by || 'หัวหน้า',
+                                                isDefault: !!r.is_default
+                                            }
+                                        };
+                                        localStorage.setItem('mc_source_channels_meta', JSON.stringify(next));
+                                        return next;
+                                    });
                                 } else if (ev === 'DELETE') {
                                     const r = payload.old;
                                     if (!r) return;
@@ -3337,6 +3465,12 @@
                                         const cur = Array.isArray(prev) ? prev : DEFAULT_SOURCE_CHANNELS;
                                         const next = cur.filter(c => c !== delName || DEFAULT_SOURCE_CHANNELS.includes(c));
                                         localStorage.setItem('mc_source_channels', JSON.stringify(next));
+                                        return next;
+                                    });
+                                    setSourceChannelsMeta(prev => {
+                                        const next = { ...prev };
+                                        delete next[delName];
+                                        localStorage.setItem('mc_source_channels_meta', JSON.stringify(next));
                                         return next;
                                     });
                                 }
@@ -5070,6 +5204,7 @@
                             deletedCustomers: deletedCustomers,
                             agents: agents,
                             sourceChannels: sourceChannels,
+                            sourceChannelsMeta: sourceChannelsMeta,
                             deposits: backupDeposits,
                             logs: logs.slice(0, 500)
                         }
@@ -5150,6 +5285,10 @@
                         if (Array.isArray(backupData.sourceChannels)) {
                             setSourceChannels(backupData.sourceChannels);
                             localStorage.setItem('mc_source_channels', JSON.stringify(backupData.sourceChannels));
+                        }
+                        if (backupData.sourceChannelsMeta && typeof backupData.sourceChannelsMeta === 'object') {
+                            setSourceChannelsMeta(backupData.sourceChannelsMeta);
+                            localStorage.setItem('mc_source_channels_meta', JSON.stringify(backupData.sourceChannelsMeta));
                         }
                         if (Array.isArray(backupData.deposits)) {
                             localStorage.setItem('mc_deposits', JSON.stringify(backupData.deposits));
@@ -10312,145 +10451,213 @@
                                     {/* Section 2: Source Channels Manager Card */}
                                     {(backOfficeSubTab === 'all' || backOfficeSubTab === 'channels') && (
                                     <div className="panel">
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <i data-lucide="tag" style={{ color: '#c084fc' }}></i>
-                                            <h3 className="panel-title" style={{ margin: 0, fontSize: '15px' }}>
-                                                {lang === 'TH' ? 'จัดการรายชื่อช่องทางสมัครที่ทักเข้ามา (Source Channels Manager)' : 'Marketing Channels Manager'}
-                                            </h3>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <i data-lucide="tag" style={{ color: '#c084fc' }}></i>
+                                                <h3 className="panel-title" style={{ margin: 0, fontSize: '15px' }}>
+                                                    {lang === 'TH' ? 'จัดการรายชื่อช่องทางสมัครที่ทักเข้ามา (Source Channels Manager)' : 'Marketing Channels Manager'}
+                                                </h3>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '8px', background: 'rgba(168, 85, 247, 0.12)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.25)' }}>
+                                                    {lang === 'TH' ? `ทั้งหมด ${sourceChannels.length} ช่องทาง` : `Total ${sourceChannels.length} Channels`}
+                                                </span>
+                                                <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 8px', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.04)', color: 'var(--text-muted)' }}>
+                                                    {lang === 'TH' ? `หลัก ${DEFAULT_SOURCE_CHANNELS.length} / กำหนดเอง ${Math.max(0, sourceChannels.length - DEFAULT_SOURCE_CHANNELS.length)}` : `Default ${DEFAULT_SOURCE_CHANNELS.length} / Custom ${Math.max(0, sourceChannels.length - DEFAULT_SOURCE_CHANNELS.length)}`}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>
-                                            {lang === 'TH' ? `จำนวนทั้งหมด ${sourceChannels.length} ช่องทาง` : `Total ${sourceChannels.length} Channels`}
-                                        </span>
-                                    </div>
 
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                                        {/* Cloud Source Channels Status & 1-Click SQL copy helper */}
-                                        <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '10px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <span style={{ fontSize: '20px' }}>☁️</span>
-                                                <div>
-                                                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#6ee7b7' }}>
-                                                        {lang === 'TH' ? 'การจัดเก็บช่องทางการตลาดบน Supabase Cloud (Centralized Channels)' : 'Centralized Marketing Channels (Supabase Cloud)'}
-                                                    </div>
-                                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                                        {lang === 'TH' ? 'เมื่อเพิ่ม/ลบช่องทาง ระบบจะซิงค์ไปยังพนักงานทุกคนในทีมแบบเรียลไทม์ (หากยังไม่ได้สร้างตาราง mc_source_channels ให้คลิกปุ่มเพื่อคัดลอก SQL ไปรันใน Supabase)' : 'Syncs marketing channels across all team members in real-time. (Click button to copy migration SQL)'}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                            {/* Cloud Source Channels Status & 1-Click SQL copy helper */}
+                                            <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '10px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    <span style={{ fontSize: '20px' }}>☁️</span>
+                                                    <div>
+                                                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#6ee7b7' }}>
+                                                            {lang === 'TH' ? 'การจัดเก็บช่องทางการตลาดบน Supabase Cloud (Centralized Channels)' : 'Centralized Marketing Channels (Supabase Cloud)'}
+                                                        </div>
+                                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                                            {lang === 'TH' ? 'เมื่อเพิ่ม/ลบช่องทาง ระบบจะบันทึกวันเวลาและซิงค์ไปยังพนักงานทุกคนในทีมแบบเรียลไทม์' : 'Syncs marketing channels, creation timestamps, and creators across all team members in real-time.'}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                className="btn btn-secondary"
-                                                style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 700, borderColor: '#10b981', color: '#6ee7b7', display: 'flex', alignItems: 'center', gap: '6px' }}
-                                                onClick={() => {
-                                                    const sql = "-- 1. เพิ่มคอลัมน์ customer_count ในตาราง mc_source_channels\nALTER TABLE public.mc_source_channels ADD COLUMN IF NOT EXISTS customer_count INT DEFAULT 0;\n\n-- 2. ดึงช่องทางที่มีลูกค้าใช้งานอยู่แล้วแต่ยังไม่มีในตารางเข้ามาอัตโนมัติ (เช่น 'เซียน')\nINSERT INTO public.mc_source_channels (name, is_default, created_by)\nSELECT DISTINCT TRIM(LOWER(source_channel)), false, 'ระบบกลาง'\nFROM public.mc_customers\nWHERE source_channel IS NOT NULL AND TRIM(source_channel) != ''\n  AND TRIM(LOWER(source_channel)) NOT IN (SELECT TRIM(LOWER(name)) FROM public.mc_source_channels)\nON CONFLICT (name) DO NOTHING;\n\n-- 3. อัปเดตจำนวนลูกค้าปัจจุบันทันที\nUPDATE public.mc_source_channels sc\nSET customer_count = (\n  SELECT COUNT(*) FROM public.mc_customers c\n  WHERE TRIM(LOWER(COALESCE(c.source_channel, ''))) = TRIM(LOWER(sc.name))\n);\n\n-- 4. ติดตั้ง Trigger อัปเดตยอดลูกค้าอัตโนมัติแบบเรียลไทม์\nCREATE OR REPLACE FUNCTION public.sync_mc_source_channel_counts()\nRETURNS TRIGGER AS $$\nBEGIN\n  IF (TG_OP = 'UPDATE' OR TG_OP = 'DELETE') THEN\n    IF OLD.source_channel IS NOT NULL THEN\n      UPDATE public.mc_source_channels\n      SET customer_count = (\n        SELECT COUNT(*) FROM public.mc_customers WHERE TRIM(LOWER(COALESCE(source_channel, ''))) = TRIM(LOWER(OLD.source_channel))\n      ) WHERE TRIM(LOWER(name)) = TRIM(LOWER(OLD.source_channel));\n    END IF;\n  END IF;\n  IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN\n    IF NEW.source_channel IS NOT NULL THEN\n      UPDATE public.mc_source_channels\n      SET customer_count = (\n        SELECT COUNT(*) FROM public.mc_customers WHERE TRIM(LOWER(COALESCE(source_channel, ''))) = TRIM(LOWER(NEW.source_channel))\n      ) WHERE TRIM(LOWER(name)) = TRIM(LOWER(NEW.source_channel));\n    END IF;\n  END IF;\n  RETURN NULL;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;\n\nDROP TRIGGER IF EXISTS trg_sync_source_channel_counts ON public.mc_customers;\nCREATE TRIGGER trg_sync_source_channel_counts\nAFTER INSERT OR UPDATE OF source_channel OR DELETE ON public.mc_customers\nFOR EACH ROW EXECUTE FUNCTION public.sync_mc_source_channel_counts();";
-                                                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                                                        navigator.clipboard.writeText(sql).then(() => {
-                                                            alert(lang === 'TH' ? "📋 คัดลอกคำสั่ง SQL สำหรับเพิ่มคอลัมน์ customer_count และระบบนับยอดลูกค้าอัตโนมัติเรียบร้อย!\n\nนำไปวางใน Supabase Dashboard -> SQL Editor แล้วกด Run ได้เลยครับ" : "📋 SQL statement copied!\n\nPaste into Supabase Dashboard -> SQL Editor and run.");
-                                                        }).catch(() => {
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-secondary"
+                                                    style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 700, borderColor: '#10b981', color: '#6ee7b7', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                                    onClick={() => {
+                                                        const sql = "-- 1. เพิ่มคอลัมน์ created_at, created_by, customer_count ในตาราง mc_source_channels\nALTER TABLE public.mc_source_channels ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();\nALTER TABLE public.mc_source_channels ADD COLUMN IF NOT EXISTS created_by TEXT DEFAULT 'ระบบกลาง';\nALTER TABLE public.mc_source_channels ADD COLUMN IF NOT EXISTS customer_count INT DEFAULT 0;\n\n-- 2. ดึงช่องทางที่มีลูกค้าใช้งานอยู่แล้วแต่ยังไม่มีในตารางเข้ามาอัตโนมัติ (เช่น 'เซียน')\nINSERT INTO public.mc_source_channels (name, is_default, created_by, created_at)\nSELECT DISTINCT TRIM(LOWER(source_channel)), false, 'ระบบกลาง', NOW()\nFROM public.mc_customers\nWHERE source_channel IS NOT NULL AND TRIM(source_channel) != ''\n  AND TRIM(LOWER(source_channel)) NOT IN (SELECT TRIM(LOWER(name)) FROM public.mc_source_channels)\nON CONFLICT (name) DO NOTHING;\n\n-- 3. อัปเดตจำนวนลูกค้าปัจจุบันทันที\nUPDATE public.mc_source_channels sc\nSET customer_count = (\n  SELECT COUNT(*) FROM public.mc_customers c\n  WHERE TRIM(LOWER(COALESCE(c.source_channel, ''))) = TRIM(LOWER(sc.name))\n);\n\n-- 4. ติดตั้ง Trigger อัปเดตยอดลูกค้าอัตโนมัติแบบเรียลไทม์\nCREATE OR REPLACE FUNCTION public.sync_mc_source_channel_counts()\nRETURNS TRIGGER AS $$\nBEGIN\n  IF (TG_OP = 'UPDATE' OR TG_OP = 'DELETE') THEN\n    IF OLD.source_channel IS NOT NULL THEN\n      UPDATE public.mc_source_channels\n      SET customer_count = (\n        SELECT COUNT(*) FROM public.mc_customers WHERE TRIM(LOWER(COALESCE(source_channel, ''))) = TRIM(LOWER(OLD.source_channel))\n      ) WHERE TRIM(LOWER(name)) = TRIM(LOWER(OLD.source_channel));\n    END IF;\n  END IF;\n  IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN\n    IF NEW.source_channel IS NOT NULL THEN\n      UPDATE public.mc_source_channels\n      SET customer_count = (\n        SELECT COUNT(*) FROM public.mc_customers WHERE TRIM(LOWER(COALESCE(source_channel, ''))) = TRIM(LOWER(NEW.source_channel))\n      ) WHERE TRIM(LOWER(name)) = TRIM(LOWER(NEW.source_channel));\n    END IF;\n  END IF;\n  RETURN NULL;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;\n\nDROP TRIGGER IF EXISTS trg_sync_source_channel_counts ON public.mc_customers;\nCREATE TRIGGER trg_sync_source_channel_counts\nAFTER INSERT OR UPDATE OF source_channel OR DELETE ON public.mc_customers\nFOR EACH ROW EXECUTE FUNCTION public.sync_mc_source_channel_counts();";
+                                                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                                                            navigator.clipboard.writeText(sql).then(() => {
+                                                                alert(lang === 'TH' ? "📋 คัดลอกคำสั่ง SQL สำหรับเพิ่มคอลัมน์และระบบบันทึกเวลา/นับยอดลูกค้าอัตโนมัติเรียบร้อย!\n\nนำไปวางใน Supabase Dashboard -> SQL Editor แล้วกด Run ได้เลยครับ" : "📋 SQL statement copied!\n\nPaste into Supabase Dashboard -> SQL Editor and run.");
+                                                            }).catch(() => {
+                                                                prompt(lang === 'TH' ? "คัดลอกคำสั่ง SQL นี้ไปวางใน Supabase SQL Editor:" : "Copy SQL to run in Supabase SQL Editor:", sql);
+                                                            });
+                                                        } else {
                                                             prompt(lang === 'TH' ? "คัดลอกคำสั่ง SQL นี้ไปวางใน Supabase SQL Editor:" : "Copy SQL to run in Supabase SQL Editor:", sql);
-                                                        });
-                                                    } else {
-                                                        prompt(lang === 'TH' ? "คัดลอกคำสั่ง SQL นี้ไปวางใน Supabase SQL Editor:" : "Copy SQL to run in Supabase SQL Editor:", sql);
-                                                    }
-                                                }}
-                                            >
-                                                <i data-lucide="copy" style={{ width: '13px', height: '13px' }}></i> {lang === 'TH' ? 'คัดลอก SQL ตารางช่องทาง' : 'Copy Channels SQL'}
-                                            </button>
-                                        </div>
-                                        {/* Add New Channel Input */}
-                                        <div className="bo-sub-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', background: 'rgba(15, 23, 42, 0.4)', border: '1px solid rgba(255,255,255,0.06)', padding: '12px', borderRadius: '10px' }}>
-                                            <input
-                                                type="text"
-                                                value={newChannelInput}
-                                                onChange={(e) => setNewChannelInput(e.target.value)}
-                                                placeholder={lang === 'TH' ? "พิมพ์ชื่อช่องทางสมัครใหม่ เช่น instagram, telegram, youtube, offline..." : "Enter new channel name e.g. instagram, telegram, youtube..."}
-                                                className="select-input"
-                                                style={{ flex: '1 1 220px', padding: '8px 12px', fontSize: '12px' }}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    if (newChannelInput.trim()) {
-                                                        handleAddSourceChannel(newChannelInput.trim());
-                                                        setNewChannelInput('');
-                                                    }
-                                                }}
-                                                className="btn btn-primary"
-                                                style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 700 }}
-                                            >
-                                                <i data-lucide="plus" style={{ width: '14px', height: '14px' }}></i>
-                                                <span>{lang === 'TH' ? 'เพิ่มช่องทางใหม่' : 'Add Channel'}</span>
-                                            </button>
-                                        </div>
+                                                        }
+                                                    }}
+                                                >
+                                                    <i data-lucide="copy" style={{ width: '13px', height: '13px' }}></i> {lang === 'TH' ? 'คัดลอก SQL ตารางช่องทาง' : 'Copy Channels SQL'}
+                                                </button>
+                                            </div>
 
-                                        {/* List of existing source channels */}
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
-                                            {sourceChannels.map((ch) => {
-                                                const isDefault = DEFAULT_SOURCE_CHANNELS.includes(ch);
-                                                const custCount = (customers || []).filter(c => {
-                                                    const src = (c.sourceChannel || '').trim().toLowerCase();
-                                                    const target = (ch || '').trim().toLowerCase();
-                                                    if (target === 'ค้นหาหน้า google' || target === 'google') {
-                                                        return src === 'ค้นหาหน้า google' || src === 'google';
-                                                    }
-                                                    return src === target;
-                                                }).length;
-                                                return (
-                                                    <div
-                                                        key={ch}
-                                                        className="channel-tag-pill"
-                                                        style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '8px',
-                                                            padding: '6px 12px',
-                                                            borderRadius: '12px',
-                                                            background: 'rgba(15, 23, 42, 0.8)',
-                                                            border: custCount > 0 ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(168, 85, 247, 0.25)',
-                                                            fontSize: '12px',
-                                                            fontWeight: 600,
-                                                            color: '#e2e8f0'
-                                                        }}
-                                                    >
-                                                        <span>{ch}</span>
-                                                        <span
-                                                            style={{
-                                                                fontSize: '10.5px',
-                                                                padding: '2px 8px',
-                                                                borderRadius: '8px',
-                                                                background: custCount > 0 ? 'rgba(16, 185, 129, 0.18)' : 'rgba(255, 255, 255, 0.05)',
-                                                                color: custCount > 0 ? '#34d399' : 'var(--text-muted)',
-                                                                fontWeight: 700,
-                                                                border: custCount > 0 ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(255, 255, 255, 0.08)'
-                                                            }}
-                                                            title={lang === 'TH' ? `มีลูกค้าสมัครผ่านช่องทางนี้ ${custCount} คน` : `${custCount} customers from this channel`}
-                                                        >
-                                                            👥 {custCount} {lang === 'TH' ? 'คน' : 'leads'}
-                                                        </span>
-                                                        {isDefault ? (
-                                                            <span className="channel-default-tag" style={{ fontSize: '9.5px', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)' }}>
-                                                                {lang === 'TH' ? '(ช่องทางหลัก)' : '(Default)'}
-                                                            </span>
+                                            {/* Add New Channel Input */}
+                                            <div className="bo-sub-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', background: 'rgba(15, 23, 42, 0.4)', border: '1px solid rgba(255,255,255,0.06)', padding: '12px', borderRadius: '10px' }}>
+                                                <input
+                                                    type="text"
+                                                    value={newChannelInput}
+                                                    onChange={(e) => setNewChannelInput(e.target.value)}
+                                                    placeholder={lang === 'TH' ? "พิมพ์ชื่อช่องทางสมัครใหม่ เช่น instagram, telegram, youtube, offline..." : "Enter new channel name e.g. instagram, telegram, youtube..."}
+                                                    className="select-input"
+                                                    style={{ flex: '1 1 220px', padding: '8px 12px', fontSize: '12px' }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && newChannelInput.trim()) {
+                                                            handleAddSourceChannel(newChannelInput.trim());
+                                                            setNewChannelInput('');
+                                                        }
+                                                    }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (newChannelInput.trim()) {
+                                                            handleAddSourceChannel(newChannelInput.trim());
+                                                            setNewChannelInput('');
+                                                        }
+                                                    }}
+                                                    className="btn btn-primary"
+                                                    style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 700 }}
+                                                >
+                                                    <i data-lucide="plus" style={{ width: '14px', height: '14px' }}></i>
+                                                    <span>{lang === 'TH' ? 'เพิ่มช่องทางใหม่' : 'Add Channel'}</span>
+                                                </button>
+                                            </div>
+
+                                            {/* Structured 1-Row Per Channel Table */}
+                                            <div className="table-responsive" style={{ maxHeight: '460px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}>
+                                                <table className="data-table" style={{ width: '100%', fontSize: '12.5px' }}>
+                                                    <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
+                                                        <tr>
+                                                            <th style={{ width: '50px', textAlign: 'center' }}>{lang === 'TH' ? 'ลำดับ' : '#'}</th>
+                                                            <th style={{ minWidth: '180px' }}>{lang === 'TH' ? 'ชื่อช่องทางการตลาด' : 'Marketing Channel'}</th>
+                                                            <th style={{ width: '140px', textAlign: 'center' }}>{lang === 'TH' ? 'ประเภทช่องทาง' : 'Channel Type'}</th>
+                                                            <th style={{ width: '130px', textAlign: 'center' }}>{lang === 'TH' ? 'ลูกค้าที่สมัคร' : 'Customers'}</th>
+                                                            <th style={{ minWidth: '190px' }}>{lang === 'TH' ? 'วันที่ & เวลาที่สร้าง' : 'Created Date & Time'}</th>
+                                                            <th style={{ minWidth: '140px' }}>{lang === 'TH' ? 'ผู้สร้าง / บันทึกโดย' : 'Created By'}</th>
+                                                            <th style={{ width: '90px', textAlign: 'center' }}>{lang === 'TH' ? 'การจัดการ' : 'Actions'}</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {sourceChannels.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan="7" style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+                                                                    {lang === 'TH' ? 'ไม่พบข้อมูลช่องทางการตลาด' : 'No marketing channels found'}
+                                                                </td>
+                                                            </tr>
                                                         ) : (
-                                                            <button
-                                                                type="button"
-                                                                className="channel-del-btn"
-                                                                onClick={() => handleDeleteSourceChannel(ch)}
-                                                                style={{ border: 'none', background: 'transparent', color: '#f43f5e', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
-                                                                title={lang === 'TH' ? "ลบช่องทางนี้" : "Delete channel"}
-                                                            >
-                                                                <i data-lucide="trash-2" style={{ width: '13px', height: '13px' }}></i>
-                                                            </button>
+                                                            sourceChannels.map((ch, idx) => {
+                                                                const details = getChannelDetails(ch);
+                                                                const isDefault = details.isDefault;
+                                                                const custCount = details.custCount;
+
+                                                                return (
+                                                                    <tr key={ch} style={{ transition: 'background 0.15s' }}>
+                                                                        <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                                                            {idx + 1}
+                                                                        </td>
+                                                                        <td>
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                                                                                <span style={{ fontSize: '16px', lineHeight: 1 }}>{getChannelIcon(ch)}</span>
+                                                                                <div>
+                                                                                    <strong style={{ color: '#fff', fontSize: '13px' }}>{ch}</strong>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                        <td style={{ textAlign: 'center' }}>
+                                                                            {isDefault ? (
+                                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: 700, padding: '3px 8px', borderRadius: '12px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+                                                                                    ⭐ {lang === 'TH' ? 'ช่องทางหลัก' : 'Default'}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: 700, padding: '3px 8px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                                                                                    🏷️ {lang === 'TH' ? 'ช่องทางเพิ่มเติม' : 'Custom'}
+                                                                                </span>
+                                                                            )}
+                                                                        </td>
+                                                                        <td style={{ textAlign: 'center' }}>
+                                                                            <span
+                                                                                style={{
+                                                                                    display: 'inline-flex',
+                                                                                    alignItems: 'center',
+                                                                                    gap: '5px',
+                                                                                    fontSize: '11px',
+                                                                                    padding: '3px 10px',
+                                                                                    borderRadius: '12px',
+                                                                                    background: custCount > 0 ? 'rgba(16, 185, 129, 0.18)' : 'rgba(255, 255, 255, 0.05)',
+                                                                                    color: custCount > 0 ? '#34d399' : 'var(--text-muted)',
+                                                                                    fontWeight: 700,
+                                                                                    border: custCount > 0 ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(255, 255, 255, 0.08)'
+                                                                                }}
+                                                                                title={lang === 'TH' ? `มีลูกค้าสมัครผ่านช่องทางนี้ ${custCount} คน` : `${custCount} customers from this channel`}
+                                                                            >
+                                                                                👥 {custCount} {lang === 'TH' ? 'คน' : 'leads'}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td>
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: details.createdAtExact ? '#cbd5e1' : 'var(--text-muted)' }}>
+                                                                                <i data-lucide="clock" style={{ width: '12px', height: '12px', color: '#a855f7', flexShrink: 0 }}></i>
+                                                                                <span>{details.createdAtText}</span>
+                                                                            </div>
+                                                                        </td>
+                                                                        <td>
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#94a3b8' }}>
+                                                                                <i data-lucide="user" style={{ width: '12px', height: '12px', color: '#64748b', flexShrink: 0 }}></i>
+                                                                                <span>{details.createdByText}</span>
+                                                                            </div>
+                                                                        </td>
+                                                                        <td style={{ textAlign: 'center' }}>
+                                                                            {isDefault ? (
+                                                                                <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', opacity: 0.65 }} title={lang === 'TH' ? 'ช่องทางหลักของระบบ ไม่สามารถลบได้' : 'System default channel cannot be deleted'}>
+                                                                                    🔒 {lang === 'TH' ? 'ล็อก' : 'Locked'}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleDeleteSourceChannel(ch)}
+                                                                                    style={{
+                                                                                        border: '1px solid rgba(244, 63, 94, 0.3)',
+                                                                                        background: 'rgba(244, 63, 94, 0.12)',
+                                                                                        color: '#f43f5e',
+                                                                                        cursor: 'pointer',
+                                                                                        padding: '4px 8px',
+                                                                                        borderRadius: '6px',
+                                                                                        display: 'inline-flex',
+                                                                                        alignItems: 'center',
+                                                                                        gap: '4px',
+                                                                                        fontSize: '11px',
+                                                                                        fontWeight: 600,
+                                                                                        transition: 'all 0.15s'
+                                                                                    }}
+                                                                                    title={lang === 'TH' ? `ลบช่องทาง "${ch}"` : `Delete channel "${ch}"`}
+                                                                                >
+                                                                                    <i data-lucide="trash-2" style={{ width: '12px', height: '12px' }}></i>
+                                                                                    <span>{lang === 'TH' ? 'ลบ' : 'Del'}</span>
+                                                                                </button>
+                                                                            )}
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })
                                                         )}
-                                                    </div>
-                                                );
-                                            })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                )}
+                                    )}
 
                                 {/* Section 2: Full Database Data Grid with Delete Operations */}
                                 {(backOfficeSubTab === 'all' || backOfficeSubTab === 'customers') && (
