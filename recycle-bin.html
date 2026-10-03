@@ -6457,7 +6457,7 @@
             // ==========================================
             const renderRecycleBinSection = () => (
                                 <div id="system-recycle-bin-section" className="panel" style={{
-                                    marginTop: '24px',
+                                    marginTop: 0,
                                     background: theme === 'light' ? '#ffffff' : 'rgba(15, 23, 42, 0.75)',
                                     border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(239, 68, 68, 0.25)',
                                     borderRadius: '16px',
@@ -11920,62 +11920,7 @@
                                     </div>
                                 </div>
                             ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                    {/* Dedicated Header Banner */}
-                                    <div className="panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                                            <div style={{
-                                                width: '46px',
-                                                height: '46px',
-                                                borderRadius: '14px',
-                                                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.2) 100%)',
-                                                color: '#ef4444',
-                                                border: '1px solid rgba(239, 68, 68, 0.35)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.2)'
-                                            }}>
-                                                <i data-lucide="trash-2" style={{ width: '26px', height: '26px' }}></i>
-                                            </div>
-                                            <div>
-                                                <h3 className="banner-title" style={{ fontSize: '18px', fontWeight: 800, color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                    {lang === 'TH' ? 'ถังขยะระบบและกู้คืนข้อมูล (System Recycle Bin & Restore)' : 'System Recycle Bin & Restore'}
-                                                    <span style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '20px', background: (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(148, 163, 184, 0.15)', color: (agents.filter(a => a.isArchived).length + deletedCustomers.length) > 0 ? '#ef4444' : 'var(--text-muted)', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 700 }}>
-                                                        {agents.filter(a => a.isArchived).length + deletedCustomers.length} {lang === 'TH' ? 'รายการในถังขยะ' : 'items'}
-                                                    </span>
-                                                </h3>
-                                                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                                                    {lang === 'TH' 
-                                                        ? 'เมนูจัดการและกู้คืนข้อมูลแบบแยกเดี่ยว — กู้คืนบัญชีพนักงานและข้อมูลลูกค้าที่ถูกลบได้ทันทีภายใน 30 วัน' 
-                                                        : 'Dedicated Recycle Bin View — Safely restore deleted staff accounts and customer records within 30 days.'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                                            <button
-                                                type="button"
-                                                className="btn btn-secondary"
-                                                onClick={() => switchViewMode('backoffice')}
-                                                style={{ padding: '8px 16px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                                            >
-                                                <i data-lucide="shield" style={{ width: '14px', height: '14px' }}></i>
-                                                <span>{lang === 'TH' ? 'ไปยังจัดการหลังบ้าน' : 'Go to Back Office'}</span>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="btn btn-secondary"
-                                                onClick={() => switchViewMode('supervisor')}
-                                                style={{ padding: '8px 16px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                                            >
-                                                <i data-lucide="pie-chart" style={{ width: '14px', height: '14px' }}></i>
-                                                <span>{lang === 'TH' ? 'แดชบอร์ดหัวหน้า' : 'Dashboard'}</span>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {renderRecycleBinSection()}
-                                </div>
+                                renderRecycleBinSection()
                             )
                         )}
 
