@@ -9676,133 +9676,155 @@
                                 </div>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                                    {/* Header Banner */}
-                                    <div className="panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                                            <div className="bo-banner-icon" style={{ padding: '12px', borderRadius: '14px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
-                                                <i data-lucide="shield-check" style={{ width: '28px', height: '28px' }}></i>
-                                            </div>
-                                            <div>
-                                                <h3 className="banner-title" style={{ fontSize: '16px', fontWeight: 800, color: '#fff' }}>
-                                                    {lang === 'TH' ? 'ระบบจัดการหลังบ้านและสิทธิ์การใช้งาน (Back Office & System Audit Control)' : 'Back Office & System Audit Control'}
-                                                </h3>
-                                                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                                    {lang === 'TH' ? 'จัดการพนักงาน MC, กำหนดระดับสิทธิ์การเข้าถึงเมนู (Role & Permissions), ซิงค์คลาวด์ Supabase' : 'Manage MC Staff, Configure Roles & Permissions, Cloud Database Sync'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <span className="bo-admin-badge" style={{ fontSize: '12px', fontWeight: 700, padding: '6px 14px', borderRadius: '20px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
-                                                {lang === 'TH' ? `👑 ผู้ดูแลระบบ: ${activeAgentName}` : `👑 Administrator: ${activeAgentName}`}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    {/* BACKOFFICE SUB-TABS NAVIGATION */}
+                                    {/* Header Banner & Unified Sub-Tabs Controller (Compact, Full-Width) */}
                                     <div className="panel" style={{
-                                        padding: '10px 14px',
-                                        background: theme === 'light' ? '#f8fafc' : 'rgba(15, 23, 42, 0.65)',
-                                        border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255, 255, 255, 0.08)',
-                                        borderRadius: '14px',
                                         display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        flexWrap: 'wrap'
+                                        flexDirection: 'column',
+                                        gap: '14px',
+                                        padding: '16px 20px',
+                                        background: theme === 'light' ? '#ffffff' : 'rgba(15, 23, 42, 0.75)',
+                                        border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.25)',
+                                        borderRadius: '16px',
+                                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)'
                                     }}>
-                                        <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '6px' }}>
-                                            <i data-lucide="layers" style={{ width: '15px', height: '15px', color: '#c084fc' }}></i>
-                                            <span>{lang === 'TH' ? 'หมวดหมู่การจัดการ:' : 'Admin Sections:'}</span>
+                                        {/* Top: Title & Admin Badge */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                <div className="bo-banner-icon" style={{ padding: '10px', borderRadius: '12px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+                                                    <i data-lucide="shield-check" style={{ width: '24px', height: '24px' }}></i>
+                                                </div>
+                                                <div>
+                                                    <h3 className="banner-title" style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                                                        {lang === 'TH' ? 'ระบบจัดการหลังบ้านและสิทธิ์การใช้งาน (Back Office)' : 'Back Office & System Audit Control'}
+                                                    </h3>
+                                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                                                        {lang === 'TH' ? 'จัดการพนักงาน MC, กำหนดระดับสิทธิ์การเข้าถึงเมนู (Role & Permissions), ซิงค์คลาวด์ Supabase' : 'Manage MC Staff, Configure Roles & Permissions, Cloud Database Sync'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <span className="bo-admin-badge" style={{ fontSize: '11.5px', fontWeight: 700, padding: '5px 12px', borderRadius: '20px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+                                                    {lang === 'TH' ? `👑 ผู้ดูแลระบบ: ${activeAgentName}` : `👑 Administrator: ${activeAgentName}`}
+                                                </span>
+                                            </div>
                                         </div>
 
-                                        <button
-                                            type="button"
-                                            className={`btn ${backOfficeSubTab === 'all' ? 'btn-primary' : 'btn-secondary'}`}
-                                            onClick={() => setBackOfficeSubTab('all')}
-                                            style={{
-                                                padding: '7px 14px',
-                                                fontSize: '12px',
-                                                fontWeight: backOfficeSubTab === 'all' ? 700 : 500,
-                                                borderRadius: '10px',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '6px'
-                                            }}
-                                        >
-                                            <i data-lucide="layout-grid" style={{ width: '13px', height: '13px' }}></i>
-                                            <span>{lang === 'TH' ? '📑 ทั้งหมด (All Sections)' : '📑 All Sections'}</span>
-                                        </button>
+                                        {/* Bottom: Full-width Segmented Sub-Tabs Bar (Compact & Spans Full Width) */}
+                                        <div style={{
+                                            display: 'flex',
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            flexWrap: 'wrap',
+                                            borderTop: theme === 'light' ? '1px solid #f1f5f9' : '1px solid rgba(255, 255, 255, 0.06)',
+                                            paddingTop: '12px',
+                                            width: '100%'
+                                        }}>
+                                            <button
+                                                type="button"
+                                                className={`btn ${backOfficeSubTab === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+                                                onClick={() => setBackOfficeSubTab('all')}
+                                                style={{
+                                                    flex: '1 1 auto',
+                                                    padding: '7px 12px',
+                                                    fontSize: '12px',
+                                                    fontWeight: backOfficeSubTab === 'all' ? 700 : 500,
+                                                    borderRadius: '8px',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '6px',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                <i data-lucide="layout-grid" style={{ width: '13px', height: '13px' }}></i>
+                                                <span>{lang === 'TH' ? '📑 ทั้งหมด' : '📑 All'}</span>
+                                            </button>
 
-                                        <button
-                                            type="button"
-                                            className={`btn ${backOfficeSubTab === 'staff' ? 'btn-primary' : 'btn-secondary'}`}
-                                            onClick={() => setBackOfficeSubTab('staff')}
-                                            style={{
-                                                padding: '7px 14px',
-                                                fontSize: '12px',
-                                                fontWeight: backOfficeSubTab === 'staff' ? 700 : 500,
-                                                borderRadius: '10px',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '6px'
-                                            }}
-                                        >
-                                            <i data-lucide="users" style={{ width: '13px', height: '13px' }}></i>
-                                            <span>{lang === 'TH' ? `👥 พนักงาน & สิทธิ์ (${agents.filter(a => !a.isArchived).length})` : `👥 Staff & Roles (${agents.filter(a => !a.isArchived).length})`}</span>
-                                        </button>
+                                            <button
+                                                type="button"
+                                                className={`btn ${backOfficeSubTab === 'staff' ? 'btn-primary' : 'btn-secondary'}`}
+                                                onClick={() => setBackOfficeSubTab('staff')}
+                                                style={{
+                                                    flex: '1 1 auto',
+                                                    padding: '7px 12px',
+                                                    fontSize: '12px',
+                                                    fontWeight: backOfficeSubTab === 'staff' ? 700 : 500,
+                                                    borderRadius: '8px',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '6px',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                <i data-lucide="users" style={{ width: '13px', height: '13px' }}></i>
+                                                <span>{lang === 'TH' ? `👥 พนักงาน & สิทธิ์ (${agents.filter(a => !a.isArchived).length})` : `👥 Staff & Roles (${agents.filter(a => !a.isArchived).length})`}</span>
+                                            </button>
 
-                                        <button
-                                            type="button"
-                                            className={`btn ${backOfficeSubTab === 'channels' ? 'btn-primary' : 'btn-secondary'}`}
-                                            onClick={() => setBackOfficeSubTab('channels')}
-                                            style={{
-                                                padding: '7px 14px',
-                                                fontSize: '12px',
-                                                fontWeight: backOfficeSubTab === 'channels' ? 700 : 500,
-                                                borderRadius: '10px',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '6px'
-                                            }}
-                                        >
-                                            <i data-lucide="tag" style={{ width: '13px', height: '13px' }}></i>
-                                            <span>{lang === 'TH' ? `🏷️ ช่องทางการตลาด (${sourceChannels.length})` : `🏷️ Channels (${sourceChannels.length})`}</span>
-                                        </button>
+                                            <button
+                                                type="button"
+                                                className={`btn ${backOfficeSubTab === 'channels' ? 'btn-primary' : 'btn-secondary'}`}
+                                                onClick={() => setBackOfficeSubTab('channels')}
+                                                style={{
+                                                    flex: '1 1 auto',
+                                                    padding: '7px 12px',
+                                                    fontSize: '12px',
+                                                    fontWeight: backOfficeSubTab === 'channels' ? 700 : 500,
+                                                    borderRadius: '8px',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '6px',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                <i data-lucide="tag" style={{ width: '13px', height: '13px' }}></i>
+                                                <span>{lang === 'TH' ? `🏷️ ช่องทางการตลาด (${sourceChannels.length})` : `🏷️ Channels (${sourceChannels.length})`}</span>
+                                            </button>
 
-                                        <button
-                                            type="button"
-                                            className={`btn ${backOfficeSubTab === 'customers' ? 'btn-primary' : 'btn-secondary'}`}
-                                            onClick={() => setBackOfficeSubTab('customers')}
-                                            style={{
-                                                padding: '7px 14px',
-                                                fontSize: '12px',
-                                                fontWeight: backOfficeSubTab === 'customers' ? 700 : 500,
-                                                borderRadius: '10px',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '6px'
-                                            }}
-                                        >
-                                            <i data-lucide="server" style={{ width: '13px', height: '13px' }}></i>
-                                            <span>{lang === 'TH' ? '🗄️ จัดการฐานข้อมูลลูกค้ารวม' : '🗄️ Customer DB'}</span>
-                                        </button>
+                                            <button
+                                                type="button"
+                                                className={`btn ${backOfficeSubTab === 'customers' ? 'btn-primary' : 'btn-secondary'}`}
+                                                onClick={() => setBackOfficeSubTab('customers')}
+                                                style={{
+                                                    flex: '1 1 auto',
+                                                    padding: '7px 12px',
+                                                    fontSize: '12px',
+                                                    fontWeight: backOfficeSubTab === 'customers' ? 700 : 500,
+                                                    borderRadius: '8px',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '6px',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                <i data-lucide="server" style={{ width: '13px', height: '13px' }}></i>
+                                                <span>{lang === 'TH' ? '🗄️ จัดการฐานข้อมูลลูกค้ารวม' : '🗄️ Customer DB'}</span>
+                                            </button>
 
-
-                                        <button
-                                            type="button"
-                                            className={`btn ${backOfficeSubTab === 'backup' ? 'btn-primary' : 'btn-secondary'}`}
-                                            onClick={() => setBackOfficeSubTab('backup')}
-                                            style={{
-                                                padding: '7px 14px',
-                                                fontSize: '12px',
-                                                fontWeight: backOfficeSubTab === 'backup' ? 700 : 500,
-                                                borderRadius: '10px',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '6px'
-                                            }}
-                                        >
-                                            <i data-lucide="database" style={{ width: '13px', height: '13px' }}></i>
-                                            <span>{lang === 'TH' ? '💾 สำรองข้อมูลฉุกเฉิน' : '💾 Emergency Backup'}</span>
-                                        </button>
+                                            <button
+                                                type="button"
+                                                className={`btn ${backOfficeSubTab === 'backup' ? 'btn-primary' : 'btn-secondary'}`}
+                                                onClick={() => setBackOfficeSubTab('backup')}
+                                                style={{
+                                                    flex: '1 1 auto',
+                                                    padding: '7px 12px',
+                                                    fontSize: '12px',
+                                                    fontWeight: backOfficeSubTab === 'backup' ? 700 : 500,
+                                                    borderRadius: '8px',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '6px',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                <i data-lucide="database" style={{ width: '13px', height: '13px' }}></i>
+                                                <span>{lang === 'TH' ? '💾 สำรองข้อมูลฉุกเฉิน' : '💾 Emergency Backup'}</span>
+                                            </button>
+                                        </div>
                                     </div>
 
 
