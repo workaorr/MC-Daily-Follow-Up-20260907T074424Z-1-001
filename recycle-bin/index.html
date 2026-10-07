@@ -65,7 +65,7 @@
                     document.documentElement.classList.add('light-theme');
                     var s = document.createElement('style');
                     s.id = 'theme-init';
-                    s.innerHTML = 'html.light-theme, body.light-theme { background-color: #f1f5f9 !important; color: #0f172a !important; } html.light-theme .app-topbar, html.light-theme .app-sidebar, html.light-theme .panel, html.light-theme .kpi-card, html.light-theme .agent-sticky-header-container { background: #ffffff !important; border-color: #e2e8f0 !important; }';
+                    s.innerHTML = 'html.light-theme, html.light-theme body, body.light-theme { background-color: #f1f5f9 !important; color: #0f172a !important; } html.light-theme .app-topbar, body.light-theme .app-topbar, html.light-theme .app-sidebar, body.light-theme .app-sidebar, html.light-theme .panel, body.light-theme .panel, html.light-theme .kpi-card, body.light-theme .kpi-card, html.light-theme .agent-sticky-header-container, body.light-theme .agent-sticky-header-container { background: #ffffff !important; border-color: #e2e8f0 !important; color: #0f172a !important; transition: none !important; }';
                     document.head.appendChild(s);
                 } else {
                     document.documentElement.classList.remove('light-theme');
@@ -1535,24 +1535,27 @@
             left: 0;
             width: 100%;
             height: 64px;
-            background: rgba(15, 23, 42, 0.94);
+            background: var(--bg-surface);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            border-bottom: 1px solid var(--border-glow);
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 0 24px;
             z-index: 150;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
             box-sizing: border-box;
-            transition: all var(--transition-speed) ease;
+            transition: none !important;
         }
 
+        html.light-theme .app-topbar,
         body.light-theme .app-topbar {
             background: #ffffff !important;
             border-bottom: 1px solid #e2e8f0 !important;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+            color: #0f172a !important;
+            transition: none !important;
         }
 
         /* Left Sidebar Styling (Starts below Topbar) */
@@ -1645,20 +1648,23 @@
             position: sticky;
             top: 64px;
             z-index: 50;
-            background: rgba(15, 23, 42, 0.98);
+            background: var(--bg-card);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border-top-left-radius: 16px;
             border-top-right-radius: 16px;
-            border-bottom: 1px solid rgba(168, 85, 247, 0.2);
-            box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.45);
-            transition: background-color var(--transition-speed) ease, border-color var(--transition-speed) ease;
+            border-bottom: 1px solid var(--border-glow);
+            box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.15);
+            transition: none !important;
         }
 
+        html.light-theme .agent-sticky-header-container,
         body.light-theme .agent-sticky-header-container {
             background: rgba(255, 255, 255, 0.98) !important;
             border-bottom: 1px solid #e2e8f0 !important;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06) !important;
+            color: #0f172a !important;
+            transition: none !important;
         }
 
         .agent-sticky-header-container .filter-card-box {
@@ -2103,96 +2109,125 @@
                 radial-gradient(circle at 95% 95%, rgba(16, 185, 129, 0.05) 0%, transparent 40%) !important;
         }
 
-        body:not(.light-theme) #root,
-        body:not(.light-theme) .app-main {
+        html:not(.light-theme) body #root,
+        html:not(.light-theme) body .app-main,
+        html:not(.light-theme) #root,
+        html:not(.light-theme) .app-main {
             background-color: #060913 !important;
             color: #ffffff !important;
         }
 
-        body:not(.light-theme) .app-topbar {
+        html:not(.light-theme) body .app-topbar,
+        html:not(.light-theme) .app-topbar {
             background: rgba(11, 17, 32, 0.98) !important;
             border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45) !important;
+            color: #ffffff !important;
+            transition: none !important;
         }
 
-        body:not(.light-theme) .app-sidebar {
+        html:not(.light-theme) body .app-sidebar,
+        html:not(.light-theme) .app-sidebar {
             background: #090e1a !important;
             border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
             box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35) !important;
         }
 
-        body:not(.light-theme) .panel,
-        body:not(.light-theme) .kpi-card,
-        body:not(.light-theme) .registration-form,
-        body:not(.light-theme) .upload-box,
-        body:not(.light-theme) .modal-content,
-        body:not(.light-theme) .table-wrapper {
+        html:not(.light-theme) body .panel,
+        html:not(.light-theme) body .kpi-card,
+        html:not(.light-theme) body .registration-form,
+        html:not(.light-theme) body .upload-box,
+        html:not(.light-theme) body .modal-content,
+        html:not(.light-theme) body .table-wrapper,
+        html:not(.light-theme) .panel,
+        html:not(.light-theme) .kpi-card,
+        html:not(.light-theme) .registration-form,
+        html:not(.light-theme) .upload-box,
+        html:not(.light-theme) .modal-content,
+        html:not(.light-theme) .table-wrapper {
             background: #0d1527 !important;
             border: 1px solid rgba(168, 85, 247, 0.2) !important;
             box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45) !important;
             color: #ffffff !important;
         }
 
-        body:not(.light-theme) .panel-header {
+        html:not(.light-theme) body .panel-header,
+        html:not(.light-theme) .panel-header {
             border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
 
-        body:not(.light-theme) .panel-title {
+        html:not(.light-theme) body .panel-title,
+        html:not(.light-theme) .panel-title {
             color: #ffffff !important;
             font-weight: 800 !important;
         }
 
-        body:not(.light-theme) .panel p,
-        body:not(.light-theme) .text-muted {
+        html:not(.light-theme) body .panel p,
+        html:not(.light-theme) body .text-muted,
+        html:not(.light-theme) .panel p,
+        html:not(.light-theme) .text-muted {
             color: #94a3b8 !important;
         }
 
-        body:not(.light-theme) .form-group label {
+        html:not(.light-theme) body .form-group label,
+        html:not(.light-theme) .form-group label {
             color: #e2e8f0 !important;
             font-weight: 600 !important;
         }
 
         /* TABLES IN DARK MODE (คมชัด สบายตา พื้นหลังดำเข้ม ลุ่มลึก ไม่เพี้ยน) */
-        body:not(.light-theme) table {
+        html:not(.light-theme) body table,
+        html:not(.light-theme) table {
             background-color: #0d1527 !important;
         }
 
-        body:not(.light-theme) table thead th,
-        body:not(.light-theme) th {
+        html:not(.light-theme) body table thead th,
+        html:not(.light-theme) body th,
+        html:not(.light-theme) table thead th,
+        html:not(.light-theme) th {
             background-color: #080d19 !important;
             color: #ffffff !important;
             border-bottom: 2px solid rgba(255, 255, 255, 0.12) !important;
             font-weight: 700 !important;
         }
 
-        body:not(.light-theme) table tbody tr,
-        body:not(.light-theme) td {
+        html:not(.light-theme) body table tbody tr,
+        html:not(.light-theme) body td,
+        html:not(.light-theme) table tbody tr,
+        html:not(.light-theme) td {
             background-color: #0d1527 !important;
             border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
             color: #f1f5f9 !important;
         }
 
-        body:not(.light-theme) table tbody tr:nth-child(even) td {
+        html:not(.light-theme) body table tbody tr:nth-child(even) td,
+        html:not(.light-theme) table tbody tr:nth-child(even) td {
             background-color: #0a1120 !important;
         }
 
-        body:not(.light-theme) table tbody tr:hover td {
+        html:not(.light-theme) body table tbody tr:hover td,
+        html:not(.light-theme) table tbody tr:hover td {
             background-color: #141f36 !important;
         }
 
         /* AGENT VIEW STICKY HEADER & FILTER CARD */
-        body:not(.light-theme) .agent-sticky-header-container {
+        html:not(.light-theme) body .agent-sticky-header-container,
+        html:not(.light-theme) .agent-sticky-header-container {
             background: #0d1527 !important;
             border-bottom: 1px solid rgba(168, 85, 247, 0.25) !important;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+            color: #ffffff !important;
+            transition: none !important;
         }
 
-        body:not(.light-theme) .agent-sticky-header-container .filter-card-box {
+        html:not(.light-theme) body .agent-sticky-header-container .filter-card-box,
+        html:not(.light-theme) .agent-sticky-header-container .filter-card-box {
             background: #0f1a30 !important;
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
 
-        body:not(.light-theme) .btn-secondary {
+        html:not(.light-theme) body .btn-secondary,
+        html:not(.light-theme) .btn-secondary {
             background: rgba(255, 255, 255, 0.06) !important;
             border: 1px solid rgba(255, 255, 255, 0.12) !important;
             color: #f1f5f9 !important;
@@ -2299,8 +2334,22 @@
             background: #111e38 !important;
         }
     </style>
-</head>
 <body>
+    <script>
+        (function() {
+            try {
+                var params = new URLSearchParams(window.location.search);
+                var t = params.get('theme') || localStorage.getItem('mc_theme');
+                if (t === 'light') {
+                    document.body.classList.add('light-theme');
+                    document.documentElement.classList.add('light-theme');
+                } else {
+                    document.body.classList.remove('light-theme');
+                    document.documentElement.classList.remove('light-theme');
+                }
+            } catch (e) {}
+        })();
+    </script>
 
     <!-- Error Console Debugger for remote debugging -->
     <div id="error-console" style="color: #ef4444; background: #0b0f19; padding: 30px; font-family: monospace; display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 999999; overflow: auto; font-size: 14.5px; line-height: 1.6; border: 3px solid #ef4444;">
@@ -2446,7 +2495,21 @@
             }, [theme]);
 
             const toggleTheme = () => {
-                setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+                const nextTheme = theme === 'dark' ? 'light' : 'dark';
+                // Synchronously update DOM classes instantly before React re-render
+                if (nextTheme === 'light') {
+                    document.documentElement.classList.add('light-theme');
+                    document.body.classList.add('light-theme');
+                } else {
+                    document.documentElement.classList.remove('light-theme');
+                    document.body.classList.remove('light-theme');
+                    var themeInitStyle = document.getElementById('theme-init');
+                    if (themeInitStyle && themeInitStyle.parentNode) {
+                        themeInitStyle.parentNode.removeChild(themeInitStyle);
+                    }
+                }
+                localStorage.setItem('mc_theme', nextTheme);
+                setTheme(nextTheme);
             };
 
             const exportCustomersToCSV = (targetList, filename = 'MC_Customer_List.csv') => {
@@ -3537,7 +3600,7 @@
                 if (window.lucide && typeof window.lucide.createIcons === 'function') {
                     window.lucide.createIcons();
                 }
-            }, [viewMode, customers, agents, activeAgentName, selectedCustForModal, showDbSettings, selectedMonth, isLoginModalOpen, depositMetricMode, editingAgentId, sourceChannels, sourceChannelsMeta, isAddCustomerDisabled, isAddUsernameDuplicate, showLoginPassword, loginErrorMsg, addSuccessModalData, addConfirmModalData, depositPreviewData, showChangePasscodeModal, deletedCustomers, isLockedDueToInactivity, archiveAgentModalData, recycleBinTab, backOfficeSubTab, boMonthFilter, boOwnerFilter, boDepositFilter, boChannelFilter, boFollowUpFilter, backofficeSearch]);
+            }, [theme, viewMode, customers, agents, activeAgentName, selectedCustForModal, showDbSettings, selectedMonth, isLoginModalOpen, depositMetricMode, editingAgentId, sourceChannels, sourceChannelsMeta, isAddCustomerDisabled, isAddUsernameDuplicate, showLoginPassword, loginErrorMsg, addSuccessModalData, addConfirmModalData, depositPreviewData, showChangePasscodeModal, deletedCustomers, isLockedDueToInactivity, archiveAgentModalData, recycleBinTab, backOfficeSubTab, boMonthFilter, boOwnerFilter, boDepositFilter, boChannelFilter, boFollowUpFilter, backofficeSearch]);
 
             // Helper: Console logger & Supabase Cloud mc_logs Writer
             const writeLog = (tag, msg, type = 'info', operator = null) => {
@@ -7012,7 +7075,7 @@
                                         fontSize: '18px', 
                                         fontWeight: 800, 
                                         letterSpacing: '-0.3px', 
-                                        color: theme === 'light' ? '#0f172a' : '#ffffff' 
+                                        color: 'var(--text-main)' 
                                     }}>
                                         Daily Follow Up
                                     </span>
@@ -7070,7 +7133,7 @@
                                         <i data-lucide="user" style={{ width: '15px', height: '15px' }}></i>
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '12.5px', fontWeight: 700, color: theme === 'light' ? '#0f172a' : '#ffffff', lineHeight: 1.2 }}>
+                                        <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text-main)', lineHeight: 1.2 }}>
                                             {activeAgentName}
                                         </span>
                                         <span style={{ fontSize: '10px', fontWeight: 600, color: isSupervisor ? '#f59e0b' : '#c084fc', lineHeight: 1.2 }}>
