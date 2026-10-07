@@ -1693,10 +1693,10 @@
             color: #ffffff;
         }
 
-        /* Global Inputs, Selects & Placeholders in Dark Mode */
+        /* Global Inputs, Selects & Placeholders in Dark Mode (ขอบเรียบ สบายตา ไม่เรืองแสงม่วงจัด) */
         body:not(.light-theme) input::placeholder,
         body:not(.light-theme) textarea::placeholder {
-            color: #94a3b8 !important;
+            color: #64748b !important;
             opacity: 1 !important;
         }
 
@@ -1706,9 +1706,9 @@
         body:not(.light-theme) input[type="date"],
         body:not(.light-theme) select,
         body:not(.light-theme) textarea {
-            color: #ffffff !important;
-            background: rgba(15, 23, 42, 0.85) !important;
-            border: 1px solid rgba(168, 85, 247, 0.3) !important;
+            color: #f8fafc !important;
+            background: rgba(15, 23, 42, 0.8) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
         }
 
         body:not(.light-theme) .select-input:focus,
@@ -1717,191 +1717,228 @@
         body:not(.light-theme) input[type="date"]:focus,
         body:not(.light-theme) select:focus,
         body:not(.light-theme) textarea:focus {
-            border-color: #c084fc !important;
-            box-shadow: 0 0 12px rgba(168, 85, 247, 0.35) !important;
+            border-color: #a855f7 !important;
+            box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.25) !important;
         }
 
         /* Back Office Typography & Form Controls in Dark Mode */
         body:not(.light-theme) .bo-banner-icon {
-            background: rgba(168, 85, 247, 0.25) !important;
-            color: #e9d5ff !important;
-            border: 1px solid rgba(168, 85, 247, 0.5) !important;
+            background: rgba(168, 85, 247, 0.15) !important;
+            color: #d8b4fe !important;
+            border: 1px solid rgba(168, 85, 247, 0.3) !important;
         }
 
         body:not(.light-theme) .banner-title {
-            color: #ffffff !important;
+            color: #f8fafc !important;
             font-weight: 800 !important;
         }
 
         body:not(.light-theme) .bo-admin-badge,
         body:not(.light-theme) .bo-total-staff-badge {
-            background: rgba(168, 85, 247, 0.25) !important;
-            color: #f3e8ff !important;
-            border: 1px solid rgba(168, 85, 247, 0.5) !important;
-            font-weight: 700 !important;
+            background: rgba(255, 255, 255, 0.05) !important;
+            color: #cbd5e1 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            font-weight: 600 !important;
         }
 
         body:not(.light-theme) .bo-sub-card {
-            background: rgba(15, 23, 42, 0.75) !important;
-            border: 1px solid rgba(168, 85, 247, 0.25) !important;
+            background: rgba(15, 23, 42, 0.6) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
 
         body:not(.light-theme) .bo-sub-title,
         body:not(.light-theme) .perm-checklist-title {
-            color: #e9d5ff !important;
+            color: #e2e8f0 !important;
             font-weight: 700 !important;
-            font-size: 12px !important;
+            font-size: 12.5px !important;
         }
 
-        /* Checkbox Checklist in Dark Mode (สิทธิ์เข้าถึงฟังก์ชัน คมชัด 100%) */
+        /* Checkbox Checklist in Dark Mode (สิทธิ์เข้าถึงฟังก์ชัน คมชัด สะอาดตา) */
         body:not(.light-theme) .perm-checklist-box {
-            background: rgba(15, 23, 42, 0.85) !important;
-            border: 1px solid rgba(168, 85, 247, 0.35) !important;
+            background: rgba(11, 17, 32, 0.65) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
 
         body:not(.light-theme) .perm-checklist-box label {
-            color: #f8fafc !important;
+            color: #f1f5f9 !important;
             cursor: pointer !important;
         }
 
         body:not(.light-theme) .perm-checklist-box label span {
-            color: #f8fafc !important;
-            font-weight: 600 !important;
-            font-size: 13px !important;
-            letter-spacing: 0.2px !important;
+            color: #f1f5f9 !important;
+            font-weight: 500 !important;
+            font-size: 12.5px !important;
         }
 
         body:not(.light-theme) .perm-checklist-box input[type="checkbox"] {
             accent-color: #a855f7 !important;
-            width: 16px !important;
-            height: 16px !important;
+            width: 15px !important;
+            height: 15px !important;
             cursor: pointer !important;
         }
 
-        /* Staff List in Dark Mode */
+        /* Staff List in Dark Mode (ลดสีนีออน เพิ่มความสบายตา คมชัดทุกตัวหนังสือ) */
         body:not(.light-theme) .staff-list-wrapper {
-            background: rgba(15, 23, 42, 0.6) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            background: rgba(11, 17, 32, 0.5) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
 
         body:not(.light-theme) .staff-item-row {
-            background: rgba(15, 23, 42, 0.85) !important;
-            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            background: rgba(15, 23, 42, 0.65) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
 
         body:not(.light-theme) .staff-item-row:hover {
-            background: rgba(30, 41, 59, 0.85) !important;
-            border-color: rgba(168, 85, 247, 0.45) !important;
+            background: rgba(30, 41, 59, 0.5) !important;
+            border-color: rgba(255, 255, 255, 0.16) !important;
         }
 
         body:not(.light-theme) .staff-item-row.is-editing {
-            background: rgba(30, 41, 59, 0.95) !important;
+            background: rgba(30, 41, 59, 0.9) !important;
             border: 1px solid #a855f7 !important;
         }
 
         body:not(.light-theme) .staff-name {
-            color: #ffffff !important;
+            color: #f8fafc !important;
             font-weight: 700 !important;
             font-size: 13.5px !important;
         }
 
         body:not(.light-theme) .staff-user-pill {
-            background: rgba(30, 41, 59, 0.95) !important;
-            color: #f1f5f9 !important;
-            border: 1px solid rgba(168, 85, 247, 0.4) !important;
-            font-weight: 600 !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            color: #94a3b8 !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            font-weight: 500 !important;
+            font-size: 11px !important;
+            padding: 2.5px 7px !important;
+            border-radius: 5px !important;
+        }
+
+        body:not(.light-theme) .staff-login-time {
+            background: rgba(255, 255, 255, 0.04) !important;
+            color: #94a3b8 !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            font-weight: 500 !important;
+            font-size: 11px !important;
+            padding: 2.5px 8px !important;
+            border-radius: 5px !important;
         }
 
         body:not(.light-theme) .staff-bo-perm-open {
-            color: #e9d5ff !important;
-            background: rgba(168, 85, 247, 0.25) !important;
-            border: 1px solid rgba(168, 85, 247, 0.5) !important;
-            padding: 2px 8px !important;
-            border-radius: 6px !important;
-            font-weight: 700 !important;
+            color: #d8b4fe !important;
+            background: rgba(168, 85, 247, 0.12) !important;
+            border: 1px solid rgba(168, 85, 247, 0.25) !important;
+            padding: 2.5px 8px !important;
+            border-radius: 5px !important;
+            font-weight: 600 !important;
+            font-size: 11px !important;
         }
 
         body:not(.light-theme) .staff-bo-perm-locked {
-            color: #cbd5e1 !important;
-            background: rgba(255, 255, 255, 0.08) !important;
-            border: 1px solid rgba(255, 255, 255, 0.16) !important;
-            padding: 2px 8px !important;
-            border-radius: 6px !important;
-            font-weight: 600 !important;
+            color: #64748b !important;
+            background: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.06) !important;
+            padding: 2.5px 8px !important;
+            border-radius: 5px !important;
+            font-weight: 500 !important;
+            font-size: 11px !important;
         }
 
+        /* Role Badges: หัวหน้านุ่มนวลสง่า / พนักงาน Slate สงบ สบายตา ไม่นีออนแย่งสายตา */
         body:not(.light-theme) .role-badge-supervisor {
-            background: rgba(245, 158, 11, 0.25) !important;
-            color: #fef08a !important;
-            border: 1px solid rgba(245, 158, 11, 0.6) !important;
-            font-weight: 800 !important;
+            background: rgba(245, 158, 11, 0.12) !important;
+            color: #fde68a !important;
+            border: 1px solid rgba(245, 158, 11, 0.28) !important;
+            font-weight: 700 !important;
+            font-size: 10.5px !important;
+            padding: 2.5px 8px !important;
+            border-radius: 6px !important;
         }
 
         body:not(.light-theme) .role-badge-agent {
-            background: rgba(16, 185, 129, 0.25) !important;
-            color: #86efac !important;
-            border: 1px solid rgba(16, 185, 129, 0.6) !important;
-            font-weight: 800 !important;
+            background: rgba(255, 255, 255, 0.05) !important;
+            color: #cbd5e1 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            font-weight: 600 !important;
+            font-size: 10.5px !important;
+            padding: 2.5px 8px !important;
+            border-radius: 6px !important;
+        }
+
+        body:not(.light-theme) .staff-status-active {
+            background: rgba(16, 185, 129, 0.1) !important;
+            color: #6ee7b7 !important;
+            border: 1px solid rgba(16, 185, 129, 0.22) !important;
+            font-weight: 600 !important;
+            font-size: 10.5px !important;
+            padding: 2.5px 8px !important;
+            border-radius: 6px !important;
+        }
+
+        body:not(.light-theme) .staff-status-suspended {
+            background: rgba(239, 68, 68, 0.1) !important;
+            color: #fca5a5 !important;
+            border: 1px solid rgba(239, 68, 68, 0.22) !important;
+            font-weight: 600 !important;
+            font-size: 10.5px !important;
+            padding: 2.5px 8px !important;
+            border-radius: 6px !important;
+        }
+
+        /* Action Buttons on Staff Row */
+        body:not(.light-theme) .staff-btn-toggle.btn-suspend {
+            background: rgba(245, 158, 11, 0.08) !important;
+            color: #fcd34d !important;
+            border: 1px solid rgba(245, 158, 11, 0.22) !important;
+            font-weight: 600 !important;
+        }
+        body:not(.light-theme) .staff-btn-toggle.btn-suspend:hover {
+            background: rgba(245, 158, 11, 0.18) !important;
+            color: #ffffff !important;
+        }
+        body:not(.light-theme) .staff-btn-toggle.btn-reactivate {
+            background: rgba(16, 185, 129, 0.08) !important;
+            color: #6ee7b7 !important;
+            border: 1px solid rgba(16, 185, 129, 0.22) !important;
+            font-weight: 600 !important;
+        }
+        body:not(.light-theme) .staff-btn-toggle.btn-reactivate:hover {
+            background: rgba(16, 185, 129, 0.18) !important;
+            color: #ffffff !important;
+        }
+        body:not(.light-theme) .staff-btn-toggle.btn-active-admin {
+            background: rgba(255, 255, 255, 0.04) !important;
+            color: #64748b !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            cursor: not-allowed !important;
+            font-weight: 500 !important;
         }
 
         body:not(.light-theme) .staff-btn-edit {
-            background: rgba(168, 85, 247, 0.2) !important;
-            color: #e9d5ff !important;
-            border: 1px solid rgba(168, 85, 247, 0.4) !important;
+            background: rgba(255, 255, 255, 0.05) !important;
+            color: #cbd5e1 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
         }
 
         body:not(.light-theme) .staff-btn-edit:hover {
-            background: #a855f7 !important;
+            background: rgba(168, 85, 247, 0.25) !important;
+            border-color: rgba(168, 85, 247, 0.5) !important;
             color: #ffffff !important;
         }
 
         body:not(.light-theme) .staff-btn-del {
-            background: rgba(244, 63, 94, 0.2) !important;
+            background: rgba(239, 68, 68, 0.08) !important;
             color: #fca5a5 !important;
-            border: 1px solid rgba(244, 63, 94, 0.4) !important;
+            border: 1px solid rgba(239, 68, 68, 0.2) !important;
         }
 
         body:not(.light-theme) .staff-btn-del:hover {
             background: #e11d48 !important;
+            border-color: #e11d48 !important;
             color: #ffffff !important;
         }
 
-        /* Staff Cloud Status & Badges in Dark Mode */
-        body:not(.light-theme) .staff-cloud-box {
-            background: rgba(59, 130, 246, 0.1) !important;
-            border: 1px solid rgba(59, 130, 246, 0.3) !important;
-        }
-        body:not(.light-theme) .staff-cloud-title {
-            color: #93c5fd !important;
-            font-weight: 700 !important;
-        }
-        body:not(.light-theme) .staff-cloud-sub {
-            color: #cbd5e1 !important;
-        }
-        body:not(.light-theme) .staff-cloud-btn {
-            background: rgba(59, 130, 246, 0.15) !important;
-            border: 1px solid rgba(59, 130, 246, 0.4) !important;
-            color: #93c5fd !important;
-            font-weight: 700 !important;
-        }
-        body:not(.light-theme) .staff-cloud-btn:hover {
-            background: #2563eb !important;
-            color: #ffffff !important;
-        }
-        body:not(.light-theme) .staff-status-active {
-            background: rgba(16, 185, 129, 0.22) !important;
-            color: #86efac !important;
-            border: 1px solid rgba(16, 185, 129, 0.5) !important;
-            font-weight: 700 !important;
-        }
-        body:not(.light-theme) .staff-status-suspended {
-            background: rgba(239, 68, 68, 0.2) !important;
-            color: #fca5a5 !important;
-            border: 1px solid rgba(239, 68, 68, 0.5) !important;
-            font-weight: 700 !important;
-        }
-
-        /* Marketing Channels Manager in Dark Mode (สว่าง ชัดเจน นีออน สบายตา ตัดกับพื้นหลังมืด 100%) */
+        /* Marketing Channels Manager in Dark Mode */
         body:not(.light-theme) .mc-channel-header {
             border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
@@ -1909,52 +1946,52 @@
             color: #c084fc !important;
         }
         body:not(.light-theme) .mc-channel-badge-total {
-            background: rgba(168, 85, 247, 0.22) !important;
-            color: #f3e8ff !important;
-            border: 1px solid rgba(168, 85, 247, 0.5) !important;
-            font-weight: 700 !important;
-            box-shadow: 0 0 8px rgba(168, 85, 247, 0.2) !important;
+            background: rgba(168, 85, 247, 0.12) !important;
+            color: #e9d5ff !important;
+            border: 1px solid rgba(168, 85, 247, 0.25) !important;
+            font-weight: 600 !important;
+            box-shadow: none !important;
         }
         body:not(.light-theme) .mc-channel-badge-ratio {
-            background: rgba(255, 255, 255, 0.06) !important;
+            background: rgba(255, 255, 255, 0.05) !important;
             color: #cbd5e1 !important;
-            border: 1px solid rgba(255, 255, 255, 0.12) !important;
-            font-weight: 600 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            font-weight: 500 !important;
         }
         body:not(.light-theme) .mc-channel-cloud-box {
-            background: rgba(16, 185, 129, 0.12) !important;
-            border: 1px solid rgba(16, 185, 129, 0.35) !important;
+            background: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
         body:not(.light-theme) .mc-channel-cloud-title {
-            color: #34d399 !important;
+            color: #f8fafc !important;
             font-weight: 700 !important;
         }
         body:not(.light-theme) .mc-channel-cloud-sub {
-            color: #cbd5e1 !important;
+            color: #94a3b8 !important;
         }
         body:not(.light-theme) .mc-channel-cloud-btn {
-            background: rgba(16, 185, 129, 0.18) !important;
-            border: 1px solid rgba(16, 185, 129, 0.5) !important;
-            color: #6ee7b7 !important;
-            font-weight: 700 !important;
+            background: rgba(255, 255, 255, 0.06) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            color: #e2e8f0 !important;
+            font-weight: 600 !important;
         }
         body:not(.light-theme) .mc-channel-cloud-btn:hover {
-            background: #10b981 !important;
+            background: rgba(255, 255, 255, 0.12) !important;
             color: #ffffff !important;
         }
         body:not(.light-theme) .mc-channel-add-box {
-            background: rgba(15, 23, 42, 0.75) !important;
+            background: rgba(15, 23, 42, 0.6) !important;
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
         body:not(.light-theme) .mc-channel-table-container {
             background: rgba(15, 23, 42, 0.5) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
         body:not(.light-theme) .mc-channel-table thead th {
-            background: #0f172a !important;
+            background: #0b1120 !important;
             color: #cbd5e1 !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
-            font-weight: 700 !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+            font-weight: 600 !important;
         }
         body:not(.light-theme) .mc-channel-table tbody tr {
             border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
@@ -1964,10 +2001,10 @@
         }
         body:not(.light-theme) .mc-channel-num {
             color: #94a3b8 !important;
-            font-weight: 600 !important;
+            font-weight: 500 !important;
         }
         body:not(.light-theme) .mc-channel-name {
-            color: #ffffff !important;
+            color: #f8fafc !important;
             font-weight: 700 !important;
         }
         body:not(.light-theme) .mc-channel-subtext {
@@ -1975,57 +2012,57 @@
             font-weight: 500 !important;
         }
         body:not(.light-theme) .mc-badge-default {
-            background: rgba(168, 85, 247, 0.22) !important;
-            color: #e9d5ff !important;
-            border: 1px solid rgba(168, 85, 247, 0.5) !important;
-            font-weight: 700 !important;
-            box-shadow: 0 0 10px rgba(168, 85, 247, 0.22) !important;
+            background: rgba(168, 85, 247, 0.12) !important;
+            color: #d8b4fe !important;
+            border: 1px solid rgba(168, 85, 247, 0.25) !important;
+            font-weight: 600 !important;
+            box-shadow: none !important;
         }
         body:not(.light-theme) .mc-badge-custom {
-            background: rgba(56, 189, 248, 0.22) !important;
-            color: #7dd3fc !important;
-            border: 1px solid rgba(56, 189, 248, 0.5) !important;
-            font-weight: 700 !important;
-            box-shadow: 0 0 10px rgba(56, 189, 248, 0.2) !important;
+            background: rgba(56, 189, 248, 0.1) !important;
+            color: #93c5fd !important;
+            border: 1px solid rgba(56, 189, 248, 0.25) !important;
+            font-weight: 600 !important;
+            box-shadow: none !important;
         }
         body:not(.light-theme) .mc-badge-leads-active {
-            background: rgba(16, 185, 129, 0.22) !important;
+            background: rgba(16, 185, 129, 0.1) !important;
             color: #6ee7b7 !important;
-            border: 1px solid rgba(16, 185, 129, 0.5) !important;
-            font-weight: 700 !important;
-            box-shadow: 0 0 10px rgba(16, 185, 129, 0.2) !important;
+            border: 1px solid rgba(16, 185, 129, 0.22) !important;
+            font-weight: 600 !important;
+            box-shadow: none !important;
         }
         body:not(.light-theme) .mc-badge-leads-zero {
-            background: rgba(255, 255, 255, 0.05) !important;
-            color: #94a3b8 !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            font-weight: 600 !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            color: #64748b !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            font-weight: 500 !important;
         }
         body:not(.light-theme) .mc-channel-datetime-text {
-            color: #f8fafc !important;
-            font-weight: 600 !important;
+            color: #cbd5e1 !important;
+            font-weight: 500 !important;
         }
         body:not(.light-theme) .mc-channel-datetime-icon {
-            color: #c084fc !important;
+            color: #94a3b8 !important;
         }
         body:not(.light-theme) .mc-channel-creator-text {
-            color: #cbd5e1 !important;
-            font-weight: 600 !important;
+            color: #94a3b8 !important;
+            font-weight: 500 !important;
         }
         body:not(.light-theme) .mc-channel-creator-icon {
-            color: #94a3b8 !important;
+            color: #64748b !important;
         }
         body:not(.light-theme) .mc-channel-locked {
-            background: rgba(255, 255, 255, 0.06) !important;
-            border: 1px solid rgba(255, 255, 255, 0.12) !important;
-            color: #94a3b8 !important;
-            font-weight: 600 !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            color: #64748b !important;
+            font-weight: 500 !important;
         }
         body:not(.light-theme) .mc-channel-del-btn {
-            background: rgba(244, 63, 94, 0.18) !important;
-            border: 1px solid rgba(244, 63, 94, 0.45) !important;
-            color: #fda4af !important;
-            font-weight: 700 !important;
+            background: rgba(239, 68, 68, 0.08) !important;
+            border: 1px solid rgba(239, 68, 68, 0.2) !important;
+            color: #fca5a5 !important;
+            font-weight: 600 !important;
         }
         body:not(.light-theme) .mc-channel-del-btn:hover {
             background: #e11d48 !important;
@@ -2033,17 +2070,82 @@
             color: #ffffff !important;
         }
         body:not(.light-theme) .channel-tag-pill {
-            background: rgba(15, 23, 42, 0.85) !important;
-            border: 1px solid rgba(168, 85, 247, 0.35) !important;
-            color: #ffffff !important;
-            font-weight: 700 !important;
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: #e2e8f0 !important;
+            font-weight: 600 !important;
         }
         body:not(.light-theme) .channel-default-tag {
-            background: rgba(168, 85, 247, 0.28) !important;
-            color: #f3e8ff !important;
-            border: 1px solid rgba(168, 85, 247, 0.5) !important;
-            font-weight: 700 !important;
+            background: rgba(168, 85, 247, 0.12) !important;
+            color: #d8b4fe !important;
+            border: 1px solid rgba(168, 85, 247, 0.25) !important;
+            font-weight: 600 !important;
         }
+
+        /* Filter Status Pills - สะอาดตา คมชัด อ่านง่ายทั้งสองธีม */
+        .filter-status-pill {
+            padding: 4px 10px !important;
+            font-size: 11.5px !important;
+            font-weight: 600 !important;
+            border-radius: 8px !important;
+            transition: all 0.15s ease !important;
+            cursor: pointer !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+        }
+        body.light-theme .filter-status-pill {
+            background: #ffffff !important;
+            color: #334155 !important;
+            border: 1px solid #cbd5e1 !important;
+        }
+        body.light-theme .filter-status-pill:hover {
+            background: #f1f5f9 !important;
+            color: #0f172a !important;
+            border-color: #94a3b8 !important;
+        }
+        body.light-theme .filter-status-pill.active {
+            background: var(--primary) !important;
+            color: #ffffff !important;
+            border-color: var(--primary) !important;
+            box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25) !important;
+        }
+        body:not(.light-theme) .filter-status-pill {
+            background: rgba(255, 255, 255, 0.05) !important;
+            color: #cbd5e1 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        }
+        body:not(.light-theme) .filter-status-pill:hover {
+            background: rgba(255, 255, 255, 0.1) !important;
+            color: #ffffff !important;
+            border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        body:not(.light-theme) .filter-status-pill.active {
+            background: #7c3aed !important;
+            color: #ffffff !important;
+            border-color: #9333ea !important;
+            box-shadow: 0 2px 10px rgba(124, 58, 237, 0.35) !important;
+        }
+
+        /* Supervisor KPI Badges & Stats in Dark Mode (สีพาสเทลนุ่มนวล คมชัด สบายตา ไม่แสบตา) */
+        body:not(.light-theme) .kpi-card-header-title { color: #f8fafc !important; font-weight: 700 !important; }
+        body:not(.light-theme) .kpi-stat-purple { color: #d8b4fe !important; }
+        body:not(.light-theme) .kpi-stat-amber  { color: #fde68a !important; }
+        body:not(.light-theme) .kpi-stat-blue   { color: #93c5fd !important; }
+        body:not(.light-theme) .kpi-stat-green  { color: #6ee7b7 !important; }
+        body:not(.light-theme) .kpi-stat-rose   { color: #fda4af !important; }
+
+        body:not(.light-theme) .kpi-tag-purple { background: rgba(168, 85, 247, 0.1) !important; color: #d8b4fe !important; border: 1px solid rgba(168, 85, 247, 0.22) !important; font-weight: 600 !important; }
+        body:not(.light-theme) .kpi-tag-amber  { background: rgba(245, 158, 11, 0.1) !important; color: #fde68a !important; border: 1px solid rgba(245, 158, 11, 0.22) !important; font-weight: 600 !important; }
+        body:not(.light-theme) .kpi-tag-blue   { background: rgba(56, 189, 248, 0.1) !important; color: #93c5fd !important; border: 1px solid rgba(56, 189, 248, 0.22) !important; font-weight: 600 !important; }
+        body:not(.light-theme) .kpi-tag-green  { background: rgba(16, 185, 129, 0.1) !important; color: #6ee7b7 !important; border: 1px solid rgba(16, 185, 129, 0.22) !important; font-weight: 600 !important; }
+        body:not(.light-theme) .kpi-tag-rose   { background: rgba(244, 63, 94, 0.1) !important; color: #fda4af !important; border: 1px solid rgba(244, 63, 94, 0.22) !important; font-weight: 600 !important; }
+
+        body:not(.light-theme) .kpi-icon-purple { background: rgba(168, 85, 247, 0.1) !important; color: #d8b4fe !important; border: 1px solid rgba(168, 85, 247, 0.2) !important; }
+        body:not(.light-theme) .kpi-icon-amber  { background: rgba(245, 158, 11, 0.1) !important; color: #fde68a !important; border: 1px solid rgba(245, 158, 11, 0.2) !important; }
+        body:not(.light-theme) .kpi-icon-blue   { background: rgba(56, 189, 248, 0.1) !important; color: #93c5fd !important; border: 1px solid rgba(56, 189, 248, 0.2) !important; }
+        body:not(.light-theme) .kpi-icon-green  { background: rgba(16, 185, 129, 0.1) !important; color: #6ee7b7 !important; border: 1px solid rgba(16, 185, 129, 0.2) !important; }
+        body:not(.light-theme) .kpi-icon-rose   { background: rgba(244, 63, 94, 0.1) !important; color: #fda4af !important; border: 1px solid rgba(244, 63, 94, 0.2) !important; }
 
         /* Sidebar Navigation & Profiles in Dark Mode */
         body:not(.light-theme) .sidebar-btn {
@@ -2146,7 +2248,7 @@
         html:not(.light-theme) .modal-content,
         html:not(.light-theme) .table-wrapper {
             background: #0d1527 !important;
-            border: 1px solid rgba(168, 85, 247, 0.2) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
             box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45) !important;
             color: #ffffff !important;
         }
@@ -2214,8 +2316,8 @@
         html:not(.light-theme) body .agent-sticky-header-container,
         html:not(.light-theme) .agent-sticky-header-container {
             background: #0d1527 !important;
-            border-bottom: 1px solid rgba(168, 85, 247, 0.25) !important;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45) !important;
             color: #ffffff !important;
             transition: none !important;
         }
@@ -7478,16 +7580,8 @@
                                                     return (
                                                         <React.Fragment>
                                                             <button 
-                                                                className="btn btn-secondary" 
-                                                                style={{ 
-                                                                    padding: '2px 8px', 
-                                                                    fontSize: '10.5px', 
-                                                                    background: isFilterToday ? 'rgba(168,85,247,0.35)' : 'rgba(168,85,247,0.15)', 
-                                                                    color: isFilterToday ? '#f3e8ff' : '#c084fc', 
-                                                                    borderColor: isFilterToday ? '#c084fc' : '#a855f7',
-                                                                    fontWeight: isFilterToday ? 700 : 500,
-                                                                    boxShadow: isFilterToday ? '0 0 8px rgba(168,85,247,0.3)' : 'none'
-                                                                }}
+                                                                className={`btn filter-status-pill ${isFilterToday ? 'active' : ''}`} 
+                                                                style={{ padding: '3px 9px', fontSize: '11px' }}
                                                                 onClick={() => {
                                                                     setStartDateFilter(todayVal);
                                                                     setEndDateFilter(todayVal);
@@ -7498,8 +7592,8 @@
                                                             </button>
                                                             {(startDateFilter || endDateFilter) && (
                                                                 <button 
-                                                                    className="btn btn-secondary" 
-                                                                    style={{ padding: '2px 8px', fontSize: '10px' }}
+                                                                    className="btn filter-status-pill" 
+                                                                    style={{ padding: '3px 9px', fontSize: '11px' }}
                                                                     onClick={() => {
                                                                         setStartDateFilter('');
                                                                         setEndDateFilter('');
@@ -9912,56 +10006,43 @@
                                                     {/* Divider */}
                                                     <div style={{ width: '1px', height: '22px', background: theme === 'light' ? '#e2e8f0' : 'rgba(255,255,255,0.12)' }}></div>
 
-                                                    {/* Customer Status Buttons */}
+                                                    {/* Customer Status Buttons (สะอาดตา คมชัด ลดสีฉูดฉาดในโหมดมืด) */}
                                                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                                                         <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>📌 {lang === 'TH' ? 'สถานะ:' : 'Status:'}</span>
                                                         <button 
-                                                            className={`btn ${statusFilter === 'ALL' ? 'btn-primary' : 'btn-secondary'}`} 
-                                                            style={{ padding: '4px 9px', fontSize: '11px' }} 
+                                                            className={`filter-status-pill ${statusFilter === 'ALL' ? 'active' : ''}`} 
                                                             onClick={() => setStatusFilter('ALL')}
                                                         >
                                                             {lang === 'TH' ? 'ทั้งหมด' : 'All'} ({cScopeAll})
                                                         </button>
                                                         <button 
-                                                            className={`btn ${['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) ? 'btn-primary' : 'btn-secondary'}`} 
-                                                            style={{ 
-                                                                padding: '4px 9px', 
-                                                                fontSize: '11px', 
-                                                                fontWeight: 600,
-                                                                color: ['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) ? '#fff' : (theme === 'light' ? '#b45309' : '#fbbf24'),
-                                                                borderColor: ['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) ? 'var(--primary)' : 'rgba(245, 158, 11, 0.4)',
-                                                                background: ['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) ? undefined : (theme === 'light' ? '#fffbeb' : 'rgba(245, 158, 11, 0.08)')
-                                                            }} 
+                                                            className={`filter-status-pill ${['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) ? 'active' : ''}`} 
                                                             onClick={() => setStatusFilter(['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) ? 'ALL' : 'UNCONVERTED')}
                                                             title={lang === 'TH' ? 'ลูกค้าที่ยังไม่เคยฝากเงิน (รวมทั้งยังไม่สมัคร และสมัครแล้วแต่ยังไม่ฝาก)' : 'Customers who have not deposited yet'}
                                                         >
                                                             {lang === 'TH' ? `⏳ ไม่สมัครและไม่ฝาก (${cScopeUnconv})` : `⏳ Unconverted (${cScopeUnconv})`}
                                                         </button>
                                                         <button 
-                                                            className={`btn ${['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) ? 'btn-primary' : 'btn-secondary'}`} 
-                                                            style={{ padding: '4px 9px', fontSize: '11px', color: ['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) ? '#fff' : '#fbbf24' }} 
+                                                            className={`filter-status-pill ${['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) ? 'active' : ''}`} 
                                                             onClick={() => setStatusFilter(['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) ? 'ALL' : 'NOT_REGISTERED')}
                                                             title={lang === 'TH' ? 'ลูกค้าที่ทักเข้ามาแต่ยังไม่ได้สมัครสมาชิก' : 'Inquired but not registered yet'}
                                                         >
                                                             {lang === 'TH' ? `🟠 ทักไม่สมัคร (${cScopeNotReg})` : `🟠 Inquired (Not Reg) (${cScopeNotReg})`}
                                                         </button>
                                                         <button 
-                                                            className={`btn ${statusFilter === 'REGISTERED' ? 'btn-primary' : 'btn-secondary'}`} 
-                                                            style={{ padding: '4px 9px', fontSize: '11px', color: statusFilter === 'REGISTERED' ? '#fff' : '#38bdf8' }} 
+                                                            className={`filter-status-pill ${statusFilter === 'REGISTERED' ? 'active' : ''}`} 
                                                             onClick={() => setStatusFilter(statusFilter === 'REGISTERED' ? 'ALL' : 'REGISTERED')}
                                                         >
                                                             {lang === 'TH' ? `🔵 ทักสมัคร (${cScopeReg})` : `🔵 Registered (${cScopeReg})`}
                                                         </button>
                                                         <button 
-                                                            className={`btn ${statusFilter === 'DEPOSITED' ? 'btn-primary' : 'btn-secondary'}`} 
-                                                            style={{ padding: '4px 9px', fontSize: '11px', color: statusFilter === 'DEPOSITED' ? '#fff' : 'var(--secondary)' }} 
+                                                            className={`filter-status-pill ${statusFilter === 'DEPOSITED' ? 'active' : ''}`} 
                                                             onClick={() => setStatusFilter(statusFilter === 'DEPOSITED' ? 'ALL' : 'DEPOSITED')}
                                                         >
                                                             {lang === 'TH' ? `🟢 สมัครและฝาก (${cScopeDep})` : `🟢 Reg & Deposited (${cScopeDep})`}
                                                         </button>
                                                         <button 
-                                                            className={`btn ${['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) ? 'btn-primary' : 'btn-secondary'}`} 
-                                                            style={{ padding: '4px 9px', fontSize: '11px', color: ['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) ? '#fff' : '#f43f5e' }} 
+                                                            className={`filter-status-pill ${['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) ? 'active' : ''}`} 
                                                             onClick={() => setStatusFilter(['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) ? 'ALL' : 'NOT_DEPOSITED')}
                                                             title={lang === 'TH' ? 'ลูกค้าที่มียูสเซอร์แล้วแต่ยังไม่ได้ฝากเงิน' : 'Registered user but no deposit'}
                                                         >
@@ -9971,18 +10052,18 @@
                                                 </div>
 
                                                 {/* Row 2: Line Lek Status Filter */}
-                                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', borderTop: theme === 'light' ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
+                                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', borderTop: theme === 'light' ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.06)', paddingTop: '8px' }}>
                                                     <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>💬 {lang === 'TH' ? 'กรองสถานะไลน์เล็ก:' : 'LINE Status:'}</span>
-                                                    <button className={`btn ${lineLekFilter === 'ALL' || lineLekFilter === 'ทั้งหมด' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '3px 8px', fontSize: '11px' }} onClick={() => setLineLekFilter('ALL')}>
+                                                    <button className={`filter-status-pill ${lineLekFilter === 'ALL' || lineLekFilter === 'ทั้งหมด' ? 'active' : ''}`} onClick={() => setLineLekFilter('ALL')}>
                                                         {lang === 'TH' ? 'ทั้งหมด' : 'All'} ({cLineAll})
                                                     </button>
-                                                    <button className={`btn ${lineLekFilter === 'HAS' || lineLekFilter === 'มี' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '3px 8px', fontSize: '11px', color: (lineLekFilter === 'HAS' || lineLekFilter === 'มี') ? '#fff' : '#34d399' }} onClick={() => setLineLekFilter(lineLekFilter === 'HAS' || lineLekFilter === 'มี' ? 'ALL' : 'HAS')}>
+                                                    <button className={`filter-status-pill ${(lineLekFilter === 'HAS' || lineLekFilter === 'มี') ? 'active' : ''}`} onClick={() => setLineLekFilter(lineLekFilter === 'HAS' || lineLekFilter === 'มี' ? 'ALL' : 'HAS')}>
                                                         {lang === 'TH' ? '🟢 มีไลน์' : '🟢 Has LINE'} ({cLineHas})
                                                     </button>
-                                                    <button className={`btn ${lineLekFilter === 'WAITING' || lineLekFilter === 'รอแอด' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '3px 8px', fontSize: '11px', color: (lineLekFilter === 'WAITING' || lineLekFilter === 'รอแอด') ? '#fff' : '#fbbf24' }} onClick={() => setLineLekFilter(lineLekFilter === 'WAITING' || lineLekFilter === 'รอแอด' ? 'ALL' : 'WAITING')}>
+                                                    <button className={`filter-status-pill ${(lineLekFilter === 'WAITING' || lineLekFilter === 'รอแอด') ? 'active' : ''}`} onClick={() => setLineLekFilter(lineLekFilter === 'WAITING' || lineLekFilter === 'รอแอด' ? 'ALL' : 'WAITING')}>
                                                         {lang === 'TH' ? '🟡 รอแอด' : '🟡 Pending Add'} ({cLineWaiting})
                                                     </button>
-                                                    <button className={`btn ${lineLekFilter === 'NONE' || lineLekFilter === 'ไม่มี' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '3px 8px', fontSize: '11px', color: (lineLekFilter === 'NONE' || lineLekFilter === 'ไม่มี') ? '#fff' : '#f43f5e' }} onClick={() => setLineLekFilter(lineLekFilter === 'NONE' || lineLekFilter === 'ไม่มี' ? 'ALL' : 'NONE')}>
+                                                    <button className={`filter-status-pill ${(lineLekFilter === 'NONE' || lineLekFilter === 'ไม่มี') ? 'active' : ''}`} onClick={() => setLineLekFilter(lineLekFilter === 'NONE' || lineLekFilter === 'ไม่มี' ? 'ALL' : 'NONE')}>
                                                         {lang === 'TH' ? '🔴 ไม่มีไลน์' : '🔴 No LINE'} ({cLineNone})
                                                     </button>
                                                 </div>
@@ -10023,9 +10104,9 @@
                                                         fontWeight: 700,
                                                         padding: '3px 10px',
                                                         borderRadius: '6px',
-                                                        background: 'rgba(16, 185, 129, 0.12)',
-                                                        border: '1px solid rgba(16, 185, 129, 0.3)',
-                                                        color: '#10b981'
+                                                        background: theme === 'light' ? '#ecfdf5' : 'rgba(16, 185, 129, 0.08)',
+                                                        border: theme === 'light' ? '1px solid #a7f3d0' : '1px solid rgba(16, 185, 129, 0.22)',
+                                                        color: theme === 'light' ? '#047857' : '#6ee7b7'
                                                     }}>
                                                         🟢 {lang === 'TH' ? 'ฝากแล้ว' : 'Deposited'}: <strong>{displayDepositedCount}</strong> {lang === 'TH' ? 'คน' : ''}
                                                     </span>
@@ -10034,9 +10115,9 @@
                                                         fontWeight: 700,
                                                         padding: '3px 10px',
                                                         borderRadius: '6px',
-                                                        background: 'rgba(244, 63, 94, 0.12)',
-                                                        border: '1px solid rgba(244, 63, 94, 0.3)',
-                                                        color: '#f43f5e'
+                                                        background: theme === 'light' ? '#fff1f2' : 'rgba(244, 63, 94, 0.08)',
+                                                        border: theme === 'light' ? '1px solid #fecdd3' : '1px solid rgba(244, 63, 94, 0.22)',
+                                                        color: theme === 'light' ? '#be123c' : '#fda4af'
                                                     }}>
                                                         🔴 {lang === 'TH' ? 'รอฝาก' : 'Pending'}: <strong>{displayUnconvertedCount}</strong> {lang === 'TH' ? 'คน' : ''}
                                                     </span>
@@ -11069,24 +11150,24 @@
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                                                         <span className="staff-name" style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{a.name}</span>
-                                                                        <span className={`role-badge ${isSuper ? 'role-badge-supervisor' : 'role-badge-agent'}`} style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '12px', background: isSuper ? 'rgba(245, 158, 11, 0.18)' : 'rgba(16, 185, 129, 0.18)', color: isSuper ? '#fbbf24' : '#34d399', border: isSuper ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)' }}>
+                                                                        <span className={`role-badge ${isSuper ? 'role-badge-supervisor' : 'role-badge-agent'}`}>
                                                                             {isSuper ? (lang === 'TH' ? '👑 หัวหน้า' : '👑 Supervisor') : (lang === 'TH' ? '👤 พนักงาน' : '👤 Agent')}
                                                                         </span>
                                                                         {a.isActive === false ? (
-                                                                            <span className="role-badge staff-status-suspended" style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '12px' }}>
+                                                                            <span className="role-badge staff-status-suspended">
                                                                                 {lang === 'TH' ? '⏸️ พักงาน' : '⏸️ Suspended'}
                                                                             </span>
                                                                         ) : (
-                                                                            <span className="role-badge staff-status-active" style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '12px' }}>
+                                                                            <span className="role-badge staff-status-active">
                                                                                 {lang === 'TH' ? '🟢 ใช้งานอยู่' : '🟢 Active'}
                                                                             </span>
                                                                         )}
                                                                         {a.loginUsername && (
-                                                                            <span className="staff-user-pill" style={{ fontSize: '10px', fontFamily: 'monospace', padding: '2px 6px', borderRadius: '6px', background: 'rgba(0,0,0,0.4)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                                                            <span className="staff-user-pill">
                                                                                 {lang === 'TH' ? '🔑 ยูส: ' : '🔑 User: '}{a.loginUsername}
                                                                             </span>
                                                                         )}
-                                                                        <span className="staff-login-time" style={{ fontSize: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 7px', borderRadius: '6px', background: a.lastLoginAt ? 'rgba(56, 189, 248, 0.1)' : 'rgba(255, 255, 255, 0.04)', color: a.lastLoginAt ? '#38bdf8' : 'var(--text-muted)', border: a.lastLoginAt ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid rgba(255, 255, 255, 0.06)' }} title={a.lastLoginAt ? `เข้าสู่ระบบล่าสุดเมื่อ: ${a.lastLoginAt}` : 'ยังไม่มีประวัติเข้าสู่ระบบ'}>
+                                                                        <span className="staff-login-time" title={a.lastLoginAt ? `เข้าสู่ระบบล่าสุดเมื่อ: ${a.lastLoginAt}` : 'ยังไม่มีประวัติเข้าสู่ระบบ'}>
                                                                             <i data-lucide="clock" style={{ width: '11px', height: '11px' }}></i>
                                                                             <span>
                                                                                 {a.lastLoginAt 
@@ -11095,18 +11176,18 @@
                                                                             </span>
                                                                         </span>
                                                                         {perms.canBackOffice ? (
-                                                                            <span className="staff-bo-perm-open" style={{ fontSize: '10px', color: '#c084fc', fontWeight: 600 }}>{lang === 'TH' ? '[⚙️ เปิดสิทธิ์หลังบ้าน]' : '[⚙️ Back Office Enabled]'}</span>
+                                                                            <span className="staff-bo-perm-open">{lang === 'TH' ? '[⚙️ เปิดสิทธิ์หลังบ้าน]' : '[⚙️ Back Office Enabled]'}</span>
                                                                         ) : (
-                                                                            <span className="staff-bo-perm-locked" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{lang === 'TH' ? '[🔒 ล็อกหลังบ้าน]' : '[🔒 Back Office Locked]'}</span>
+                                                                            <span className="staff-bo-perm-locked">{lang === 'TH' ? '[🔒 ล็อกหลังบ้าน]' : '[🔒 Back Office Locked]'}</span>
                                                                         )}
                                                                     </div>
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                                         {a.isActive === false ? (
                                                                             <button 
-                                                                                type="button"
-                                                                                className="staff-btn-toggle"
-                                                                                style={{ border: 'none', background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                                                onClick={() => handleToggleAgentActive(a.id, a.name)}
+                                                                                type="button" 
+                                                                                className="staff-btn-toggle btn-reactivate" 
+                                                                                style={{ border: 'none', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }} 
+                                                                                onClick={() => handleToggleAgentActive(a.id, a.name)} 
                                                                                 title={lang === 'TH' ? "เปิดใช้งานบัญชีพนักงานอีกครั้ง" : "Reactivate staff"}
                                                                             >
                                                                                 <i data-lucide="play-circle" style={{ width: '13px', height: '13px' }}></i>
@@ -11114,10 +11195,10 @@
                                                                             </button>
                                                                         ) : ((a.name === activeAgentName || (isSuper && agents.filter(x => x.role === 'SUPERVISOR' && x.isActive !== false).length <= 1)) ? (
                                                                             <button 
-                                                                                type="button"
-                                                                                className="staff-btn-toggle"
-                                                                                style={{ border: 'none', background: 'rgba(148, 163, 184, 0.12)', color: '#94a3b8', padding: '6px 10px', borderRadius: '6px', cursor: 'not-allowed', fontSize: '11px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', opacity: 0.65 }}
-                                                                                disabled
+                                                                                type="button" 
+                                                                                className="staff-btn-toggle btn-active-admin" 
+                                                                                style={{ border: 'none', padding: '5px 10px', borderRadius: '6px', cursor: 'not-allowed', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }} 
+                                                                                disabled 
                                                                                 title={lang === 'TH' ? "ไม่สามารถพักงานบัญชีหัวหน้าหลักที่กำลังใช้งานอยู่ได้ เพื่อป้องกันไม่ให้ระบบล็อกตัวเอง" : "Cannot suspend the active supervisor account"}
                                                                             >
                                                                                 <i data-lucide="shield-check" style={{ width: '13px', height: '13px' }}></i>
@@ -11125,10 +11206,10 @@
                                                                             </button>
                                                                         ) : (
                                                                             <button 
-                                                                                type="button"
-                                                                                className="staff-btn-toggle"
-                                                                                style={{ border: 'none', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                                                onClick={() => handleToggleAgentActive(a.id, a.name)}
+                                                                                type="button" 
+                                                                                className="staff-btn-toggle btn-suspend" 
+                                                                                style={{ border: 'none', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }} 
+                                                                                onClick={() => handleToggleAgentActive(a.id, a.name)} 
                                                                                 title={lang === 'TH' ? "พักงาน / ระงับการใช้งานบัญชีชั่วคราว (เข้าสู่ระบบไม่ได้ แต่ข้อมูลและประวัติยังคงอยู่ 100%)" : "Suspend / Deactivate"}
                                                                             >
                                                                                 <i data-lucide="pause-circle" style={{ width: '13px', height: '13px' }}></i>
@@ -11136,20 +11217,20 @@
                                                                             </button>
                                                                         ))}
                                                                         <button 
-                                                                            className="staff-btn-edit"
-                                                                            style={{ border: 'none', background: 'rgba(168, 85, 247, 0.12)', color: '#c084fc', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer' }}
-                                                                            onClick={() => startEditAgent(a)}
+                                                                            className="staff-btn-edit" 
+                                                                            style={{ border: 'none', padding: '5px 8px', borderRadius: '6px', cursor: 'pointer' }} 
+                                                                            onClick={() => startEditAgent(a)} 
                                                                             title={lang === 'TH' ? "แก้ไขชื่อ/สิทธิ์พนักงาน" : "Edit staff/permissions"}
                                                                         >
-                                                                            <i data-lucide="edit-3" style={{ width: '14px', height: '14px' }}></i>
+                                                                            <i data-lucide="edit-3" style={{ width: '13px', height: '13px' }}></i>
                                                                         </button>
                                                                         <button 
-                                                                            className="staff-btn-del"
-                                                                            style={{ border: 'none', background: 'rgba(244, 63, 94, 0.12)', color: '#f43f5e', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer' }}
-                                                                            onClick={() => handleDeleteAgent(a.id, a.name)}
+                                                                            className="staff-btn-del" 
+                                                                            style={{ border: 'none', padding: '5px 8px', borderRadius: '6px', cursor: 'pointer' }} 
+                                                                            onClick={() => handleDeleteAgent(a.id, a.name)} 
                                                                             title={lang === 'TH' ? "ลบรายชื่อพนักงาน" : "Delete staff"}
                                                                         >
-                                                                            <i data-lucide="trash" style={{ width: '14px', height: '14px' }}></i>
+                                                                            <i data-lucide="trash" style={{ width: '13px', height: '13px' }}></i>
                                                                         </button>
                                                                     </div>
                                                                 </div>
