@@ -572,7 +572,7 @@
             gap: 4px !important;
         }
 
-        /* Marketing Channels Manager & Badges Base Styles (ให้มี Padding สบายตา ขอบโค้งมน Pill/Rounded ไม่เป็นกรอบสี่เหลี่ยมแนบตัวหนังสือ) */
+        /* Marketing Channels Manager & Badges Base Styles (กรอบมนสวยงาม กลมๆ มุมโค้ง Pill Style ป้องกันกรอบสี่เหลี่ยมแนบชิดตัวหนังสือ) */
         .mc-channel-header {
             display: flex;
             align-items: center;
@@ -582,159 +582,117 @@
             padding-bottom: 14px;
             margin-bottom: 16px;
         }
-        .mc-channel-badge-total {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 11.5px;
-            font-weight: 700;
-            line-height: 1.25;
-            white-space: nowrap;
-        }
-        .mc-channel-badge-ratio {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 11.5px;
-            font-weight: 600;
-            line-height: 1.25;
-            white-space: nowrap;
+        .mc-channel-badge-total,
+        .mc-channel-badge-ratio,
+        .mc-badge-default,
+        .mc-badge-custom,
+        .mc-badge-leads-active,
+        .mc-badge-leads-zero,
+        .mc-channel-locked {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 5px !important;
+            padding: 3.5px 11px !important;
+            border-radius: 14px !important;
+            font-size: 11px !important;
+            line-height: 1.3 !important;
+            white-space: nowrap !important;
         }
         .mc-channel-cloud-box {
-            border-radius: 10px;
-            padding: 12px 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
+            border-radius: 10px !important;
+            padding: 12px 16px !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            flex-wrap: wrap !important;
+            gap: 12px !important;
         }
         .mc-channel-cloud-title {
-            font-size: 13px;
-            font-weight: 700;
-            line-height: 1.35;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            line-height: 1.35 !important;
         }
         .mc-channel-cloud-sub {
-            font-size: 11.5px;
-            line-height: 1.4;
-            margin-top: 2px;
+            font-size: 11.5px !important;
+            line-height: 1.4 !important;
+            margin-top: 2px !important;
         }
         .mc-channel-cloud-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 14px;
-            border-radius: 8px;
-            font-size: 11.5px;
-            font-weight: 600;
-            cursor: pointer;
-            line-height: 1.3;
-            white-space: nowrap;
-            transition: all 0.15s ease;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            padding: 6px 14px !important;
+            border-radius: 8px !important;
+            font-size: 11.5px !important;
+            font-weight: 600 !important;
+            cursor: pointer !important;
+            line-height: 1.3 !important;
+            white-space: nowrap !important;
+            transition: all 0.15s ease !important;
         }
         .mc-channel-add-box {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-            padding: 12px 14px;
-            border-radius: 10px;
+            display: flex !important;
+            gap: 10px !important;
+            align-items: center !important;
+            flex-wrap: wrap !important;
+            padding: 12px 14px !important;
+            border-radius: 10px !important;
         }
         .mc-channel-table-container {
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        .mc-badge-default,
-        .mc-badge-custom {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 3.5px 10px;
-            border-radius: 14px;
-            font-size: 11px;
-            font-weight: 600;
-            line-height: 1.25;
-            white-space: nowrap;
-        }
-        .mc-badge-leads-active,
-        .mc-badge-leads-zero {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 3.5px 10px;
-            border-radius: 14px;
-            font-size: 11px;
-            font-weight: 600;
-            line-height: 1.25;
-            white-space: nowrap;
-        }
-        .mc-channel-locked {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 3.5px 10px;
-            border-radius: 14px;
-            font-size: 11px;
-            font-weight: 500;
-            line-height: 1.25;
-            white-space: nowrap;
+            border-radius: 10px !important;
+            overflow: hidden !important;
         }
         .mc-channel-del-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            line-height: 1.25;
-            white-space: nowrap;
-            transition: all 0.15s ease;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            padding: 3.5px 10px !important;
+            border-radius: 6px !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            cursor: pointer !important;
+            line-height: 1.25 !important;
+            white-space: nowrap !important;
+            transition: all 0.15s ease !important;
         }
         .mc-channel-datetime-text,
         .mc-channel-creator-text {
-            font-size: 11.5px;
-            line-height: 1.3;
+            font-size: 11.5px !important;
+            line-height: 1.3 !important;
         }
         .staff-user-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 2.5px 7px;
-            border-radius: 5px;
-            font-size: 11px;
-            line-height: 1.25;
-            white-space: nowrap;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            padding: 2.5px 7px !important;
+            border-radius: 5px !important;
+            font-size: 11px !important;
+            line-height: 1.25 !important;
+            white-space: nowrap !important;
         }
         .staff-cloud-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 14px;
-            border-radius: 8px;
-            font-size: 11.5px;
-            font-weight: 600;
-            cursor: pointer;
-            line-height: 1.3;
-            white-space: nowrap;
-            transition: all 0.15s ease;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            padding: 6px 14px !important;
+            border-radius: 8px !important;
+            font-size: 11.5px !important;
+            font-weight: 600 !important;
+            cursor: pointer !important;
+            line-height: 1.3 !important;
+            white-space: nowrap !important;
+            transition: all 0.15s ease !important;
         }
         .role-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 2.5px 8px;
-            border-radius: 6px;
-            font-size: 10.5px;
-            line-height: 1.25;
-            white-space: nowrap;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            padding: 2.5px 8px !important;
+            border-radius: 6px !important;
+            font-size: 10.5px !important;
+            line-height: 1.25 !important;
+            white-space: nowrap !important;
         }
 
         /* Marketing Channels Manager in Light Mode (คมชัด อ่านง่าย สีสันสดใส สบายตา) */
@@ -748,17 +706,17 @@
             background: #f3e8ff !important;
             color: #6b21a8 !important;
             border: 1px solid #d8b4fe !important;
-            font-weight: 800 !important;
-            padding: 4px 12px !important;
-            border-radius: 20px !important;
+            font-weight: 700 !important;
+            padding: 3.5px 11px !important;
+            border-radius: 14px !important;
         }
         body.light-theme .mc-channel-badge-ratio {
             background: #f1f5f9 !important;
             color: #475569 !important;
             border: 1px solid #cbd5e1 !important;
-            font-weight: 700 !important;
-            padding: 4px 12px !important;
-            border-radius: 20px !important;
+            font-weight: 600 !important;
+            padding: 3.5px 11px !important;
+            border-radius: 14px !important;
         }
         body.light-theme .mc-channel-cloud-box {
             background: #ecfdf5 !important;
@@ -2159,12 +2117,12 @@
             color: #c084fc !important;
         }
         body:not(.light-theme) .mc-channel-badge-total {
-            background: rgba(168, 85, 247, 0.12) !important;
-            color: #e9d5ff !important;
+            background: rgba(168, 85, 247, 0.15) !important;
+            color: #d8b4fe !important;
             border: 1px solid rgba(168, 85, 247, 0.28) !important;
             font-weight: 600 !important;
-            padding: 4px 12px !important;
-            border-radius: 20px !important;
+            padding: 3.5px 11px !important;
+            border-radius: 14px !important;
             box-shadow: none !important;
         }
         body:not(.light-theme) .mc-channel-badge-ratio {
@@ -2172,8 +2130,8 @@
             color: #cbd5e1 !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             font-weight: 500 !important;
-            padding: 4px 12px !important;
-            border-radius: 20px !important;
+            padding: 3.5px 11px !important;
+            border-radius: 14px !important;
         }
         body:not(.light-theme) .mc-channel-cloud-box {
             background: rgba(255, 255, 255, 0.03) !important;
@@ -11485,10 +11443,10 @@
                                                 </h3>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                                <span className="mc-channel-badge-total">
+                                                <span className="mc-channel-badge-total" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3.5px 11px', borderRadius: '14px', fontSize: '11px', fontWeight: 700, lineHeight: 1.3 }}>
                                                     {lang === 'TH' ? `ทั้งหมด ${sourceChannels.length} ช่องทาง` : `Total ${sourceChannels.length} Channels`}
                                                 </span>
-                                                <span className="mc-channel-badge-ratio">
+                                                <span className="mc-channel-badge-ratio" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3.5px 11px', borderRadius: '14px', fontSize: '11px', fontWeight: 600, lineHeight: 1.3 }}>
                                                     {lang === 'TH' ? `หลัก ${DEFAULT_SOURCE_CHANNELS.length} / กำหนดเอง ${Math.max(0, sourceChannels.length - DEFAULT_SOURCE_CHANNELS.length)}` : `Default ${DEFAULT_SOURCE_CHANNELS.length} / Custom ${Math.max(0, sourceChannels.length - DEFAULT_SOURCE_CHANNELS.length)}`}
                                                 </span>
                                             </div>
@@ -11510,7 +11468,7 @@
                                                 </div>
                                                 <button
                                                     type="button"
-                                                    className="mc-channel-cloud-btn"
+                                                    className="mc-channel-cloud-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '8px', fontSize: '11.5px', fontWeight: 600, cursor: 'pointer', lineHeight: 1.3 }}
                                                     onClick={() => {
                                                         const sql = "-- 1. เพิ่มคอลัมน์ created_at, created_by, customer_count ในตาราง mc_source_channels\nALTER TABLE public.mc_source_channels ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();\nALTER TABLE public.mc_source_channels ADD COLUMN IF NOT EXISTS created_by TEXT DEFAULT 'ระบบกลาง';\nALTER TABLE public.mc_source_channels ADD COLUMN IF NOT EXISTS customer_count INT DEFAULT 0;\n\n-- 2. ดึงช่องทางที่มีลูกค้าใช้งานอยู่แล้วแต่ยังไม่มีในตารางเข้ามาอัตโนมัติ (เช่น 'เซียน')\nINSERT INTO public.mc_source_channels (name, is_default, created_by, created_at)\nSELECT DISTINCT TRIM(LOWER(source_channel)), false, 'ระบบกลาง', NOW()\nFROM public.mc_customers\nWHERE source_channel IS NOT NULL AND TRIM(source_channel) != ''\n  AND TRIM(LOWER(source_channel)) NOT IN (SELECT TRIM(LOWER(name)) FROM public.mc_source_channels)\nON CONFLICT (name) DO NOTHING;\n\n-- 3. อัปเดตจำนวนลูกค้าปัจจุบันทันที\nUPDATE public.mc_source_channels sc\nSET customer_count = (\n  SELECT COUNT(*) FROM public.mc_customers c\n  WHERE TRIM(LOWER(COALESCE(c.source_channel, ''))) = TRIM(LOWER(sc.name))\n);\n\n-- 4. ติดตั้ง Trigger อัปเดตยอดลูกค้าอัตโนมัติแบบเรียลไทม์\nCREATE OR REPLACE FUNCTION public.sync_mc_source_channel_counts()\nRETURNS TRIGGER AS $$\nBEGIN\n  IF (TG_OP = 'UPDATE' OR TG_OP = 'DELETE') THEN\n    IF OLD.source_channel IS NOT NULL THEN\n      UPDATE public.mc_source_channels\n      SET customer_count = (\n        SELECT COUNT(*) FROM public.mc_customers WHERE TRIM(LOWER(COALESCE(source_channel, ''))) = TRIM(LOWER(OLD.source_channel))\n      ) WHERE TRIM(LOWER(name)) = TRIM(LOWER(OLD.source_channel));\n    END IF;\n  END IF;\n  IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN\n    IF NEW.source_channel IS NOT NULL THEN\n      UPDATE public.mc_source_channels\n      SET customer_count = (\n        SELECT COUNT(*) FROM public.mc_customers WHERE TRIM(LOWER(COALESCE(source_channel, ''))) = TRIM(LOWER(NEW.source_channel))\n      ) WHERE TRIM(LOWER(name)) = TRIM(LOWER(NEW.source_channel));\n    END IF;\n  END IF;\n  RETURN NULL;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;\n\nDROP TRIGGER IF EXISTS trg_sync_source_channel_counts ON public.mc_customers;\nCREATE TRIGGER trg_sync_source_channel_counts\nAFTER INSERT OR UPDATE OF source_channel OR DELETE ON public.mc_customers\nFOR EACH ROW EXECUTE FUNCTION public.sync_mc_source_channel_counts();";
                                                         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -11609,11 +11567,11 @@
                                                                         </td>
                                                                         <td style={{ textAlign: 'center' }}>
                                                                             {isDefault ? (
-                                                                                <span className="mc-badge-default">
+                                                                                <span className="mc-badge-default" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: 700, padding: '3.5px 10px', borderRadius: '14px', lineHeight: 1.3 }}>
                                                                                     ⭐ {lang === 'TH' ? 'ช่องทางหลัก' : 'Default'}
                                                                                 </span>
                                                                             ) : (
-                                                                                <span className="mc-badge-custom">
+                                                                                <span className="mc-badge-custom" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: 700, padding: '3.5px 10px', borderRadius: '14px', lineHeight: 1.3 }}>
                                                                                     🏷️ {lang === 'TH' ? 'ช่องทางเพิ่มเติม' : 'Custom'}
                                                                                 </span>
                                                                             )}
@@ -11621,6 +11579,7 @@
                                                                         <td style={{ textAlign: 'center' }}>
                                                                             <span
                                                                                 className={custCount > 0 ? "mc-badge-leads-active" : "mc-badge-leads-zero"}
+                                                                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, padding: '3.5px 10px', borderRadius: '14px', lineHeight: 1.3 }}
                                                                                 title={lang === 'TH' ? `มีลูกค้าสมัครผ่านช่องทางนี้ ${custCount} คน` : `${custCount} customers from this channel`}
                                                                             >
                                                                                 👥 {custCount} {lang === 'TH' ? 'คน' : 'leads'}
@@ -11640,7 +11599,7 @@
                                                                         </td>
                                                                         <td style={{ textAlign: 'center' }}>
                                                                             {isDefault ? (
-                                                                                <span className="mc-channel-locked" title={lang === 'TH' ? 'ช่องทางหลักของระบบ ไม่สามารถลบได้' : 'System default channel cannot be deleted'}>
+                                                                                <span className="mc-channel-locked" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 500, padding: '3.5px 10px', borderRadius: '14px', lineHeight: 1.3 }} title={lang === 'TH' ? 'ช่องทางหลักของระบบ ไม่สามารถลบได้' : 'System default channel cannot be deleted'}>
                                                                                     🔒 {lang === 'TH' ? 'ล็อก' : 'Locked'}
                                                                                 </span>
                                                                             ) : (
@@ -11648,6 +11607,7 @@
                                                                                     type="button"
                                                                                     onClick={() => handleDeleteSourceChannel(ch)}
                                                                                     className="mc-channel-del-btn"
+                                                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3.5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', lineHeight: 1.3 }}
                                                                                     title={lang === 'TH' ? `ลบช่องทาง "${ch}"` : `Delete channel "${ch}"`}
                                                                                 >
                                                                                     <i data-lucide="trash-2" style={{ width: '12px', height: '12px' }}></i>
@@ -13295,16 +13255,16 @@
                 hash = ((hash << 5) + hash) + sourceCode.charCodeAt(i);
                 hash = hash & hash;
             }
-            // Auto-purge any stale v1 cache or when ?v= is passed
+            // Auto-purge any stale cache or when ?v= is passed
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && (k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
+                    if (k && (k.indexOf('mc_jsx_cache_v5_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v5_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v6_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
