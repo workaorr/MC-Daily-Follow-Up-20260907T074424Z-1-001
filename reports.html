@@ -439,6 +439,12 @@
             color: #b45309 !important;
             border: 1px solid #fcd34d !important;
             font-weight: 800 !important;
+            font-size: 10.5px !important;
+            padding: 2.5px 8px !important;
+            border-radius: 6px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
         }
 
         body.light-theme .role-badge-agent {
@@ -446,6 +452,12 @@
             color: #15803d !important;
             border: 1px solid #86efac !important;
             font-weight: 800 !important;
+            font-size: 10.5px !important;
+            padding: 2.5px 8px !important;
+            border-radius: 6px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
         }
 
         body.light-theme .staff-user-pill {
@@ -453,6 +465,12 @@
             color: #334155 !important;
             border: 1px solid #cbd5e1 !important;
             font-weight: 600 !important;
+            font-size: 11px !important;
+            padding: 2.5px 7px !important;
+            border-radius: 5px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
         }
 
         body.light-theme .staff-bo-perm-open {
@@ -534,12 +552,189 @@
             color: #15803d !important;
             border: 1px solid #86efac !important;
             font-weight: 800 !important;
+            font-size: 10.5px !important;
+            padding: 2.5px 8px !important;
+            border-radius: 6px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
         }
         body.light-theme .staff-status-suspended {
             background: #fee2e2 !important;
             color: #b91c1c !important;
             border: 1px solid #fca5a5 !important;
             font-weight: 800 !important;
+            font-size: 10.5px !important;
+            padding: 2.5px 8px !important;
+            border-radius: 6px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+        }
+
+        /* Marketing Channels Manager & Badges Base Styles (ให้มี Padding สบายตา ขอบโค้งมน Pill/Rounded ไม่เป็นกรอบสี่เหลี่ยมแนบตัวหนังสือ) */
+        .mc-channel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding-bottom: 14px;
+            margin-bottom: 16px;
+        }
+        .mc-channel-badge-total {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11.5px;
+            font-weight: 700;
+            line-height: 1.25;
+            white-space: nowrap;
+        }
+        .mc-channel-badge-ratio {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11.5px;
+            font-weight: 600;
+            line-height: 1.25;
+            white-space: nowrap;
+        }
+        .mc-channel-cloud-box {
+            border-radius: 10px;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .mc-channel-cloud-title {
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+        .mc-channel-cloud-sub {
+            font-size: 11.5px;
+            line-height: 1.4;
+            margin-top: 2px;
+        }
+        .mc-channel-cloud-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 11.5px;
+            font-weight: 600;
+            cursor: pointer;
+            line-height: 1.3;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+        }
+        .mc-channel-add-box {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            padding: 12px 14px;
+            border-radius: 10px;
+        }
+        .mc-channel-table-container {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .mc-badge-default,
+        .mc-badge-custom {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3.5px 10px;
+            border-radius: 14px;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.25;
+            white-space: nowrap;
+        }
+        .mc-badge-leads-active,
+        .mc-badge-leads-zero {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3.5px 10px;
+            border-radius: 14px;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.25;
+            white-space: nowrap;
+        }
+        .mc-channel-locked {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3.5px 10px;
+            border-radius: 14px;
+            font-size: 11px;
+            font-weight: 500;
+            line-height: 1.25;
+            white-space: nowrap;
+        }
+        .mc-channel-del-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            line-height: 1.25;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+        }
+        .mc-channel-datetime-text,
+        .mc-channel-creator-text {
+            font-size: 11.5px;
+            line-height: 1.3;
+        }
+        .staff-user-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2.5px 7px;
+            border-radius: 5px;
+            font-size: 11px;
+            line-height: 1.25;
+            white-space: nowrap;
+        }
+        .staff-cloud-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 11.5px;
+            font-weight: 600;
+            cursor: pointer;
+            line-height: 1.3;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+        }
+        .role-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2.5px 8px;
+            border-radius: 6px;
+            font-size: 10.5px;
+            line-height: 1.25;
+            white-space: nowrap;
         }
 
         /* Marketing Channels Manager in Light Mode (คมชัด อ่านง่าย สีสันสดใส สบายตา) */
@@ -554,12 +749,16 @@
             color: #6b21a8 !important;
             border: 1px solid #d8b4fe !important;
             font-weight: 800 !important;
+            padding: 4px 12px !important;
+            border-radius: 20px !important;
         }
         body.light-theme .mc-channel-badge-ratio {
             background: #f1f5f9 !important;
             color: #475569 !important;
             border: 1px solid #cbd5e1 !important;
             font-weight: 700 !important;
+            padding: 4px 12px !important;
+            border-radius: 20px !important;
         }
         body.light-theme .mc-channel-cloud-box {
             background: #ecfdf5 !important;
@@ -577,6 +776,8 @@
             border: 1.5px solid #059669 !important;
             color: #047857 !important;
             font-weight: 800 !important;
+            padding: 6px 14px !important;
+            border-radius: 8px !important;
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
         }
         body.light-theme .mc-channel-cloud-btn:hover {
@@ -621,6 +822,8 @@
             color: #6b21a8 !important;
             border: 1.5px solid #d8b4fe !important;
             font-weight: 800 !important;
+            padding: 3.5px 10px !important;
+            border-radius: 14px !important;
             box-shadow: 0 1px 2px rgba(124, 58, 237, 0.08) !important;
         }
         body.light-theme .mc-badge-custom {
@@ -628,6 +831,8 @@
             color: #0369a1 !important;
             border: 1.5px solid #7dd3fc !important;
             font-weight: 800 !important;
+            padding: 3.5px 10px !important;
+            border-radius: 14px !important;
             box-shadow: 0 1px 2px rgba(2, 132, 199, 0.08) !important;
         }
         body.light-theme .mc-badge-leads-active {
@@ -635,6 +840,8 @@
             color: #065f46 !important;
             border: 1.5px solid #86efac !important;
             font-weight: 800 !important;
+            padding: 3.5px 10px !important;
+            border-radius: 14px !important;
             box-shadow: 0 1px 2px rgba(16, 185, 129, 0.08) !important;
         }
         body.light-theme .mc-badge-leads-zero {
@@ -642,6 +849,8 @@
             color: #64748b !important;
             border: 1px solid #e2e8f0 !important;
             font-weight: 600 !important;
+            padding: 3.5px 10px !important;
+            border-radius: 14px !important;
         }
         body.light-theme .mc-channel-datetime-text {
             color: #0f172a !important;
@@ -662,12 +871,16 @@
             border: 1px solid #cbd5e1 !important;
             color: #475569 !important;
             font-weight: 700 !important;
+            padding: 3.5px 10px !important;
+            border-radius: 14px !important;
         }
         body.light-theme .mc-channel-del-btn {
             background: #ffe4e6 !important;
             border: 1.5px solid #fecdd3 !important;
             color: #e11d48 !important;
             font-weight: 800 !important;
+            padding: 3.5px 9px !important;
+            border-radius: 6px !important;
         }
         body.light-theme .mc-channel-del-btn:hover {
             background: #e11d48 !important;
@@ -1938,7 +2151,7 @@
             color: #ffffff !important;
         }
 
-        /* Marketing Channels Manager in Dark Mode */
+        /* Marketing Channels Manager in Dark Mode (ลดความแข็งกระด้าง เพิ่มขอบมน Pill สบายตา คมชัดทุกตัวหนังสือ) */
         body:not(.light-theme) .mc-channel-header {
             border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
@@ -1948,8 +2161,10 @@
         body:not(.light-theme) .mc-channel-badge-total {
             background: rgba(168, 85, 247, 0.12) !important;
             color: #e9d5ff !important;
-            border: 1px solid rgba(168, 85, 247, 0.25) !important;
+            border: 1px solid rgba(168, 85, 247, 0.28) !important;
             font-weight: 600 !important;
+            padding: 4px 12px !important;
+            border-radius: 20px !important;
             box-shadow: none !important;
         }
         body:not(.light-theme) .mc-channel-badge-ratio {
@@ -1957,6 +2172,8 @@
             color: #cbd5e1 !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             font-weight: 500 !important;
+            padding: 4px 12px !important;
+            border-radius: 20px !important;
         }
         body:not(.light-theme) .mc-channel-cloud-box {
             background: rgba(255, 255, 255, 0.03) !important;
@@ -1971,9 +2188,11 @@
         }
         body:not(.light-theme) .mc-channel-cloud-btn {
             background: rgba(255, 255, 255, 0.06) !important;
-            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            border: 1px solid rgba(255, 255, 255, 0.14) !important;
             color: #e2e8f0 !important;
             font-weight: 600 !important;
+            padding: 6px 14px !important;
+            border-radius: 8px !important;
         }
         body:not(.light-theme) .mc-channel-cloud-btn:hover {
             background: rgba(255, 255, 255, 0.12) !important;
@@ -2014,8 +2233,10 @@
         body:not(.light-theme) .mc-badge-default {
             background: rgba(168, 85, 247, 0.12) !important;
             color: #d8b4fe !important;
-            border: 1px solid rgba(168, 85, 247, 0.25) !important;
+            border: 1px solid rgba(168, 85, 247, 0.28) !important;
             font-weight: 600 !important;
+            padding: 3.5px 10px !important;
+            border-radius: 14px !important;
             box-shadow: none !important;
         }
         body:not(.light-theme) .mc-badge-custom {
@@ -2023,6 +2244,8 @@
             color: #93c5fd !important;
             border: 1px solid rgba(56, 189, 248, 0.25) !important;
             font-weight: 600 !important;
+            padding: 3.5px 10px !important;
+            border-radius: 14px !important;
             box-shadow: none !important;
         }
         body:not(.light-theme) .mc-badge-leads-active {
@@ -2030,6 +2253,8 @@
             color: #6ee7b7 !important;
             border: 1px solid rgba(16, 185, 129, 0.22) !important;
             font-weight: 600 !important;
+            padding: 3.5px 10px !important;
+            border-radius: 14px !important;
             box-shadow: none !important;
         }
         body:not(.light-theme) .mc-badge-leads-zero {
@@ -2037,6 +2262,8 @@
             color: #64748b !important;
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
             font-weight: 500 !important;
+            padding: 3.5px 10px !important;
+            border-radius: 14px !important;
         }
         body:not(.light-theme) .mc-channel-datetime-text {
             color: #cbd5e1 !important;
@@ -2057,12 +2284,16 @@
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
             color: #64748b !important;
             font-weight: 500 !important;
+            padding: 3.5px 10px !important;
+            border-radius: 14px !important;
         }
         body:not(.light-theme) .mc-channel-del-btn {
             background: rgba(239, 68, 68, 0.08) !important;
             border: 1px solid rgba(239, 68, 68, 0.2) !important;
             color: #fca5a5 !important;
             font-weight: 600 !important;
+            padding: 3.5px 9px !important;
+            border-radius: 6px !important;
         }
         body:not(.light-theme) .mc-channel-del-btn:hover {
             background: #e11d48 !important;
