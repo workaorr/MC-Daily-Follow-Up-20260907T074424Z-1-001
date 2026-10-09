@@ -2624,6 +2624,59 @@
             box-shadow: 0 0 14px rgba(168, 85, 247, 0.4) !important;
             background: #111e38 !important;
         }
+
+        /* ========================================================= */
+        /* INTERACTIVE GUIDED TOUR STYLING (ป๊อปอัปชี้บอกทีละสเต็ปบนหน้าจอ) */
+        /* ========================================================= */
+        @keyframes tourPulseGlow {
+            0% {
+                box-shadow: 0 0 0 3px #a855f7, 0 0 0 7px rgba(168, 85, 247, 0.35), 0 0 25px rgba(168, 85, 247, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 0 4px #a855f7, 0 0 0 12px rgba(168, 85, 247, 0.18), 0 0 38px rgba(168, 85, 247, 0.75);
+            }
+            100% {
+                box-shadow: 0 0 0 3px #a855f7, 0 0 0 7px rgba(168, 85, 247, 0.35), 0 0 25px rgba(168, 85, 247, 0.5);
+            }
+        }
+        @keyframes tourCardFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px) scale(0.97);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        .tour-spotlight-box {
+            position: fixed;
+            border-radius: 12px;
+            border: 2.5px solid #a855f7;
+            animation: tourPulseGlow 2s infinite ease-in-out;
+            pointer-events: none;
+            z-index: 999992;
+            transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .tour-card-container {
+            position: fixed;
+            z-index: 999995;
+            background: #0d1527;
+            border: 1.5px solid rgba(168, 85, 247, 0.4);
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), 0 0 30px rgba(168, 85, 247, 0.25);
+            padding: 20px 22px;
+            color: #f8fafc;
+            animation: tourCardFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: top 0.25s cubic-bezier(0.16, 1, 0.3, 1), left 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        html.light-theme .tour-card-container,
+        body.light-theme .tour-card-container {
+            background: #ffffff !important;
+            border: 1.5px solid #cbd5e1 !important;
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2), 0 0 25px rgba(124, 58, 237, 0.15) !important;
+            color: #0f172a !important;
+        }
     </style>
 <body>
     <script>
@@ -2765,6 +2818,307 @@
             const [recentDeposits, setRecentDeposits] = useState([]);
             const [isLoadingDeposits, setIsLoadingDeposits] = useState(false);
             const [depositSearchQuery, setDepositSearchQuery] = useState('');
+
+            // INTERACTIVE TOUR STATE & CONFIGURATION
+            const [isTourActive, setIsTourActive] = useState(false);
+            const [tourStep, setTourStep] = useState(0);
+            const [tourTargetRect, setTourTargetRect] = useState(null);
+
+            const TOUR_STEPS = [
+                {
+                    id: 'brand',
+                    targetId: 'tour-brand',
+                    requiredView: null,
+                    badgeTH: '👋 แนะนำระบบ',
+                    badgeEN: '👋 System Overview',
+                    titleTH: 'ยินดีต้อนรับสู่ MC Daily Follow Up',
+                    titleEN: 'Welcome to MC Daily Follow Up',
+                    descTH: 'ระบบติดตามลูกค้าใหม่ที่สมัครสมาชิกแต่ยังไม่ได้ฝากเงิน (ค้างฝาก) ช่วยให้ทีม MC จัดการรายชื่อ โทรติดตาม และเช็กยอดฝากได้อย่างเป็นระบบ พร้อมเชื่อมต่อคลาวด์แบบเรียลไทม์',
+                    descEN: 'Specialized system for following up newly registered customers who have not yet deposited. Manage call follow-ups and monitor conversion with real-time cloud sync.',
+                    tipTH: '💡 จุดสังเกต: จุดเขียว "คลาวด์ซิงค์เรียลไทม์" ยืนยันว่าข้อมูลเชื่อมต่อกับฐานข้อมูล Supabase ตลอดเวลา',
+                    tipEN: '💡 Pro-tip: Green "Cloud Sync Live" status verifies active connection to Supabase database.',
+                    position: 'bottom'
+                },
+                {
+                    id: 'profile',
+                    targetId: 'tour-profile',
+                    requiredView: null,
+                    badgeTH: '🔐 บัญชีผู้ใช้งาน',
+                    badgeEN: '🔐 User Account',
+                    titleTH: 'การเข้าสู่ระบบและสลับบัญชีผู้ใช้งาน',
+                    titleEN: 'User Login & Account Switching',
+                    descTH: 'คลิกที่กล่องนี้เพื่อเข้าสู่ระบบ หรือสลับบัญชีระหว่าง MC Agent (เจ้าหน้าที่โทรตาม) และ Supervisor (หัวหน้างานตรวจแดชบอร์ด)',
+                    descEN: 'Click here to sign in or switch accounts between MC Agent (follow-up staff) and Supervisor (management dashboard).',
+                    tipTH: '💡 ระบบความปลอดภัย: หน้าจอจะล็อกอัตโนมัติ (Auto-Lock) หากไม่มีการใช้งานเกิน 15 นาที เพื่อรักษาความปลอดภัยของข้อมูลลูกค้า',
+                    tipEN: '💡 Security: Automatic screen lock engages after 15 minutes of inactivity to protect customer data.',
+                    position: 'bottom'
+                },
+                {
+                    id: 'sidebar',
+                    targetId: 'tour-sidebar',
+                    requiredView: null,
+                    badgeTH: '📂 เมนูการทำงาน',
+                    badgeEN: '📂 Navigation Menu',
+                    titleTH: 'เมนูนำทางและฟังก์ชันการทำงานหลัก',
+                    titleEN: 'Navigation Menu & Core Modules',
+                    descTH: 'แถบเมนูด้านซ้ายใช้สลับหน้าระหว่าง: แดชบอร์ดสรุป (Supervisor), การติดตามลูกค้า (หน้าทำงานหลักของ MC), อัปโหลดธุรกรรมรายวัน, เพิ่มลูกค้าใหม่ และถังขยะระบบ',
+                    descEN: 'Use the left sidebar to navigate: Supervisor Dashboard, Customer Follow-Up (MC Agent Workspace), Upload Daily Deposits, Add Customer, and Recycle Bin.',
+                    tipTH: '💡 สำหรับทีม MC: คลิกเลือกเมนู "การติดตามลูกค้า (MC Agent)" เพื่อเริ่มงานโทรติดตามในแต่ละวันครับ',
+                    tipEN: '💡 For MC Agents: Click "Customer Follow-Up (MC Agent)" to open your daily call workspace.',
+                    position: 'right'
+                },
+                {
+                    id: 'filter-card',
+                    targetId: 'tour-filter-card',
+                    requiredView: 'agent',
+                    badgeTH: '🔍 ตัวกรองข้อมูล',
+                    badgeEN: '🔍 Filters & Scope',
+                    titleTH: 'เลือกเดือนแคมเปญและคัดกรองกลุ่มลูกค้า',
+                    titleEN: 'Month Selector & Customer Filters',
+                    descTH: 'คุณสามารถเลือกเดือนที่ต้องการติดตาม (เช่น 2026-10) และใช้ปุ่มฟิลเตอร์เพื่อคัดกรองเฉพาะกลุ่ม: เช่น "รอฝาก", "สมัครแล้วแต่ยังไม่ฝาก" หรือกรองตามสถานะไลน์ (🟢 มีไลน์ / 🟡 รอแอด / 🔴 ไม่มีไลน์)',
+                    descEN: 'Select campaign month (e.g. 2026-10) and click quick filters to segment leads: "Pending", "Registered (No Deposit)", or filter by LINE status (Has LINE, Pending, No LINE).',
+                    tipTH: '💡 ทริค: กดปุ่ม "✕ ล้างตัวกรอง" ได้ทุกเมื่อ เพื่อกลับมาดูรายชื่อลูกค้าทั้งหมดในพอร์ต',
+                    tipEN: '💡 Pro-tip: Click "✕ Clear Filter" anytime to restore the full view of your portfolio.',
+                    position: 'bottom'
+                },
+                {
+                    id: 'customer-info',
+                    targetId: 'tour-customer-info',
+                    fallbackId: 'tour-customer-table',
+                    requiredView: 'agent',
+                    badgeTH: '📞 ข้อมูลลูกค้า',
+                    badgeEN: '📞 Customer Info',
+                    titleTH: 'รายชื่อลูกค้าและปุ่มคัดลอกเบอร์โทร',
+                    titleEN: 'Customer Details & Copy Controls',
+                    descTH: 'แสดงชื่อลูกค้า, ยูสเซอร์เนม, และเบอร์โทรศัพท์ มีปุ่มไอคอน 📋 ให้คลิกคัดลอกเบอร์โทรหรือ LINE ID ได้ทันทีในคลิกเดียวเพื่อนำไปโทรหรือแอดไลน์หาลูกค้า',
+                    descEN: 'Displays customer name, username, and contact numbers. Click the 📋 copy button to copy phone or LINE ID with one click for calling or chatting.',
+                    tipTH: '💡 การแจ้งเตือน: หากมีป้าย "⚠️ ค้างตาม 3 วัน+" กะพริบอยู่ แสดงว่าลูกค้ารายนี้ยังไม่ได้รับการโทรติดต่อเกิน 3 วัน ควรโทรติดตามด่วนเป็นพิเศษ',
+                    tipEN: '💡 Alert: A pulsing "⚠️ Overdue 3d+" badge indicates this customer has not been contacted in 3+ days and needs immediate attention.',
+                    position: 'bottom'
+                },
+                {
+                    id: 'days-grid',
+                    targetId: 'tour-days-grid',
+                    fallbackId: 'tour-customer-table',
+                    requiredView: 'agent',
+                    badgeTH: '📌 ติ๊กงานรายวัน',
+                    badgeEN: '📌 Daily Checkmarks',
+                    titleTH: '⭐ การติ๊กติดตามงานรายวัน (วันที่ 1 - 31)',
+                    titleEN: '⭐ Daily Follow-Up Checkmarks (Days 1 - 31)',
+                    descTH: 'หัวใจสำคัญของ MC: เมื่อโทรติดตามลูกค้าในแต่ละวัน ให้คลิกติ๊กที่ช่อง "วันที่ของวันนี้" (ช่องที่มีกรอบเน้นสีม่วง) เพื่อบันทึกว่าได้โทรแล้ว ช่องจะเปลี่ยนเป็นสีเขียวทันที',
+                    descEN: 'Core MC workflow: When you contact a customer today, click the highlighted box for "Today". It turns bright green to verify your follow-up has been logged.',
+                    tipTH: '💡 กฎความถูกต้อง: ระบบล็อกให้ติ๊กได้เฉพาะ "วันที่ปัจจุบัน" เพื่อความโปร่งใส โดยข้อมูลจะบันทึกลงคลาวด์ Supabase อัตโนมัติทันที',
+                    tipEN: '💡 Integrity rule: You can only log follow-ups for the current date. Changes sync instantly to Supabase cloud.',
+                    position: 'top'
+                },
+                {
+                    id: 'deposit-status',
+                    targetId: 'tour-deposit-status',
+                    fallbackId: 'tour-customer-table',
+                    requiredView: 'agent',
+                    badgeTH: '💰 สถานะการฝากเงิน',
+                    badgeEN: '💰 Deposit Status',
+                    titleTH: 'ตรวจสอบผลการฝากเงินของลูกค้า',
+                    titleEN: 'Deposit Conversion Status',
+                    descTH: 'ช่องนี้จะแสดงว่าลูกค้า "🟢 ฝากแล้ว" (พร้อมระบุยอดเงินฝากแรก) หรือ "🔴 รอฝากเงิน" เมื่อลูกค้าฝากเงินเข้ามา ระบบจะตรวจจับและอัปเดตให้อัตโนมัติจากไฟล์ธุรกรรมที่อัปโหลด',
+                    descEN: 'Shows whether the customer is "🟢 Deposited" (with first deposit amount) or "🔴 Pending". Updates automatically when deposit spreadsheets are uploaded.',
+                    tipTH: '💡 สรุปผลงาน: ยอดเงินฝากของลูกค้าที่ตามสำเร็จ จะถูกนำไปคำนวณในแถบสรุปยอดรวม (FTD) ด้านบนตารางทันที',
+                    tipEN: '💡 Performance KPI: Successfully converted deposits tally directly into the grand totals bar (FTD) above the table.',
+                    position: 'bottom'
+                },
+                {
+                    id: 'notes-btn',
+                    targetId: 'tour-notes-btn',
+                    fallbackId: 'tour-customer-table',
+                    requiredView: 'agent',
+                    badgeTH: '📝 บันทึกผลการโทร',
+                    badgeEN: '📝 Call Remarks',
+                    titleTH: 'บันทึกหมายเหตุและผลการคุยกับลูกค้า',
+                    titleEN: 'Call Remarks & Follow-Up Notes',
+                    descTH: 'คลิกปุ่มไอคอนดินสอ ✏️ เพื่อเปิดหน้าต่างบันทึกผลการโทร (Call Remarks) เช่น "แจ้งว่าจะฝากช่วงเย็น", "รอเงินเดือนออกสิ้นเดือน", หรือ "ไม่รับสาย" เพื่อส่งต่องานในทีม',
+                    descEN: 'Click the pencil icon ✏️ to open the notes modal and record call outcomes: "Promises to deposit tonight", "Waiting for payday", or "No answer".',
+                    tipTH: '💡 การทำงานเป็นทีม: โน้ตที่บันทึกจะแสดงในตารางและบันทึกประวัติให้เพื่อนร่วมงานและหัวหน้าดูได้ตลอดเวลา',
+                    tipEN: '💡 Team collaboration: Logged notes appear directly beside the customer record for team visibility.',
+                    position: 'left'
+                },
+                {
+                    id: 'finish',
+                    targetId: 'tour-trigger-btn',
+                    requiredView: 'agent',
+                    badgeTH: '🎉 พร้อมใช้งาน',
+                    badgeEN: '🎉 All Set!',
+                    titleTH: 'ยินดีด้วย! คุณพร้อมเริ่มต้นใช้งานแล้ว',
+                    titleEN: 'Congratulations! You are ready to start',
+                    descTH: 'คุณได้เรียนรู้ขั้นตอนสำคัญทั้งหมดของระบบ MC Daily Follow Up เรียบร้อยแล้ว หากต้องการดูคำแนะนำนี้อีกครั้ง สามารถกดปุ่ม "💡 แนะนำการใช้งาน" ด้านบนได้ตลอดเวลาครับ',
+                    descEN: 'You have mastered all essential workflows of the MC Daily Follow Up system. You can revisit this interactive guide anytime by clicking "💡 Guide Tour" above.',
+                    tipTH: '🚀 ขอให้ประสบความสำเร็จในการติดตามลูกค้า และทำยอดฝากได้ทะลุเป้าหมายครับ!',
+                    tipEN: '🚀 Wishing you great success in following up new leads and hitting all conversion targets!',
+                    position: 'bottom'
+                }
+            ];
+
+            const startTour = () => {
+                setIsTourActive(true);
+                setTourStep(0);
+            };
+
+            const closeTour = () => {
+                setIsTourActive(false);
+                setTourTargetRect(null);
+                try {
+                    localStorage.setItem('mc_tour_dismissed', 'true');
+                } catch(e) {}
+            };
+
+            const nextTourStep = () => {
+                if (tourStep < TOUR_STEPS.length - 1) {
+                    setTourStep(prev => prev + 1);
+                } else {
+                    closeTour();
+                }
+            };
+
+            const prevTourStep = () => {
+                if (tourStep > 0) {
+                    setTourStep(prev => prev - 1);
+                }
+            };
+
+            const updateTourPosition = () => {
+                if (!isTourActive) return;
+                const step = TOUR_STEPS[tourStep];
+                if (!step) return;
+
+                let targetEl = document.getElementById(step.targetId);
+                if (!targetEl && step.fallbackId) {
+                    targetEl = document.getElementById(step.fallbackId);
+                }
+
+                if (targetEl) {
+                    const rect = targetEl.getBoundingClientRect();
+                    if (rect.width > 0 && rect.height > 0) {
+                        setTourTargetRect({
+                            top: rect.top,
+                            bottom: rect.bottom,
+                            left: rect.left,
+                            right: rect.right,
+                            width: rect.width,
+                            height: rect.height
+                        });
+                        return;
+                    }
+                }
+                setTourTargetRect(null);
+            };
+
+            useEffect(() => {
+                if (!isTourActive) return;
+                const step = TOUR_STEPS[tourStep];
+                if (!step) return;
+
+                if (step.requiredView && viewMode !== step.requiredView) {
+                    switchViewMode(step.requiredView);
+                }
+
+                const timer = setTimeout(() => {
+                    let targetEl = document.getElementById(step.targetId);
+                    if (!targetEl && step.fallbackId) {
+                        targetEl = document.getElementById(step.fallbackId);
+                    }
+                    if (targetEl) {
+                        try {
+                            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                        } catch (e) {}
+                    }
+                    setTimeout(updateTourPosition, 250);
+                }, 150);
+
+                const handleResizeOrScroll = () => {
+                    updateTourPosition();
+                };
+                window.addEventListener('resize', handleResizeOrScroll);
+                window.addEventListener('scroll', handleResizeOrScroll, true);
+
+                const handleKeyDown = (e) => {
+                    if (e.key === 'Escape') closeTour();
+                    else if (e.key === 'ArrowRight' || e.key === 'Enter') nextTourStep();
+                    else if (e.key === 'ArrowLeft') prevTourStep();
+                };
+                window.addEventListener('keydown', handleKeyDown);
+
+                return () => {
+                    clearTimeout(timer);
+                    window.removeEventListener('resize', handleResizeOrScroll);
+                    window.removeEventListener('scroll', handleResizeOrScroll, true);
+                    window.removeEventListener('keydown', handleKeyDown);
+                };
+            }, [isTourActive, tourStep, viewMode]);
+
+            const getTourTooltipStyle = () => {
+                const step = TOUR_STEPS[tourStep] || {};
+                const prefPos = step.position || 'bottom';
+                const cardWidth = 390;
+                const cardHeight = 310;
+                const winW = window.innerWidth;
+                const winH = window.innerHeight;
+
+                if (!tourTargetRect) {
+                    return {
+                        position: 'fixed',
+                        top: `${Math.max(20, (winH - cardHeight) / 2)}px`,
+                        left: `${Math.max(16, (winW - Math.min(cardWidth, winW - 32)) / 2)}px`,
+                        width: `${Math.min(cardWidth, winW - 32)}px`,
+                        zIndex: 999995
+                    };
+                }
+
+                let top = 0;
+                let left = 0;
+
+                if (prefPos === 'bottom') {
+                    top = tourTargetRect.bottom + 14;
+                    left = tourTargetRect.left + (tourTargetRect.width / 2) - (cardWidth / 2);
+                    if (top + cardHeight > winH - 16) {
+                        if (tourTargetRect.top - cardHeight - 14 > 16) {
+                            top = tourTargetRect.top - cardHeight - 14;
+                        } else {
+                            top = Math.max(16, winH - cardHeight - 16);
+                        }
+                    }
+                } else if (prefPos === 'top') {
+                    top = tourTargetRect.top - cardHeight - 14;
+                    left = tourTargetRect.left + (tourTargetRect.width / 2) - (cardWidth / 2);
+                    if (top < 16) {
+                        top = tourTargetRect.bottom + 14;
+                    }
+                } else if (prefPos === 'right') {
+                    left = tourTargetRect.right + 14;
+                    top = tourTargetRect.top + (tourTargetRect.height / 2) - (cardHeight / 2);
+                    if (left + cardWidth > winW - 16) {
+                        left = Math.max(16, tourTargetRect.left - cardWidth - 14);
+                    }
+                } else if (prefPos === 'left') {
+                    left = tourTargetRect.left - cardWidth - 14;
+                    top = tourTargetRect.top + (tourTargetRect.height / 2) - (cardHeight / 2);
+                    if (left < 16) {
+                        left = tourTargetRect.right + 14;
+                    }
+                } else {
+                    top = Math.max(20, (winH - cardHeight) / 2);
+                    left = Math.max(16, (winW - cardWidth) / 2);
+                }
+
+                left = Math.max(16, Math.min(winW - cardWidth - 16, left));
+                top = Math.max(16, Math.min(winH - cardHeight - 16, top));
+
+                return {
+                    position: 'fixed',
+                    top: `${top}px`,
+                    left: `${left}px`,
+                    width: `${Math.min(cardWidth, winW - 32)}px`,
+                    zIndex: 999995
+                };
+            };
 
             useEffect(() => {
                 localStorage.setItem('mc_lang', lang);
@@ -7317,7 +7671,7 @@
                     {/* FULL-WIDTH TOP NAVIGATION HEADER BAR */}
                     <header className="app-topbar">
                         {/* Left: Brand Logo & Title */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div id="tour-brand" style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                             {/* Modern High-End Pro Studio Vector Logo Badge (Mint-Green with Yellow/Lime Tint) */}
                             <svg width="42" height="42" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0, borderRadius: '12px', filter: 'drop-shadow(0 4px 14px rgba(16, 185, 129, 0.45))' }}>
                                 <defs>
@@ -7390,7 +7744,7 @@
                         </div>
 
                         {/* Right: User Profile & Top Action Controls */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div id="tour-profile" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             {activeAgentName ? (
                                 <div 
                                     onClick={() => {
@@ -7446,6 +7800,32 @@
                                     <span>{lang === 'TH' ? 'เข้าสู่ระบบ' : 'Sign In'}</span>
                                 </button>
                             )}
+
+                            {/* Interactive Guide Tour Button */}
+                            <button
+                                id="tour-trigger-btn"
+                                onClick={startTour}
+                                className="btn"
+                                style={{
+                                    padding: '6px 11px',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    borderRadius: '8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    background: theme === 'light' ? '#f5f3ff' : 'rgba(168, 85, 247, 0.15)',
+                                    border: theme === 'light' ? '1px solid #ddd6fe' : '1px solid rgba(168, 85, 247, 0.4)',
+                                    color: theme === 'light' ? '#7c3aed' : '#c084fc',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 2px 6px rgba(168, 85, 247, 0.2)',
+                                    transition: 'all 0.2s ease'
+                                }}
+                                title={lang === 'TH' ? 'คลิกเพื่อเปิดคู่มือแนะนำการใช้งานระบบแบบทีละขั้นตอน (Interactive Tour)' : 'Interactive Guided Tour'}
+                            >
+                                <span style={{ fontSize: '13px' }}>💡</span>
+                                <span>{lang === 'TH' ? 'แนะนำการใช้งาน' : 'Guide Tour'}</span>
+                            </button>
 
                             {/* Theme Switcher Button */}
                             <button
@@ -7516,7 +7896,7 @@
                     </header>
 
                     {/* LEFT SIDEBAR NAVIGATION */}
-                    <aside className="app-sidebar">
+                    <aside id="tour-sidebar" className="app-sidebar">
                         <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', padding: '4px 12px 6px 12px' }}>
                             {lang === 'TH' ? 'เมนูการทำงาน' : 'Navigation Menu'}
                         </div>
@@ -7614,6 +7994,22 @@
                         <div style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', fontSize: '10.5px', color: 'var(--text-muted)', textAlign: 'center' }}>
                             MC Operations Gateway
                         </div>
+{/* Sidebar Tour Guide Trigger */}
+                        <button 
+                            className="sidebar-btn"
+                            onClick={startTour}
+                            style={{
+                                marginTop: '12px',
+                                color: theme === 'light' ? '#7c3aed' : '#c084fc',
+                                background: theme === 'light' ? '#f5f3ff' : 'rgba(168, 85, 247, 0.08)',
+                                border: '1px dashed rgba(168, 85, 247, 0.4)',
+                                borderRadius: '8px',
+                                fontWeight: 600
+                            }}
+                        >
+                            <i data-lucide="help-circle"></i> 
+                            <span>{lang === 'TH' ? '💡 ทัวร์สอนการใช้งาน' : '💡 Interactive Tour'}</span>
+                        </button>
                     </aside>
 
                     {/* MAIN WORKING AREA */}
@@ -8245,7 +8641,7 @@
                                             <i data-lucide="pie-chart"></i> {lang === 'TH' ? 'รายงานสถิติยอดติดตามและความสำเร็จแยกตามรายบุคคล' : 'Individual Follow-up & Performance Statistics Report'}
                                         </h3>
                                     </div>
-                                    <div className="table-wrapper">
+                                    <div id="tour-customer-table" className="table-wrapper">
                                         <table>
                                             <thead>
                                                 <tr>
@@ -10144,7 +10540,7 @@
 
                                         {/* Unified Filter Card */}
                                         <div style={{ margin: '0 24px 14px 24px' }}>
-                                            <div className="filter-card-box">
+                                            <div id="tour-filter-card" className="filter-card-box">
                                                 {/* Row 1: Month Dropdown Filter + Customer Status Buttons */}
                                                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
                                                     {/* Month Selector (ฟิลเตอร์ที่เลือกเดือน) */}
@@ -10505,11 +10901,11 @@
                                                                 </td>
                                                             </tr>
                                                         ) : (
-                                                            displayList.map(cust => {
+                                                            displayList.map((cust, custIdx) => {
                                                                 const overdue = isOverdue3Days(cust, selectedMonth);
                                                                 return (
                                                                     <tr key={cust.id}>
-                                                                        <td>
+                                                                        <td id={custIdx === 0 ? "tour-customer-info" : undefined}>
                                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                                                                     {cust.fullName ? (
@@ -10616,7 +11012,7 @@
                                                             <td style={{ width: '90px', minWidth: '85px', textAlign: 'center', whiteSpace: 'nowrap' }}><strong>฿{(cust.totalDeposit || 0).toLocaleString()}</strong></td>
                                                             <td style={{ width: '220px', minWidth: '215px', verticalAlign: 'middle', padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                                                 {/* Numbered boxes grid representing days in selected month (7 days per row) */}
-                                                                <div className="days-grid" style={{
+                                                                <div id={custIdx === 0 ? "tour-days-grid" : undefined} className="days-grid" style={{
                                                                     display: 'grid',
                                                                     gridTemplateColumns: 'repeat(7, 24px)',
                                                                     gap: '3px',
@@ -10663,7 +11059,7 @@
                                                                     })}
                                                                 </div>
                                                             </td>
-                                                            <td style={{ width: '100px', minWidth: '95px', maxWidth: '110px', textAlign: 'center', whiteSpace: 'nowrap', padding: '6px 4px' }}>
+                                                            <td id={custIdx === 0 ? "tour-deposit-status" : undefined} style={{ width: '100px', minWidth: '95px', maxWidth: '110px', textAlign: 'center', whiteSpace: 'nowrap', padding: '6px 4px' }}>
                                                                 {cust.hasDeposited ? (
                                                                     <span className="badge badge-saved" style={{ padding: '3px 6px', fontSize: '10.5px', whiteSpace: 'nowrap' }}>
                                                                         {lang === 'TH' ? `🟢 ฝากแล้ว (฿${(cust.returnedDepositAmount || cust.totalDeposit || 0).toLocaleString()})` : `🟢 Deposited (฿${(cust.returnedDepositAmount || cust.totalDeposit || 0).toLocaleString()})`}
@@ -10680,6 +11076,7 @@
                                                                         {cust.notes || (lang === 'TH' ? '(ไม่มีบันทึก)' : '(No notes)')}
                                                                     </span>
                                                                     <button 
+                                                                        id={custIdx === 0 ? "tour-notes-btn" : undefined}
                                                                         className="btn btn-secondary" 
                                                                         style={{ padding: '2px 6px', fontSize: '10px', flexShrink: 0 }}
                                                                         onClick={() => openNotesModal(cust)}
@@ -13233,6 +13630,201 @@
                             </div>
                         </div>
                     )}
+{/* INTERACTIVE GUIDED TOUR OVERLAY & FLOATING CARD */}
+                    {isTourActive && (
+                        <div className="tour-overlay-wrapper" style={{ position: 'fixed', inset: 0, zIndex: 999990, pointerEvents: 'auto' }}>
+                            {/* Full-screen SVG mask backdrop with spotlight cutout */}
+                            <svg style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 999991, pointerEvents: 'none' }}>
+                                <defs>
+                                    <mask id="mc-tour-mask">
+                                        <rect x="0" y="0" width="100%" height="100%" fill="white" />
+                                        {tourTargetRect && (
+                                            <rect 
+                                                x={Math.max(0, tourTargetRect.left - 6)} 
+                                                y={Math.max(0, tourTargetRect.top - 6)} 
+                                                width={tourTargetRect.width + 12} 
+                                                height={tourTargetRect.height + 12} 
+                                                rx="12" 
+                                                ry="12" 
+                                                fill="black" 
+                                            />
+                                        )}
+                                    </mask>
+                                </defs>
+                                <rect 
+                                    x="0" 
+                                    y="0" 
+                                    width="100%" 
+                                    height="100%" 
+                                    fill={theme === 'light' ? 'rgba(15, 23, 42, 0.62)' : 'rgba(3, 7, 18, 0.82)'} 
+                                    mask="url(#mc-tour-mask)" 
+                                    style={{ pointerEvents: 'auto' }}
+                                />
+                            </svg>
+
+                            {/* Pulsing highlight border around targeted element */}
+                            {tourTargetRect && (
+                                <div 
+                                    className="tour-spotlight-box"
+                                    style={{
+                                        top: `${Math.max(0, tourTargetRect.top - 6)}px`,
+                                        left: `${Math.max(0, tourTargetRect.left - 6)}px`,
+                                        width: `${tourTargetRect.width + 12}px`,
+                                        height: `${tourTargetRect.height + 12}px`
+                                    }}
+                                />
+                            )}
+
+                            {/* Floating Tooltip Popup Card */}
+                            <div className="tour-card-container" style={getTourTooltipStyle()}>
+                                {/* Step header bar */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{
+                                            background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+                                            color: '#ffffff',
+                                            fontSize: '11px',
+                                            fontWeight: 800,
+                                            padding: '3px 9px',
+                                            borderRadius: '20px',
+                                            letterSpacing: '0.4px',
+                                            boxShadow: '0 2px 6px rgba(168, 85, 247, 0.4)'
+                                        }}>
+                                            {lang === 'TH' ? (TOUR_STEPS[tourStep]?.badgeTH) : (TOUR_STEPS[tourStep]?.badgeEN)}
+                                        </span>
+                                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                            {lang === 'TH' ? `ขั้นตอนที่ ${tourStep + 1} จาก ${TOUR_STEPS.length}` : `Step ${tourStep + 1} of ${TOUR_STEPS.length}`}
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={closeTour}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: 'var(--text-muted)',
+                                            cursor: 'pointer',
+                                            fontSize: '16px',
+                                            padding: '2px 6px',
+                                            borderRadius: '6px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                        title={lang === 'TH' ? 'ปิดคำแนะนำ (Esc)' : 'Close tour (Esc)'}
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+
+                                {/* Progress Bar */}
+                                <div style={{
+                                    width: '100%',
+                                    height: '4px',
+                                    background: theme === 'light' ? '#e2e8f0' : 'rgba(255, 255, 255, 0.12)',
+                                    borderRadius: '4px',
+                                    overflow: 'hidden',
+                                    marginBottom: '14px'
+                                }}>
+                                    <div style={{
+                                        width: `${((tourStep + 1) / TOUR_STEPS.length) * 100}%`,
+                                        height: '100%',
+                                        background: 'linear-gradient(90deg, #a855f7, #38bdf8)',
+                                        transition: 'width 0.3s ease'
+                                    }} />
+                                </div>
+
+                                {/* Title */}
+                                <h4 style={{
+                                    fontSize: '16px',
+                                    fontWeight: 800,
+                                    color: theme === 'light' ? '#0f172a' : '#ffffff',
+                                    margin: '0 0 8px 0',
+                                    lineHeight: 1.35
+                                }}>
+                                    {lang === 'TH' ? TOUR_STEPS[tourStep]?.titleTH : TOUR_STEPS[tourStep]?.titleEN}
+                                </h4>
+
+                                {/* Description */}
+                                <p style={{
+                                    fontSize: '13px',
+                                    color: theme === 'light' ? '#475569' : '#cbd5e1',
+                                    lineHeight: 1.55,
+                                    margin: '0 0 12px 0'
+                                }}>
+                                    {lang === 'TH' ? TOUR_STEPS[tourStep]?.descTH : TOUR_STEPS[tourStep]?.descEN}
+                                </p>
+
+                                {/* Pro-Tip Box */}
+                                <div style={{
+                                    background: theme === 'light' ? '#f0fdf4' : 'rgba(16, 185, 129, 0.1)',
+                                    border: theme === 'light' ? '1px solid #bbf7d0' : '1px solid rgba(16, 185, 129, 0.25)',
+                                    padding: '9px 12px',
+                                    borderRadius: '8px',
+                                    fontSize: '12px',
+                                    lineHeight: 1.45,
+                                    color: theme === 'light' ? '#166534' : '#6ee7b7',
+                                    marginBottom: '18px'
+                                }}>
+                                    {lang === 'TH' ? TOUR_STEPS[tourStep]?.tipTH : TOUR_STEPS[tourStep]?.tipEN}
+                                </div>
+
+                                {/* Footer Buttons */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                    <button
+                                        onClick={closeTour}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: 'var(--text-muted)',
+                                            fontSize: '12px',
+                                            cursor: 'pointer',
+                                            padding: '6px 8px',
+                                            textDecoration: 'underline'
+                                        }}
+                                    >
+                                        {lang === 'TH' ? 'ข้ามทัวร์' : 'Skip tour'}
+                                    </button>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        {tourStep > 0 && (
+                                            <button
+                                                onClick={prevTourStep}
+                                                className="btn btn-secondary"
+                                                style={{
+                                                    padding: '6px 14px',
+                                                    fontSize: '12px',
+                                                    borderRadius: '8px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px'
+                                                }}
+                                            >
+                                                <span>◀</span>
+                                                <span>{lang === 'TH' ? 'ก่อนหน้า' : 'Prev'}</span>
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={nextTourStep}
+                                            className="btn btn-primary"
+                                            style={{
+                                                padding: '6px 16px',
+                                                fontSize: '12.5px',
+                                                fontWeight: 700,
+                                                borderRadius: '8px',
+                                                background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+                                                boxShadow: '0 2px 10px rgba(168, 85, 247, 0.4)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '5px'
+                                            }}
+                                        >
+                                            <span>{tourStep === TOUR_STEPS.length - 1 ? (lang === 'TH' ? 'เข้าใจแล้ว / เริ่มใช้งาน 🎉' : 'Done / Get Started 🎉') : (lang === 'TH' ? 'ถัดไป ▶' : 'Next ▶')}</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -13259,12 +13851,12 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && (k.indexOf('mc_jsx_cache_v5_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
+                    if (k && (k.indexOf('mc_jsx_cache_v6_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v6_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v7_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
