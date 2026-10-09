@@ -2833,8 +2833,8 @@
                     badgeEN: '👋 System Overview',
                     titleTH: 'ยินดีต้อนรับสู่ MC Daily Follow Up',
                     titleEN: 'Welcome to MC Daily Follow Up',
-                    descTH: 'ระบบติดตามลูกค้าใหม่ที่สมัครสมาชิกแต่ยังไม่ได้ฝากเงิน (ค้างฝาก) ช่วยให้ทีม MC จัดการรายชื่อ โทรติดตาม และเช็กยอดฝากได้อย่างเป็นระบบ พร้อมเชื่อมต่อคลาวด์แบบเรียลไทม์',
-                    descEN: 'Specialized system for following up newly registered customers who have not yet deposited. Manage call follow-ups and monitor conversion with real-time cloud sync.',
+                    descTH: 'ระบบติดตามลูกค้าใหม่ที่สมัครสมาชิกแต่ยังไม่ได้ฝากเงิน (ค้างฝาก) ช่วยให้ทีม MC จัดการรายชื่อ ทักแชทติดตาม และเช็กยอดฝากได้อย่างเป็นระบบ พร้อมเชื่อมต่อคลาวด์แบบเรียลไทม์',
+                    descEN: 'Specialized system for following up newly registered customers who have not yet deposited. Manage chat follow-ups and monitor conversion with real-time cloud sync.',
                     tipTH: '💡 จุดสังเกต: จุดเขียว "คลาวด์ซิงค์เรียลไทม์" ยืนยันว่าข้อมูลเชื่อมต่อกับฐานข้อมูล Supabase ตลอดเวลา',
                     tipEN: '💡 Pro-tip: Green "Cloud Sync Live" status verifies active connection to Supabase database.',
                     position: 'bottom'
@@ -2847,8 +2847,8 @@
                     badgeEN: '🔐 User Account',
                     titleTH: 'การเข้าสู่ระบบและสลับบัญชีผู้ใช้งาน',
                     titleEN: 'User Login & Account Switching',
-                    descTH: 'คลิกที่กล่องนี้เพื่อเข้าสู่ระบบ หรือสลับบัญชีระหว่าง MC Agent (เจ้าหน้าที่โทรตาม) และ Supervisor (หัวหน้างานตรวจแดชบอร์ด)',
-                    descEN: 'Click here to sign in or switch accounts between MC Agent (follow-up staff) and Supervisor (management dashboard).',
+                    descTH: 'คลิกที่กล่องนี้เพื่อเข้าสู่ระบบ หรือสลับบัญชีระหว่าง MC Agent (เจ้าหน้าที่ทักแชทติดตาม) และ Supervisor (หัวหน้างานตรวจแดชบอร์ด)',
+                    descEN: 'Click here to sign in or switch accounts between MC Agent (follow-up chat staff) and Supervisor (management dashboard).',
                     tipTH: '💡 ระบบความปลอดภัย: หน้าจอจะล็อกอัตโนมัติ (Auto-Lock) หากไม่มีการใช้งานเกิน 15 นาที เพื่อรักษาความปลอดภัยของข้อมูลลูกค้า',
                     tipEN: '💡 Security: Automatic screen lock engages after 15 minutes of inactivity to protect customer data.',
                     position: 'bottom'
@@ -2863,8 +2863,8 @@
                     titleEN: 'Navigation Menu & Core Modules',
                     descTH: 'แถบเมนูด้านซ้ายใช้สลับหน้าระหว่าง: แดชบอร์ดสรุป (Supervisor), การติดตามลูกค้า (หน้าทำงานหลักของ MC), อัปโหลดธุรกรรมรายวัน, เพิ่มลูกค้าใหม่ และถังขยะระบบ',
                     descEN: 'Use the left sidebar to navigate: Supervisor Dashboard, Customer Follow-Up (MC Agent Workspace), Upload Daily Deposits, Add Customer, and Recycle Bin.',
-                    tipTH: '💡 สำหรับทีม MC: คลิกเลือกเมนู "การติดตามลูกค้า (MC Agent)" เพื่อเริ่มงานโทรติดตามในแต่ละวันครับ',
-                    tipEN: '💡 For MC Agents: Click "Customer Follow-Up (MC Agent)" to open your daily call workspace.',
+                    tipTH: '💡 สำหรับทีม MC: คลิกเลือกเมนู "การติดตามลูกค้า (MC Agent)" เพื่อเริ่มงานทักแชทติดตามในแต่ละวันครับ',
+                    tipEN: '💡 For MC Agents: Click "Customer Follow-Up (MC Agent)" to open your daily chat follow-up workspace.',
                     position: 'right'
                 },
                 {
@@ -2888,12 +2888,12 @@
                     requiredView: 'agent',
                     badgeTH: '📞 ข้อมูลลูกค้า',
                     badgeEN: '📞 Customer Info',
-                    titleTH: 'รายชื่อลูกค้าและปุ่มคัดลอกเบอร์โทร',
-                    titleEN: 'Customer Details & Copy Controls',
-                    descTH: 'แสดงชื่อลูกค้า, ยูสเซอร์เนม, และเบอร์โทรศัพท์ มีปุ่มไอคอน 📋 ให้คลิกคัดลอกเบอร์โทรหรือ LINE ID ได้ทันทีในคลิกเดียวเพื่อนำไปโทรหรือแอดไลน์หาลูกค้า',
-                    descEN: 'Displays customer name, username, and contact numbers. Click the 📋 copy button to copy phone or LINE ID with one click for calling or chatting.',
-                    tipTH: '💡 การแจ้งเตือน: หากมีป้าย "⚠️ ค้างตาม 3 วัน+" กะพริบอยู่ แสดงว่าลูกค้ารายนี้ยังไม่ได้รับการโทรติดต่อเกิน 3 วัน ควรโทรติดตามด่วนเป็นพิเศษ',
-                    tipEN: '💡 Alert: A pulsing "⚠️ Overdue 3d+" badge indicates this customer has not been contacted in 3+ days and needs immediate attention.',
+                    titleTH: 'รายชื่อลูกค้าและข้อมูลติดต่อ (LINE / ข้อมูลติดต่อ)',
+                    titleEN: 'Customer Details & Contact Info',
+                    descTH: 'แสดงชื่อลูกค้า, ยูสเซอร์เนม, เบอร์โทรศัพท์ และ LINE มีปุ่มไอคอน 📋 ให้คลิกคัดลอก LINE ID หรือข้อมูลติดต่อได้ทันทีในคลิกเดียว เพื่อนำไปทักแชทติดตามลูกค้า',
+                    descEN: 'Displays customer name, username, and contact numbers. Click the 📋 copy button to copy LINE ID or contact info with one click to chat with customers.',
+                    tipTH: '💡 การแจ้งเตือน: หากมีป้าย "⚠️ ค้างตาม 3 วัน+" กะพริบอยู่ แสดงว่าลูกค้ารายนี้ยังไม่ได้รับการทักแชทติดตามเกิน 3 วัน ควรทักแชทติดตามด่วนเป็นพิเศษ',
+                    tipEN: '💡 Alert: A pulsing "⚠️ Overdue 3d+" badge indicates this customer has not received chat follow-ups in 3+ days and needs immediate attention.',
                     position: 'bottom'
                 },
                 {
@@ -2905,8 +2905,8 @@
                     badgeEN: '📌 Daily Checkmarks',
                     titleTH: '⭐ การติ๊กติดตามงานรายวัน (วันที่ 1 - 31)',
                     titleEN: '⭐ Daily Follow-Up Checkmarks (Days 1 - 31)',
-                    descTH: 'หัวใจสำคัญของ MC: เมื่อโทรติดตามลูกค้าในแต่ละวัน ให้คลิกติ๊กที่ช่อง "วันที่ของวันนี้" (ช่องที่มีกรอบเน้นสีม่วง) เพื่อบันทึกว่าได้โทรแล้ว ช่องจะเปลี่ยนเป็นสีเขียวทันที',
-                    descEN: 'Core MC workflow: When you contact a customer today, click the highlighted box for "Today". It turns bright green to verify your follow-up has been logged.',
+                    descTH: 'หัวใจสำคัญของ MC: เมื่อทักแชทติดตามลูกค้าในแต่ละวัน ให้คลิกติ๊กที่ช่อง "วันที่ของวันนี้" (ช่องที่มีกรอบเน้นสีม่วง) เพื่อบันทึกว่าได้ติดตามแล้ว ช่องจะเปลี่ยนเป็นสีเขียวทันที',
+                    descEN: 'Core MC workflow: When you chat with a customer today, click the highlighted box for "Today". It turns bright green to verify your follow-up has been logged.',
                     tipTH: '💡 กฎความถูกต้อง: ระบบล็อกให้ติ๊กได้เฉพาะ "วันที่ปัจจุบัน" เพื่อความโปร่งใส โดยข้อมูลจะบันทึกลงคลาวด์ Supabase อัตโนมัติทันที',
                     tipEN: '💡 Integrity rule: You can only log follow-ups for the current date. Changes sync instantly to Supabase cloud.',
                     position: 'top'
@@ -2931,12 +2931,12 @@
                     targetId: 'tour-notes-btn',
                     fallbackId: 'tour-customer-table',
                     requiredView: 'agent',
-                    badgeTH: '📝 บันทึกผลการโทร',
-                    badgeEN: '📝 Call Remarks',
-                    titleTH: 'บันทึกหมายเหตุและผลการคุยกับลูกค้า',
-                    titleEN: 'Call Remarks & Follow-Up Notes',
-                    descTH: 'คลิกปุ่มไอคอนดินสอ ✏️ เพื่อเปิดหน้าต่างบันทึกผลการโทร (Call Remarks) เช่น "แจ้งว่าจะฝากช่วงเย็น", "รอเงินเดือนออกสิ้นเดือน", หรือ "ไม่รับสาย" เพื่อส่งต่องานในทีม',
-                    descEN: 'Click the pencil icon ✏️ to open the notes modal and record call outcomes: "Promises to deposit tonight", "Waiting for payday", or "No answer".',
+                    badgeTH: '📝 บันทึกผลการติดตาม',
+                    badgeEN: '📝 Chat Remarks',
+                    titleTH: 'บันทึกหมายเหตุและผลการทักแชทลูกค้า',
+                    titleEN: 'Chat Remarks & Follow-Up Notes',
+                    descTH: 'คลิกปุ่มไอคอนดินสอ ✏️ เพื่อเปิดหน้าต่างบันทึกรายละเอียดการติดตาม (Chat Remarks) เช่น "แจ้งว่าจะฝากช่วงเย็น", "รอเงินเดือนออกสิ้นเดือน", หรือ "ยังไม่อ่านแชท" เพื่อส่งต่องานในทีม',
+                    descEN: 'Click the pencil icon ✏️ to open the notes modal and record chat outcomes: "Promises to deposit tonight", "Waiting for payday", or "Unread chat".',
                     tipTH: '💡 การทำงานเป็นทีม: โน้ตที่บันทึกจะแสดงในตารางและบันทึกประวัติให้เพื่อนร่วมงานและหัวหน้าดูได้ตลอดเวลา',
                     tipEN: '💡 Team collaboration: Logged notes appear directly beside the customer record for team visibility.',
                     position: 'left'
@@ -5550,7 +5550,7 @@
                         const followUp = c.followUp || {};
                         const newFollowVal = !followUp[day];
                         
-                        writeLog('CRM_ACTION', `อัปเดตการโทรตาม [${c.username}] วันที่ ${day} -> ${newFollowVal ? 'ติดต่อแล้ว' : 'ยกเลิก'}`, 'info');
+                        writeLog('CRM_ACTION', `อัปเดตการทักแชทตาม [${c.username}] วันที่ ${day} -> ${newFollowVal ? 'ทักแชทแล้ว' : 'ยกเลิก'}`, 'info');
                         
                         const targetCust = {
                             ...c,
@@ -10533,8 +10533,8 @@
                                                     : <>Showing all portfolio customer records across all agents {pastMonthSpecificFilter === 'ALL' ? '(All Months Data)' : pastMonthSpecificFilter === 'CURRENT' ? <>for month <strong>{selectedMonth}</strong></> : <>for month <strong>{pastMonthSpecificFilter}</strong></>}</>
                                             ) : (
                                                 lang === 'TH'
-                                                    ? <>ระบบกรองเฉพาะลูกค้าในพอร์ตความรับผิดชอบของ <strong>{effectiveFollowUpAgent}</strong> {pastMonthSpecificFilter === 'ALL' ? '(ข้อมูลรวมทุกรอบเดือน)' : pastMonthSpecificFilter === 'CURRENT' ? <>ประจำรอบเดือน <strong>{selectedMonth}</strong></> : <>ประจำรอบเดือน <strong>{pastMonthSpecificFilter}</strong></>} พนักงานสามารถติ๊กเช็กงานโทรรายวันและจดโน้ตเพื่อบันทึกพฤติกรรมลูกค้าได้ทันทีครับ</>
-                                                    : <>Filtered customers assigned to <strong>{effectiveFollowUpAgent}</strong> {pastMonthSpecificFilter === 'ALL' ? '(All Months Data)' : pastMonthSpecificFilter === 'CURRENT' ? <>for month <strong>{selectedMonth}</strong></> : <>for month <strong>{pastMonthSpecificFilter}</strong></>}. Track daily follow-up calls and log customer notes.</>
+                                                    ? <>ระบบกรองเฉพาะลูกค้าในพอร์ตความรับผิดชอบของ <strong>{effectiveFollowUpAgent}</strong> {pastMonthSpecificFilter === 'ALL' ? '(ข้อมูลรวมทุกรอบเดือน)' : pastMonthSpecificFilter === 'CURRENT' ? <>ประจำรอบเดือน <strong>{selectedMonth}</strong></> : <>ประจำรอบเดือน <strong>{pastMonthSpecificFilter}</strong></>} พนักงานสามารถติ๊กเช็กงานทักแชทติดตามรายวันและจดโน้ตเพื่อบันทึกพฤติกรรมลูกค้าได้ทันทีครับ</>
+                                                    : <>Filtered customers assigned to <strong>{effectiveFollowUpAgent}</strong> {pastMonthSpecificFilter === 'ALL' ? '(All Months Data)' : pastMonthSpecificFilter === 'CURRENT' ? <>for month <strong>{selectedMonth}</strong></> : <>for month <strong>{pastMonthSpecificFilter}</strong></>}. Track daily follow-up chats and log customer notes.</>
                                             )}
                                         </p>
 
@@ -10820,7 +10820,7 @@
                                                             <th style={{ width: '90px', minWidth: '85px', textAlign: 'center', whiteSpace: 'nowrap' }}>{lang === 'TH' ? 'ยอดเงินสะสม' : 'Total Deposits'}</th>
                                                             <th style={{ width: '220px', minWidth: '215px', textAlign: 'center', whiteSpace: 'nowrap' }}>{lang === 'TH' ? 'การตามลูกค้า' : 'Follow-Up Actions'}</th>
                                                             <th style={{ width: '100px', minWidth: '95px', maxWidth: '110px', textAlign: 'center', whiteSpace: 'nowrap' }}>{lang === 'TH' ? 'ผลเช็กยอดธุรกรรม' : 'Deposit Status'}</th>
-                                                            <th style={{ width: '180px', minWidth: '150px', maxWidth: '240px', whiteSpace: 'nowrap' }}>{lang === 'TH' ? 'บันทึกรายละเอียดการโทร' : 'Call Remarks & Notes'}</th>
+                                                            <th style={{ width: '180px', minWidth: '150px', maxWidth: '240px', whiteSpace: 'nowrap' }}>{lang === 'TH' ? 'บันทึกรายละเอียดการทักแชท' : 'Chat Remarks & Notes'}</th>
                                                         </tr>
                                                         {/* KPI TOTALS SUB-HEADER ROW (DIRECTLY UNDER COLUMN HEADERS AS MARKED BY USER) */}
                                                         <tr style={{
@@ -10916,7 +10916,7 @@
                                                                                      {overdue && (
                                                                                           <span 
                                                                                               className="overdue-blink-badge"
-                                                                                              title={lang === 'TH' ? '⚠️ ลูกค้ารายนี้ค้างตามติดต่อกัน 3 วันขึ้นไป กรุณาโทรติดตามด่วน' : '⚠️ Overdue for 3+ consecutive days. Please follow up promptly.'}
+                                                                                              title={lang === 'TH' ? '⚠️ ลูกค้ารายนี้ค้างตามติดต่อกัน 3 วันขึ้นไป กรุณาทักแชทติดตามด่วน' : '⚠️ Overdue for 3+ consecutive days. Please follow up promptly.'}
                                                                                           >
                                                                                               <span className="overdue-pulse-dot"></span>
                                                                                               <span>{lang === 'TH' ? '⚠️ ค้างตาม 3 วัน+' : '⚠️ Overdue 3d+'}</span>
@@ -10936,7 +10936,7 @@
                                                                                       {!cust.fullName && overdue && (
                                                                                           <span 
                                                                                               className="overdue-blink-badge"
-                                                                                              title={lang === 'TH' ? '⚠️ ลูกค้ารายนี้ค้างตามติดต่อกัน 3 วันขึ้นไป กรุณาโทรติดตามด่วน' : '⚠️ Overdue for 3+ consecutive days. Please follow up promptly.'}
+                                                                                              title={lang === 'TH' ? '⚠️ ลูกค้ารายนี้ค้างตามติดต่อกัน 3 วันขึ้นไป กรุณาทักแชทติดตามด่วน' : '⚠️ Overdue for 3+ consecutive days. Please follow up promptly.'}
                                                                                           >
                                                                                               <span className="overdue-pulse-dot"></span>
                                                                                               <span>{lang === 'TH' ? '⚠️ ค้างตาม 3 วัน+' : '⚠️ Overdue 3d+'}</span>
@@ -13851,12 +13851,12 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && (k.indexOf('mc_jsx_cache_v6_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
+                    if (k && (k.indexOf('mc_jsx_cache_v7_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v7_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v8_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
