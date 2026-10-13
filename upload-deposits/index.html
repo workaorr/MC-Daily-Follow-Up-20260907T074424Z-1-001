@@ -2819,18 +2819,87 @@
             const [isLoadingDeposits, setIsLoadingDeposits] = useState(false);
             const [depositSearchQuery, setDepositSearchQuery] = useState('');
 
-            // INTERACTIVE TOUR STATE & CONFIGURATION
+            // INTERACTIVE TOUR STATE & CONFIGURATION + QUICK INLINE STATUS & REMARKS
             const [isTourActive, setIsTourActive] = useState(false);
             const [tourStep, setTourStep] = useState(0);
             const [tourTargetRect, setTourTargetRect] = useState(null);
+            const [quickEditCustId, setQuickEditCustId] = useState(null);
+            const [quickNoteText, setQuickNoteText] = useState('');
+
+            const QUICK_REMARK_PRESETS = [
+                { th: '💬 ทักแล้ว ยังไม่อ่าน', en: '💬 Sent chat, unread' },
+                { th: '👀 อ่านแล้วไม่ตอบ', en: '👀 Read, no reply' },
+                { th: '⏳ รอเงินเดือนออก', en: '⏳ Waiting for payday' },
+                { th: '🌙 นัดฝากช่วงเย็น/ค่ำ', en: '🌙 Promised evening deposit' },
+                { th: '🎁 สนใจโปรโมชั่น', en: '🎁 Interested in promo' },
+                { th: '🔄 ขอคิดดูก่อน', en: '🔄 Thinking about it' },
+                { th: '✅ กำลังโอน/รอสลิป', en: '✅ Transferring / Pending slip' },
+                { th: '📵 ติดต่อไม่ได้/บล็อก', en: '📵 Unreachable / Blocked' }
+            ];
+
+            const handleQuickLineStatusChange = (custId, newLineStatus) => {
+                const target = customers.find(c => c.id === custId);
+                if (!target || target.lineLek === newLineStatus) return;
+                const oldVal = target.lineLek || 'ไม่มี';
+
+                setCustomers(prev => prev.map(c => c.id === custId ? { ...c, lineLek: newLineStatus } : c));
+
+                if (supabaseClient) {
+                    supabaseClient
+                        .from('mc_customers')
+                        .update({ line_lek: newLineStatus })
+                        .eq('id', custId)
+                        .then(({ error }) => {
+                            if (error) console.error('Quick lineLek update error:', error);
+                        });
+                }
+
+                writeLog(
+                    'EDIT_CUSTOMER',
+                    `⚡ อัปเดตสถานะไลน์ด่วน [${target.username || target.fullName || custId}]: 💬 ไลน์เล็ก: ${oldVal} -> ${newLineStatus}`,
+                    'info',
+                    activeAgentName
+                );
+            };
+
+            const handleQuickNoteSave = (custId, noteToSave) => {
+                const target = customers.find(c => c.id === custId);
+                if (!target) return;
+                const cleanNote = (noteToSave !== undefined ? noteToSave : quickNoteText || '').trim();
+                const oldNote = target.notes || '';
+
+                setCustomers(prev => prev.map(c => c.id === custId ? { ...c, notes: cleanNote } : c));
+                setQuickEditCustId(null);
+
+                if (oldNote !== cleanNote) {
+                    if (supabaseClient) {
+                        supabaseClient
+                            .from('mc_customers')
+                            .update({ notes: cleanNote })
+                            .eq('id', custId)
+                            .then(({ error }) => {
+                                if (error) console.error('Quick note update error:', error);
+                            });
+                    }
+
+                    writeLog(
+                        'EDIT_CUSTOMER',
+                        `⚡ บันทึกโน้ตด่วน [${target.username || target.fullName || custId}]: 📝 "${cleanNote || 'ลบโน้ต'}"`,
+                        'info',
+                        activeAgentName
+                    );
+                }
+            };
 
             const TOUR_STEPS = [
+                // --- OVERVIEW & HEADER (3 STEPS) ---
                 {
                     id: 'brand',
+                    section: 'overview',
                     targetId: 'tour-brand',
                     requiredView: null,
-                    badgeTH: '👋 แนะนำระบบ',
-                    badgeEN: '👋 System Overview',
+                    badgeTH: '👋 1. ภาพรวมระบบ',
+                    badgeEN: '👋 1. Overview',
                     titleTH: 'ยินดีต้อนรับสู่ MC Daily Follow Up',
                     titleEN: 'Welcome to MC Daily Follow Up',
                     descTH: 'ระบบติดตามลูกค้าใหม่ที่สมัครสมาชิกแต่ยังไม่ได้ฝากเงิน (ค้างฝาก) ช่วยให้ทีม MC จัดการรายชื่อ ทักแชทติดตาม และเช็กยอดฝากได้อย่างเป็นระบบ พร้อมเชื่อมต่อคลาวด์แบบเรียลไทม์',
@@ -2841,10 +2910,11 @@
                 },
                 {
                     id: 'profile',
+                    section: 'overview',
                     targetId: 'tour-profile',
                     requiredView: null,
-                    badgeTH: '🔐 บัญชีผู้ใช้งาน',
-                    badgeEN: '🔐 User Account',
+                    badgeTH: '🔐 2. บัญชีผู้ใช้งาน',
+                    badgeEN: '🔐 2. User Account',
                     titleTH: 'การเข้าสู่ระบบและสลับบัญชีผู้ใช้งาน',
                     titleEN: 'User Login & Account Switching',
                     descTH: 'คลิกที่กล่องนี้เพื่อเข้าสู่ระบบ หรือสลับบัญชีระหว่าง MC Agent (เจ้าหน้าที่ทักแชทติดตาม) และ Supervisor (หัวหน้างานตรวจแดชบอร์ด)',
@@ -2855,54 +2925,60 @@
                 },
                 {
                     id: 'sidebar',
+                    section: 'overview',
                     targetId: 'tour-sidebar',
                     requiredView: null,
-                    badgeTH: '📂 เมนูการทำงาน',
-                    badgeEN: '📂 Navigation Menu',
-                    titleTH: 'เมนูนำทางและฟังก์ชันการทำงานหลัก',
-                    titleEN: 'Navigation Menu & Core Modules',
-                    descTH: 'แถบเมนูด้านซ้ายใช้สลับหน้าระหว่าง: แดชบอร์ดสรุป (Supervisor), การติดตามลูกค้า (หน้าทำงานหลักของ MC), อัปโหลดธุรกรรมรายวัน, เพิ่มลูกค้าใหม่ และถังขยะระบบ',
-                    descEN: 'Use the left sidebar to navigate: Supervisor Dashboard, Customer Follow-Up (MC Agent Workspace), Upload Daily Deposits, Add Customer, and Recycle Bin.',
-                    tipTH: '💡 สำหรับทีม MC: คลิกเลือกเมนู "การติดตามลูกค้า (MC Agent)" เพื่อเริ่มงานทักแชทติดตามในแต่ละวันครับ',
-                    tipEN: '💡 For MC Agents: Click "Customer Follow-Up (MC Agent)" to open your daily chat follow-up workspace.',
+                    badgeTH: '📂 3. เมนูทั้ง 8 หน้า',
+                    badgeEN: '📂 3. All 8 Menus',
+                    titleTH: 'แถบเมนูการทำงานหลักครบทั้ง 8 หน้า',
+                    titleEN: 'Navigation Menu Across All 8 Modules',
+                    descTH: 'แถบเมนูด้านซ้ายใช้สลับหน้าระหว่าง: 1.แดชบอร์ดสรุป, 2.การติดตามลูกค้า (MC), 3.อัปโหลดธุรกรรม, 4.เพิ่มลูกค้าใหม่, 5.ตรวจสอบงานรายวัน, 6.จัดการหลังบ้าน, 7.ประวัติการแก้ไข และ 8.ถังขยะระบบ',
+                    descEN: 'Navigate across all 8 modules: Supervisor Dashboard, MC Follow-Up, Upload Deposits, Add Customer, Daily Audit, Back Office, Audit Logs, and Recycle Bin.',
+                    tipTH: '💡 คุณสามารถกดแถบปุ่มหมวดหมู่ด้านบนของการ์ดใบนี้ เพื่อกระโดดไปดูคู่มือของแต่ละหน้าได้ทันที!',
+                    tipEN: '💡 Click any module pill at the top of this tour card to jump directly to that page guide!',
                     position: 'right'
                 },
+
+                // --- PAGE 1: MC AGENT FOLLOW-UP (5 STEPS) ---
                 {
                     id: 'filter-card',
+                    section: 'agent',
                     targetId: 'tour-filter-card',
                     requiredView: 'agent',
-                    badgeTH: '🔍 ตัวกรองข้อมูล',
-                    badgeEN: '🔍 Filters & Scope',
-                    titleTH: 'เลือกเดือนแคมเปญและคัดกรองกลุ่มลูกค้า',
+                    badgeTH: '🔍 หน้าติดตามลูกค้า (1/5)',
+                    badgeEN: '🔍 MC Agent (1/5)',
+                    titleTH: 'ตัวกรองเดือนแคมเปญ & คัดกรองกลุ่มลูกค้า',
                     titleEN: 'Month Selector & Customer Filters',
-                    descTH: 'คุณสามารถเลือกเดือนที่ต้องการติดตาม (เช่น 2026-10) และใช้ปุ่มฟิลเตอร์เพื่อคัดกรองเฉพาะกลุ่ม: เช่น "รอฝาก", "สมัครแล้วแต่ยังไม่ฝาก" หรือกรองตามสถานะไลน์ (🟢 มีไลน์ / 🟡 รอแอด / 🔴 ไม่มีไลน์)',
-                    descEN: 'Select campaign month (e.g. 2026-10) and click quick filters to segment leads: "Pending", "Registered (No Deposit)", or filter by LINE status (Has LINE, Pending, No LINE).',
-                    tipTH: '💡 ทริค: กดปุ่ม "✕ ล้างตัวกรอง" ได้ทุกเมื่อ เพื่อกลับมาดูรายชื่อลูกค้าทั้งหมดในพอร์ต',
-                    tipEN: '💡 Pro-tip: Click "✕ Clear Filter" anytime to restore the full view of your portfolio.',
+                    descTH: 'เลือกเดือนแคมเปญที่ต้องการ และคลิกปุ่มฟิลเตอร์เพื่อคัดกรองเฉพาะกลุ่ม: เช่น "🔴 สมัครไม่ฝาก", "⏳ ไม่สมัครและไม่ฝาก" หรือกรองตามสถานะไลน์ (🟢 มีไลน์ / 🟡 รอแอด / 🔴 ไม่มีไลน์)',
+                    descEN: 'Select campaign month and click quick filters to segment leads: "Reg (No Deposit)", "Unconverted", or filter by LINE status.',
+                    tipTH: '💡 ทริค: กดปุ่ม "🔴 สมัครไม่ฝาก" เพื่อโฟกัสกลุ่มเป้าหมายหลักที่ต้องทักแชทตามยอดฝากได้ทันที',
+                    tipEN: '💡 Pro-tip: Click "🔴 Reg (No Deposit)" to immediately focus on registered leads pending first deposit.',
                     position: 'bottom'
                 },
                 {
                     id: 'customer-info',
+                    section: 'agent',
                     targetId: 'tour-customer-info',
                     fallbackId: 'tour-customer-table',
                     requiredView: 'agent',
-                    badgeTH: '📞 ข้อมูลลูกค้า',
-                    badgeEN: '📞 Customer Info',
-                    titleTH: 'รายชื่อลูกค้าและข้อมูลติดต่อ (LINE / ข้อมูลติดต่อ)',
-                    titleEN: 'Customer Details & Contact Info',
-                    descTH: 'แสดงชื่อลูกค้า, ยูสเซอร์เนม, เบอร์โทรศัพท์ และ LINE มีปุ่มไอคอน 📋 ให้คลิกคัดลอก LINE ID หรือข้อมูลติดต่อได้ทันทีในคลิกเดียว เพื่อนำไปทักแชทติดตามลูกค้า',
-                    descEN: 'Displays customer name, username, and contact numbers. Click the 📋 copy button to copy LINE ID or contact info with one click to chat with customers.',
-                    tipTH: '💡 การแจ้งเตือน: หากมีป้าย "⚠️ ค้างตาม 3 วัน+" กะพริบอยู่ แสดงว่าลูกค้ารายนี้ยังไม่ได้รับการทักแชทติดตามเกิน 3 วัน ควรทักแชทติดตามด่วนเป็นพิเศษ',
-                    tipEN: '💡 Alert: A pulsing "⚠️ Overdue 3d+" badge indicates this customer has not received chat follow-ups in 3+ days and needs immediate attention.',
+                    badgeTH: '⚡ หน้าติดตามลูกค้า (2/5)',
+                    badgeEN: '⚡ MC Agent (2/5)',
+                    titleTH: 'ข้อมูลติดต่อ & ปุ่มเปลี่ยนสถานะ LINE ด่วน (1 คลิก)',
+                    titleEN: 'Contact Info & 1-Click Quick LINE Status',
+                    descTH: 'แสดงชื่อ ยูสเซอร์เนม ปุ่ม 📋 คัดลอก LINE ID และใหม่ล่าสุด! ปุ่มกดเปลี่ยนสถานะไลน์ด่วน [🟢 มี] [🟡 รอแอด] [⚪ ไม่มี] บนตาราง กดคลิกเดียวบันทึกทันทีโดยไม่ต้องเปิดหน้าต่างแก้ไข!',
+                    descEN: 'Shows customer details, 1-click copy buttons, and inline 1-Click LINE Status pills ([🟢 Has] [🟡 Wait] [⚪ None]) that save instantly!',
+                    tipTH: '💡 การแจ้งเตือน: หากมีป้าย "⚠️ ค้างตาม 3 วัน+" กะพริบอยู่ แสดงว่าลูกค้ารายนี้ยังไม่ได้ทักแชทติดตามเกิน 3 วัน ควรทักด่วนเป็นพิเศษ',
+                    tipEN: '💡 Alert: Pulsing "⚠️ Overdue 3d+" badge indicates 3+ days without chat follow-up.',
                     position: 'bottom'
                 },
                 {
                     id: 'days-grid',
+                    section: 'agent',
                     targetId: 'tour-days-grid',
                     fallbackId: 'tour-customer-table',
                     requiredView: 'agent',
-                    badgeTH: '📌 ติ๊กงานรายวัน',
-                    badgeEN: '📌 Daily Checkmarks',
+                    badgeTH: '📌 หน้าติดตามลูกค้า (3/5)',
+                    badgeEN: '📌 MC Agent (3/5)',
                     titleTH: '⭐ การติ๊กติดตามงานรายวัน (วันที่ 1 - 31)',
                     titleEN: '⭐ Daily Follow-Up Checkmarks (Days 1 - 31)',
                     descTH: 'หัวใจสำคัญของ MC: เมื่อทักแชทติดตามลูกค้าในแต่ละวัน ให้คลิกติ๊กที่ช่อง "วันที่ของวันนี้" (ช่องที่มีกรอบเน้นสีม่วง) เพื่อบันทึกว่าได้ติดตามแล้ว ช่องจะเปลี่ยนเป็นสีเขียวทันที',
@@ -2913,13 +2989,14 @@
                 },
                 {
                     id: 'deposit-status',
+                    section: 'agent',
                     targetId: 'tour-deposit-status',
                     fallbackId: 'tour-customer-table',
                     requiredView: 'agent',
-                    badgeTH: '💰 สถานะการฝากเงิน',
-                    badgeEN: '💰 Deposit Status',
-                    titleTH: 'ตรวจสอบผลการฝากเงินของลูกค้า',
-                    titleEN: 'Deposit Conversion Status',
+                    badgeTH: '💰 หน้าติดตามลูกค้า (4/5)',
+                    badgeEN: '💰 MC Agent (4/5)',
+                    titleTH: 'ตรวจสอบผลการฝากเงินของลูกค้า (FTD)',
+                    titleEN: 'Deposit Conversion Status (FTD)',
                     descTH: 'ช่องนี้จะแสดงว่าลูกค้า "🟢 ฝากแล้ว" (พร้อมระบุยอดเงินฝากแรก) หรือ "🔴 รอฝากเงิน" เมื่อลูกค้าฝากเงินเข้ามา ระบบจะตรวจจับและอัปเดตให้อัตโนมัติจากไฟล์ธุรกรรมที่อัปโหลด',
                     descEN: 'Shows whether the customer is "🟢 Deposited" (with first deposit amount) or "🔴 Pending". Updates automatically when deposit spreadsheets are uploaded.',
                     tipTH: '💡 สรุปผลงาน: ยอดเงินฝากของลูกค้าที่ตามสำเร็จ จะถูกนำไปคำนวณในแถบสรุปยอดรวม (FTD) ด้านบนตารางทันที',
@@ -2928,38 +3005,178 @@
                 },
                 {
                     id: 'notes-btn',
+                    section: 'agent',
                     targetId: 'tour-notes-btn',
                     fallbackId: 'tour-customer-table',
                     requiredView: 'agent',
-                    badgeTH: '📝 บันทึกผลการติดตาม',
-                    badgeEN: '📝 Chat Remarks',
-                    titleTH: 'บันทึกหมายเหตุและผลการทักแชทลูกค้า',
-                    titleEN: 'Chat Remarks & Follow-Up Notes',
-                    descTH: 'คลิกปุ่มไอคอนดินสอ ✏️ เพื่อเปิดหน้าต่างบันทึกรายละเอียดการติดตาม (Chat Remarks) เช่น "แจ้งว่าจะฝากช่วงเย็น", "รอเงินเดือนออกสิ้นเดือน", หรือ "ยังไม่อ่านแชท" เพื่อส่งต่องานในทีม',
-                    descEN: 'Click the pencil icon ✏️ to open the notes modal and record chat outcomes: "Promises to deposit tonight", "Waiting for payday", or "Unread chat".',
-                    tipTH: '💡 การทำงานเป็นทีม: โน้ตที่บันทึกจะแสดงในตารางและบันทึกประวัติให้เพื่อนร่วมงานและหัวหน้าดูได้ตลอดเวลา',
-                    tipEN: '💡 Team collaboration: Logged notes appear directly beside the customer record for team visibility.',
+                    badgeTH: '📝 หน้าติดตามลูกค้า (5/5)',
+                    badgeEN: '📝 MC Agent (5/5)',
+                    titleTH: '⚡ บันทึก Remarks ด่วน & ปุ่มข้อความสำเร็จรูป',
+                    titleEN: '⚡ Quick Chat Remarks & 1-Click Presets',
+                    descTH: 'คลิกที่ข้อความโน้ตหรือปุ่ม "⚡ โน้ตด่วน" เพื่อเลือกปุ่มคำสำเร็จรูป (เช่น "💬 ทักแล้ว ยังไม่อ่าน", "⏳ รอเงินเดือนออก", "🌙 นัดฝากช่วงเย็น") กดคลิกเดียวบันทึกทันที หรือพิมพ์แล้วกด Enter ได้เลย!',
+                    descEN: 'Click the note or "⚡ Quick Note" button to pick 1-click preset chips (e.g., "Unread", "Waiting for payday", "Evening deposit") or type and press Enter to save instantly!',
+                    tipTH: '💡 หากต้องการแก้ไขชื่อ เบอร์โทร หรือโอนย้ายเคส สามารถกดปุ่มดินสอ ✏️ เพื่อเปิดหน้าต่างแก้ไขแบบเต็มได้เหมือนเดิมครับ',
+                    tipEN: '💡 To edit full customer details (name, phone, owner), click the ✏️ pencil button.',
                     position: 'left'
                 },
+
+                // --- PAGE 2: SUPERVISOR DASHBOARD (2 STEPS) ---
                 {
-                    id: 'finish',
-                    targetId: 'tour-trigger-btn',
-                    requiredView: 'agent',
-                    badgeTH: '🎉 พร้อมใช้งาน',
-                    badgeEN: '🎉 All Set!',
-                    titleTH: 'ยินดีด้วย! คุณพร้อมเริ่มต้นใช้งานแล้ว',
-                    titleEN: 'Congratulations! You are ready to start',
-                    descTH: 'คุณได้เรียนรู้ขั้นตอนสำคัญทั้งหมดของระบบ MC Daily Follow Up เรียบร้อยแล้ว หากต้องการดูคำแนะนำนี้อีกครั้ง สามารถกดปุ่ม "💡 แนะนำการใช้งาน" ด้านบนได้ตลอดเวลาครับ',
-                    descEN: 'You have mastered all essential workflows of the MC Daily Follow Up system. You can revisit this interactive guide anytime by clicking "💡 Guide Tour" above.',
-                    tipTH: '🚀 ขอให้ประสบความสำเร็จในการติดตามลูกค้า และทำยอดฝากได้ทะลุเป้าหมายครับ!',
-                    tipEN: '🚀 Wishing you great success in following up new leads and hitting all conversion targets!',
+                    id: 'sup-filter',
+                    section: 'supervisor',
+                    targetId: 'tour-sup-filter',
+                    requiredView: 'supervisor',
+                    badgeTH: '📊 หน้าแดชบอร์ด (1/2)',
+                    badgeEN: '📊 Dashboard (1/2)',
+                    titleTH: 'ตัวกรองรอบเดือน ช่วงวันที่ และปุ่ม Export CSV',
+                    titleEN: 'Campaign Period, Date Range & CSV Export',
+                    descTH: 'ในหน้าแดชบอร์ดสรุป หัวหน้างานสามารถเลือกดูข้อมูลตามรอบเดือน หรือกรองเฉพาะช่วงวันที่คีย์งาน พร้อมกดปุ่ม "ดาวน์โหลด CSV" เพื่อนำข้อมูลลูกค้าไปสำรองหรือวิเคราะห์ต่อได้ทันที',
+                    descEN: 'Filter dashboard metrics by campaign month or custom date range, and click "Export CSV" to download backup reports.',
+                    tipTH: '💡 กดปุ่ม "✓ วันนี้" เพื่อดูสรุปยอดลูกค้าใหม่ที่เพิ่งคีย์เข้ามาในวันนี้แบบเรียลไทม์',
+                    tipEN: '💡 Click "✓ Today" to inspect leads added today in real time.',
+                    position: 'bottom'
+                },
+                {
+                    id: 'sup-kpis',
+                    section: 'supervisor',
+                    targetId: 'tour-sup-kpis',
+                    requiredView: 'supervisor',
+                    badgeTH: '📈 หน้าแดชบอร์ด (2/2)',
+                    badgeEN: '📈 Dashboard (2/2)',
+                    titleTH: 'การ์ดสรุป 5 KPI หลัก & ตารางผลงานรายบุคคล',
+                    titleEN: '5 Executive KPI Cards & Agent Performance',
+                    descTH: 'แสดงภาพรวม 5 ขั้นตอน: 1.จำนวนทักทั้งหมด ➜ 2.ทักแต่ไม่สมัคร ➜ 3.ทักสมัคร ➜ 4.สมัครและฝาก (สำเร็จ) ➜ 5.สมัครแต่ไม่ฝาก (ค้างตาม) พร้อมตารางจัดอันดับผลงานทีม MC ด้านล่าง',
+                    descEN: 'Tracks the 5-stage funnel from Total Inquiries to Converted Deposits, followed by agent leaderboards and channel breakdowns below.',
+                    tipTH: '💡 ดูเปอร์เซ็นต์ Conversion Rate และยอดเงินฝากสะสมรวมของแต่ละช่องทางและพนักงานแต่ละคนได้ในหน้านี้',
+                    tipEN: '💡 Monitor conversion rates and total deposit revenue by agent and marketing channel.',
+                    position: 'bottom'
+                },
+
+                // --- PAGE 3: UPLOAD DEPOSITS (1 STEP) ---
+                {
+                    id: 'upload-box',
+                    section: 'upload-deposits',
+                    targetId: 'tour-upload-box',
+                    requiredView: 'upload-deposits',
+                    badgeTH: '☁️ หน้าอัปโหลดยอดฝาก',
+                    badgeEN: '☁️ Upload Deposits',
+                    titleTH: 'อัปโหลดไฟล์ธุรกรรมรายวัน & จับคู่ยอดอัตโนมัติ',
+                    titleEN: 'Daily Deposit Upload & Auto-Matching Engine',
+                    descTH: 'คลิกเลือกไฟล์หรือลากไฟล์ Excel (.xlsx / .xls) หรือ CSV ยอดฝากรายวันมาวางที่นี่ ระบบจะแสดงตัวอย่างพรีวิว ตรวจสอบยูสเซอร์เนม และผูกยอดฝากแรก (FTD) เข้ากับลูกค้าในพอร์ตให้อัตโนมัติ (รองรับยอดฝากข้ามเดือน)',
+                    descEN: 'Drag and drop Excel or CSV deposit files here. The system previews records, matches usernames, and automatically updates customer deposit status across months.',
+                    tipTH: '💡 ด้านล่างของหน้านี้มีตารางแสดงประวัติรายการฝากล่าสุดและช่องค้นหาธุรกรรมย้อนหลัง',
+                    tipEN: '💡 Below the upload box, you can search and review recent deposit transactions.',
+                    position: 'bottom'
+                },
+
+                // --- PAGE 4: NEW CUSTOMER (1 STEP) ---
+                {
+                    id: 'newcust-panel',
+                    section: 'new-customer',
+                    targetId: 'tour-newcust-panel',
+                    requiredView: 'new-customer',
+                    badgeTH: '➕ หน้าเพิ่มลูกค้าใหม่',
+                    badgeEN: '➕ Add Customer',
+                    titleTH: 'แบบฟอร์มเพิ่มลูกค้าใหม่รายคน & เช็กข้อมูลซ้ำ',
+                    titleEN: 'Add New Customer & Duplicate Prevention',
+                    descTH: 'ใช้สำหรับคีย์ข้อมูลลูกค้าใหม่เข้าพอร์ต (วันที่สมัคร, ชื่อ-สกุล, ยูสเซอร์เนม, เบอร์โทร, LINE OA, สถานะไลน์เล็ก, ช่องทางที่ทัก และโน้ตเริ่มต้น) โดยระบบจะตรวจสอบเบอร์โทรและยูสเซอร์ซ้ำให้อัตโนมัติทันทีที่พิมพ์',
+                    descEN: 'Register new leads into your portfolio. Real-time validation automatically prevents duplicate phone numbers, usernames, or LINE IDs.',
+                    tipTH: '💡 หากเลือกช่องทาง "เพื่อนแนะนำ" ระบบจะมีช่องให้ระบุยูสเซอร์หรือเบอร์โทรของเพื่อนผู้แนะนำด้วยครับ',
+                    tipEN: '💡 Selecting "Referral" prompts for the referrer username or phone number.',
+                    position: 'top'
+                },
+
+                // --- PAGE 5: SUPERVISOR AUDIT (1 STEP) ---
+                {
+                    id: 'audit-panel',
+                    section: 'audit',
+                    targetId: 'tour-audit-panel',
+                    requiredView: 'audit',
+                    badgeTH: '🛡️ หน้าตรวจสอบงาน (Audit)',
+                    badgeEN: '🛡️ Daily Audit',
+                    titleTH: 'ตารางตรวจสอบงานรายวันสำหรับหัวหน้า (Supervisor Audit)',
+                    titleEN: 'Supervisor Daily Follow-Up Audit Table',
+                    descTH: 'หน้าสำหรับหัวหน้างานใช้ตรวจเช็กความสม่ำเสมอในการทักแชทติดตามลูกค้าของพนักงานแต่ละคน แสดงตาราง Heatmap รายวัน สถานะไลน์ และการฝากเงิน พร้อมปุ่มเปลี่ยนสถานะไลน์ด่วนและปุ่มส่งออก CSV',
+                    descEN: 'Dedicated supervisor view to audit daily follow-up heatmaps across agents, filter by channel or overdue status, and export audit reports.',
+                    tipTH: '💡 หัวหน้าสามารถคลิกปุ่ม "แก้ไข / โน้ต" เพื่อโอนย้ายเคสลูกค้าให้พนักงานคนอื่นดูแลต่อได้จากหน้านี้',
+                    tipEN: '💡 Supervisors can reassign customer cases between agents using the "Edit / Notes" button.',
+                    position: 'bottom'
+                },
+
+                // --- PAGE 6: BACK OFFICE (1 STEP) ---
+                {
+                    id: 'bo-panel',
+                    section: 'backoffice',
+                    targetId: 'tour-bo-panel',
+                    requiredView: 'backoffice',
+                    badgeTH: '⚙️ หน้าจัดการหลังบ้าน',
+                    badgeEN: '⚙️ Back Office',
+                    titleTH: 'จัดการพนักงาน สิทธิ์การเข้าถึง และช่องทางการตลาด',
+                    titleEN: 'Staff Management, Permissions & Marketing Channels',
+                    descTH: 'ศูนย์ควบคุมสำหรับผู้ดูแลระบบ แบ่งเป็นแท็บย่อย: 1.จัดการบัญชีพนักงาน (เพิ่มพนักงาน, ตั้งรหัสผ่าน, เปิด/ปิดสิทธิ์แต่ละเมนู, พักงาน) 2.จัดการช่องทางการตลาด (เพิ่ม/ลบช่องทาง) และ 3.คลังข้อมูลลูกค้าทั้งหมด',
+                    descEN: 'Admin control center with sub-tabs for Staff & Role Permissions, Marketing Source Channels, and Master Customer Database management.',
+                    tipTH: '💡 การปรับสิทธิ์หรือระงับพนักงานในหน้านี้ จะซิงค์ขึ้น Supabase Realtime และมีผลกับเครื่องของพนักงานทันที',
+                    tipEN: '💡 Role and permission updates sync in real time via Supabase across all active sessions.',
+                    position: 'bottom'
+                },
+
+                // --- PAGE 7: AUDIT LOGS (1 STEP) ---
+                {
+                    id: 'logs-panel',
+                    section: 'audit-logs',
+                    targetId: 'tour-logs-panel',
+                    requiredView: 'audit-logs',
+                    badgeTH: '📜 หน้าประวัติการแก้ไข',
+                    badgeEN: '📜 Audit Logs',
+                    titleTH: 'ตรวจสอบประวัติการทำงานย้อนหลังทั้งหมด (Audit Trail)',
+                    titleEN: 'System-Wide Audit Trail & Activity Logs',
+                    descTH: 'บันทึกทุกการกระทำในระบบแบบละเอียด (ใคร ทำอะไร กับลูกค้าคนไหน เมื่อไหร่) เช่น การเพิ่มลูกค้า, การติ๊กติดตามรายวัน, การเปลี่ยนสถานะไลน์, การแก้ไขเบอร์โทร/โน้ต และการอัปโหลดยอดฝาก',
+                    descEN: 'Comprehensive activity log recording every creation, follow-up check, quick status change, note edit, and deposit match with timestamps.',
+                    tipTH: '💡 สามารถกรองดูเฉพาะพนักงาน เลือกหมวดหมู่กิจกรรม หรือกดดาวน์โหลดประวัติทั้งหมดเป็นไฟล์ CSV ได้ครับ',
+                    tipEN: '💡 Filter logs by staff member or action tag, or export the full log history to CSV.',
+                    position: 'bottom'
+                },
+
+                // --- PAGE 8: RECYCLE BIN (1 STEP) ---
+                {
+                    id: 'recycle-panel',
+                    section: 'recycle-bin',
+                    targetId: 'system-recycle-bin-section',
+                    fallbackId: 'tour-recycle-wrapper',
+                    requiredView: 'recycle-bin',
+                    badgeTH: '🗑️ หน้าถังขยะระบบ',
+                    badgeEN: '🗑️ Recycle Bin',
+                    titleTH: 'ถังขยะระบบ & การกู้คืนข้อมูลภายใน 30 วัน',
+                    titleEN: 'System Recycle Bin & 1-Click Data Restore',
+                    descTH: 'ข้อมูลลูกค้าหรือบัญชีพนักงานที่ถูกลบ จะถูกเก็บรักษาไว้ในถังขยะนาน 30 วัน (Soft Delete) หากเผลอลบผิด สามารถสลับแท็บเลือกดูและกดปุ่ม "กู้คืน (Restore)" เพื่อนำข้อมูลกลับคืนสู่ระบบได้ในคลิกเดียว!',
+                    descEN: 'Deleted customers and staff accounts are safely retained for 30 days. Switch tabs between Staff and Customers and restore any record with 1 click.',
+                    tipTH: '🎉 จบครบทั้ง 8 หน้าเมนูของระบบแล้ว! คุณสามารถกดปุ่ม "💡 แนะนำการใช้งาน" ด้านบนเพื่อเปิดดูคู่มือของหน้าใดก็ได้ตลอดเวลาครับ',
+                    tipEN: '🎉 You have completed the full 8-module system tour! Re-open this guide anytime from the top bar.',
                     position: 'bottom'
                 }
             ];
 
+            const TOUR_SECTIONS = [
+                { key: 'overview', labelTH: '🏠 ภาพรวม', labelEN: '🏠 Overview', firstStepIdx: 0 },
+                { key: 'agent', labelTH: '👥 ติดตามลูกค้า', labelEN: '👥 MC Agent', firstStepIdx: 3 },
+                { key: 'supervisor', labelTH: '📊 แดชบอร์ด', labelEN: '📊 Dashboard', firstStepIdx: 8 },
+                { key: 'upload-deposits', labelTH: '☁️ อัปโหลดยอด', labelEN: '☁️ Upload', firstStepIdx: 10 },
+                { key: 'new-customer', labelTH: '➕ เพิ่มลูกค้า', labelEN: '➕ Add Lead', firstStepIdx: 11 },
+                { key: 'audit', labelTH: '🛡️ ตรวจงาน', labelEN: '🛡️ Audit', firstStepIdx: 12 },
+                { key: 'backoffice', labelTH: '⚙️ หลังบ้าน', labelEN: '⚙️ BackOffice', firstStepIdx: 13 },
+                { key: 'audit-logs', labelTH: '📜 ประวัติ Log', labelEN: '📜 Logs', firstStepIdx: 14 },
+                { key: 'recycle-bin', labelTH: '🗑️ ถังขยะ', labelEN: '🗑️ Trash', firstStepIdx: 15 }
+            ];
+
             const startTour = () => {
+                // Start at the section matching current viewMode, or overview if on agent/supervisor first time
+                const matchingIdx = TOUR_STEPS.findIndex(s => s.requiredView === viewMode);
+                setTourStep(matchingIdx !== -1 ? matchingIdx : 0);
                 setIsTourActive(true);
-                setTourStep(0);
+            };
+
+            const jumpToTourSection = (stepIdx) => {
+                setTourStep(stepIdx);
             };
 
             const closeTour = () => {
@@ -2993,6 +3210,9 @@
                 if (!targetEl && step.fallbackId) {
                     targetEl = document.getElementById(step.fallbackId);
                 }
+                if (!targetEl) {
+                    targetEl = document.querySelector('.restricted-access-card');
+                }
 
                 if (targetEl) {
                     const rect = targetEl.getBoundingClientRect();
@@ -3025,12 +3245,15 @@
                     if (!targetEl && step.fallbackId) {
                         targetEl = document.getElementById(step.fallbackId);
                     }
+                    if (!targetEl) {
+                        targetEl = document.querySelector('.restricted-access-card');
+                    }
                     if (targetEl) {
                         try {
                             targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
                         } catch (e) {}
                     }
-                    setTimeout(updateTourPosition, 250);
+                    setTimeout(updateTourPosition, 260);
                 }, 150);
 
                 const handleResizeOrScroll = () => {
@@ -3057,8 +3280,8 @@
             const getTourTooltipStyle = () => {
                 const step = TOUR_STEPS[tourStep] || {};
                 const prefPos = step.position || 'bottom';
-                const cardWidth = 390;
-                const cardHeight = 310;
+                const cardWidth = 430;
+                const cardHeight = 360;
                 const winW = window.innerWidth;
                 const winH = window.innerHeight;
 
@@ -8100,7 +8323,7 @@
                         {viewMode === 'supervisor' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                                 {/* MONTH SELECTOR DROPDOWN & DYNAMIC DATE RANGE FILTER */}
-                                <div className="panel" style={{ padding: '16px 24px', flexDirection: 'column', gap: '12px' }}>
+                                <div id="tour-sup-filter" className="panel" style={{ padding: '16px 24px', flexDirection: 'column', gap: '12px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', width: '100%' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                             <span style={{ display: 'inline-flex', alignItems: 'center' }}><i data-lucide="calendar" style={{ color: 'var(--primary)' }}></i></span>
@@ -8212,7 +8435,7 @@
                                 </div>
 
                                 {/* 5 EXECUTIVE KPI CARDS IN SEQUENCE (การตาม โชว์ตามลำดับ 1 ถึง 5 พร้อม % เปรียบเทียบ) */}
-                                <div className="kpi-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+                                <div id="tour-sup-kpis" className="kpi-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
                                     {/* Card 1: 1. จำนวนทัก */}
                                     <div className="kpi-card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '10px', padding: '16px', background: 'rgba(15, 23, 42, 0.75)', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: '16px' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
@@ -8737,6 +8960,7 @@
                                 {/* Drag & Drop Upload Card */}
                                 <div className="panel" style={{ padding: '36px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: '18px' }}>
                                     <div 
+                                        id="tour-upload-box"
                                         className="upload-box" 
                                         onClick={() => document.getElementById('deposit-page-input-file').click()}
                                         style={{ maxWidth: '640px', width: '100%', padding: '36px 24px', border: '2px dashed rgba(168, 85, 247, 0.4)', borderRadius: '18px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', background: 'rgba(168, 85, 247, 0.02)', transition: 'all 0.2s ease' }}
@@ -9237,7 +9461,7 @@
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                                     {/* Month Selector Bar (เลือกรอบเดือนสำหรับเช็คงานรายเดือน) */}
-                                    <div className="panel" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', padding: '12px 20px' }}>
+                                    <div id="tour-audit-panel" className="panel" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', padding: '12px 20px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                             <div style={{ padding: '8px 10px', borderRadius: '10px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)', display: 'flex', alignItems: 'center' }}>
                                                 <i data-lucide="calendar" style={{ width: '18px', height: '18px' }}></i>
@@ -9820,7 +10044,7 @@
                         {/* VIEW 2: NEW CUSTOMER ENTRY PANEL */}
                         {viewMode === 'new-customer' && (
                             <React.Fragment>
-                                <div className="panel" style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+                                <div id="tour-newcust-panel" className="panel" style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
                                 <div className="panel-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px' }}>
                                     <h3 className="panel-title" style={{ fontSize: '18px' }}>
                                         <i data-lucide="user-plus" style={{ color: 'var(--primary)' }}></i> {lang === 'TH' ? 'เพิ่มลูกค้าใหม่รายคน' : 'Add New Customer'}
@@ -10990,21 +11214,44 @@
                                                                           </button>
                                                                       </div>
                                                                   )}
-                                                                  {cust.lineLek && (
-                                                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--info-blue)' }}>
-                                                                          <span title={lang === 'TH' ? 'ไลน์เล็ก' : 'LINE Lek'}>👤 {lang === 'TH' ? 'ไลน์เล็ก:' : 'LINE:'} {cust.lineLek}</span>
-                                                                          <button 
-                                                                              style={{ border: 'none', background: 'transparent', color: 'var(--info-blue)', cursor: 'pointer', padding: 0 }}
-                                                                              onClick={() => {
-                                                                                  navigator.clipboard.writeText(cust.lineLek);
-                                                                                  alert(lang === 'TH' ? `คัดลอกไลน์เล็ก ${cust.lineLek} สำเร็จ!` : `Copied LINE Lek ${cust.lineLek} successfully!`);
-                                                                              }}
-                                                                              title={lang === 'TH' ? 'คัดลอกไลน์เล็ก' : 'Copy LINE Lek'}
-                                                                          >
-                                                                              <i data-lucide="copy" style={{ width: '11px', height: '11px' }}></i>
-                                                                          </button>
-                                                                      </div>
-                                                                  )}
+                                                                  {/* 1-Click Quick LINE Status Pills */}
+                                                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', marginTop: '2px' }}>
+                                                                      <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                                                          👤 {lang === 'TH' ? 'ไลน์:' : 'LINE:'}
+                                                                      </span>
+                                                                      {[
+                                                                          { val: 'มี', labelTH: '🟢 มี', labelEN: '🟢 Has', color: '#10b981', bg: 'rgba(16, 185, 129, 0.16)', border: 'rgba(16, 185, 129, 0.45)' },
+                                                                          { val: 'รอแอด', labelTH: '🟡 รอแอด', labelEN: '🟡 Wait', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.16)', border: 'rgba(245, 158, 11, 0.45)' },
+                                                                          { val: 'ไม่มี', labelTH: '⚪ ไม่มี', labelEN: '⚪ None', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.16)', border: 'rgba(148, 163, 184, 0.45)' }
+                                                                      ].map(opt => {
+                                                                          const cur = (cust.lineLek || '').trim();
+                                                                          const isAct = (opt.val === 'มี' && cur && cur !== 'รอแอด' && cur !== 'รอแอดไลน์เล็ก' && cur !== 'ไม่มี' && cur !== 'ไม่มีไลน์เล็ก') ||
+                                                                                        (opt.val === 'รอแอด' && (!cur || cur === 'รอแอด' || cur === 'รอแอดไลน์เล็ก')) ||
+                                                                                        (opt.val === 'ไม่มี' && (cur === 'ไม่มี' || cur === 'ไม่มีไลน์เล็ก'));
+                                                                          return (
+                                                                              <button
+                                                                                  key={opt.val}
+                                                                                  type="button"
+                                                                                  onClick={() => handleQuickLineStatusChange(cust.id, opt.val)}
+                                                                                  style={{
+                                                                                      padding: '1.5px 6px',
+                                                                                      fontSize: '10px',
+                                                                                      fontWeight: isAct ? 800 : 500,
+                                                                                      borderRadius: '10px',
+                                                                                      border: isAct ? `1.5px solid ${opt.color}` : '1px solid rgba(148, 163, 184, 0.22)',
+                                                                                      background: isAct ? opt.bg : 'transparent',
+                                                                                      color: isAct ? opt.color : 'var(--text-muted)',
+                                                                                      cursor: 'pointer',
+                                                                                      opacity: isAct ? 1 : 0.65,
+                                                                                      transition: 'all 0.15s ease'
+                                                                                  }}
+                                                                                  title={lang === 'TH' ? `คลิกเปลี่ยนสถานะไลน์เป็น "${opt.val}" ทันที` : `Set LINE status to "${opt.val}"`}
+                                                                              >
+                                                                                  {lang === 'TH' ? opt.labelTH : opt.labelEN}
+                                                                              </button>
+                                                                          );
+                                                                      })}
+                                                                  </div>
                                                                   {!cust.phone && !cust.lineOA && !cust.lineLek && <span style={{ color: 'var(--text-muted)' }}>{lang === 'TH' ? '(ไม่มีข้อมูลติดต่อ)' : '(No contact info)'}</span>}
                                                               </div>
                                                           </td>
@@ -11070,20 +11317,142 @@
                                                                     </span>
                                                                 )}
                                                             </td>
-                                                            <td style={{ width: '180px', minWidth: '150px', maxWidth: '240px' }}>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'inline-block', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                        {cust.notes || (lang === 'TH' ? '(ไม่มีบันทึก)' : '(No notes)')}
-                                                                    </span>
-                                                                    <button 
-                                                                        id={custIdx === 0 ? "tour-notes-btn" : undefined}
-                                                                        className="btn btn-secondary" 
-                                                                        style={{ padding: '2px 6px', fontSize: '10px', flexShrink: 0 }}
-                                                                        onClick={() => openNotesModal(cust)}
-                                                                    >
-                                                                        <i data-lucide="edit" style={{ width: '10px', height: '10px' }}></i>
-                                                                    </button>
-                                                                </div>
+                                                            <td style={{ width: '210px', minWidth: '180px', maxWidth: '260px', position: 'relative' }}>
+                                                                {quickEditCustId === cust.id ? (
+                                                                    <div style={{
+                                                                        display: 'flex',
+                                                                        flexDirection: 'column',
+                                                                        gap: '6px',
+                                                                        padding: '8px',
+                                                                        borderRadius: '10px',
+                                                                        background: theme === 'light' ? '#f8fafc' : '#111c35',
+                                                                        border: '1.5px solid #a855f7',
+                                                                        boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+                                                                        zIndex: 50
+                                                                    }}>
+                                                                        {/* Quick Input + Enter to Save */}
+                                                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                                                            <input
+                                                                                type="text"
+                                                                                autoFocus
+                                                                                value={quickNoteText}
+                                                                                onChange={(e) => setQuickNoteText(e.target.value)}
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter') handleQuickNoteSave(cust.id, quickNoteText);
+                                                                                    else if (e.key === 'Escape') setQuickEditCustId(null);
+                                                                                }}
+                                                                                placeholder={lang === 'TH' ? 'พิมพ์โน้ตแล้วกด Enter...' : 'Type note & press Enter...'}
+                                                                                style={{
+                                                                                    flex: 1,
+                                                                                    padding: '4px 8px',
+                                                                                    fontSize: '11.5px',
+                                                                                    borderRadius: '6px',
+                                                                                    border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(168, 85, 247, 0.4)',
+                                                                                    background: theme === 'light' ? '#ffffff' : '#0b1325',
+                                                                                    color: theme === 'light' ? '#0f172a' : '#ffffff',
+                                                                                    outline: 'none'
+                                                                                }}
+                                                                            />
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleQuickNoteSave(cust.id, quickNoteText)}
+                                                                                style={{
+                                                                                    padding: '4px 8px',
+                                                                                    fontSize: '10.5px',
+                                                                                    fontWeight: 700,
+                                                                                    borderRadius: '6px',
+                                                                                    border: 'none',
+                                                                                    background: '#10b981',
+                                                                                    color: '#ffffff',
+                                                                                    cursor: 'pointer'
+                                                                                }}
+                                                                                title={lang === 'TH' ? 'บันทึกทันที (Enter)' : 'Save (Enter)'}
+                                                                            >
+                                                                                ✓
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setQuickEditCustId(null)}
+                                                                                style={{
+                                                                                    padding: '4px 6px',
+                                                                                    fontSize: '10.5px',
+                                                                                    borderRadius: '6px',
+                                                                                    border: 'none',
+                                                                                    background: 'rgba(148, 163, 184, 0.2)',
+                                                                                    color: 'var(--text-muted)',
+                                                                                    cursor: 'pointer'
+                                                                                }}
+                                                                                title={lang === 'TH' ? 'ยกเลิก (Esc)' : 'Cancel (Esc)'}
+                                                                            >
+                                                                                ✕
+                                                                            </button>
+                                                                        </div>
+                                                                        {/* 1-Click Quick Preset Chips */}
+                                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                                                                            {QUICK_REMARK_PRESETS.map((preset, pIdx) => {
+                                                                                const textVal = lang === 'TH' ? preset.th : preset.en;
+                                                                                return (
+                                                                                    <button
+                                                                                        key={pIdx}
+                                                                                        type="button"
+                                                                                        onClick={() => handleQuickNoteSave(cust.id, textVal)}
+                                                                                        style={{
+                                                                                            padding: '2px 6px',
+                                                                                            fontSize: '9.5px',
+                                                                                            fontWeight: 600,
+                                                                                            borderRadius: '8px',
+                                                                                            border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.28)',
+                                                                                            background: theme === 'light' ? '#ffffff' : 'rgba(168, 85, 247, 0.12)',
+                                                                                            color: theme === 'light' ? '#475569' : '#e2e8f0',
+                                                                                            cursor: 'pointer',
+                                                                                            whiteSpace: 'nowrap'
+                                                                                        }}
+                                                                                        title={lang === 'TH' ? `คลิกเพื่อบันทึก "${textVal}" ทันที` : `Click to save "${textVal}"`}
+                                                                                    >
+                                                                                        {textVal}
+                                                                                    </button>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                                                                        <div
+                                                                            onClick={() => {
+                                                                                setQuickEditCustId(cust.id);
+                                                                                setQuickNoteText(cust.notes || '');
+                                                                            }}
+                                                                            style={{
+                                                                                flex: 1,
+                                                                                fontSize: '11.5px',
+                                                                                color: cust.notes ? (theme === 'light' ? '#0f172a' : '#f1f5f9') : 'var(--text-muted)',
+                                                                                fontWeight: cust.notes ? 600 : 400,
+                                                                                padding: '4px 8px',
+                                                                                borderRadius: '6px',
+                                                                                background: cust.notes ? (theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.04)') : 'transparent',
+                                                                                border: '1px dashed rgba(148, 163, 184, 0.25)',
+                                                                                cursor: 'pointer',
+                                                                                maxWidth: '155px',
+                                                                                overflow: 'hidden',
+                                                                                textOverflow: 'ellipsis',
+                                                                                whiteSpace: 'nowrap',
+                                                                                transition: 'all 0.15s ease'
+                                                                            }}
+                                                                            title={lang === 'TH' ? `${cust.notes || '(ยังไม่มีโน้ต)'} — คลิกเพื่อบันทึกด่วน!` : `${cust.notes || '(No notes)'} — Click for quick remark!`}
+                                                                        >
+                                                                            {cust.notes ? cust.notes : (lang === 'TH' ? '⚡ + คลิกจดโน้ตด่วน' : '⚡ + Quick Remark')}
+                                                                        </div>
+                                                                        <button 
+                                                                            id={custIdx === 0 ? "tour-notes-btn" : undefined}
+                                                                            className="btn btn-secondary" 
+                                                                            style={{ padding: '3px 7px', fontSize: '10px', flexShrink: 0 }}
+                                                                            onClick={() => openNotesModal(cust)}
+                                                                            title={lang === 'TH' ? 'เปิดหน้าต่างแก้ไขข้อมูลลูกค้าแบบเต็ม' : 'Open full edit modal'}
+                                                                        >
+                                                                            <i data-lucide="edit" style={{ width: '10px', height: '10px' }}></i>
+                                                                        </button>
+                                                                    </div>
+                                                                )}
                                                             </td>
                                                                     </tr>
                                                                 );
@@ -11198,7 +11567,7 @@
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
                                     {/* Header Banner & Unified Sub-Tabs Controller (Compact, Full-Width) */}
-                                    <div className="panel" style={{
+                                    <div id="tour-bo-panel" className="panel" style={{
                                         display: 'flex',
                                         flexDirection: 'column',
                                         gap: '14px',
@@ -12564,7 +12933,7 @@
                                     </div>
                                 </div>
                             ) : (
-                                <div className="panel" style={{ flexDirection: 'column', gap: '20px' }}>
+                                <div id="tour-logs-panel" className="panel" style={{ flexDirection: 'column', gap: '20px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
                                     <div>
                                         <h3 className="panel-title">
@@ -12951,6 +13320,41 @@
                                         <i data-lucide="message-square" style={{ width: '15px', height: '15px', color: '#a855f7' }}></i>
                                         <span>{lang === 'TH' ? 'ประวัติบันทึกความคืบหน้าการติดตามลูกค้า' : 'Follow-Up Progress & Call Notes'}</span>
                                     </label>
+                                    {/* 1-Click Quick Remark Preset Chips inside Modal */}
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '8px' }}>
+                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, width: '100%' }}>
+                                            ⚡ {lang === 'TH' ? 'คลิกเลือกข้อความสำเร็จรูป (กดปุ๊บเติมข้อความทันที):' : '1-Click Quick Remark Presets:'}
+                                        </span>
+                                        {QUICK_REMARK_PRESETS.map((preset, pIdx) => {
+                                            const textVal = lang === 'TH' ? preset.th : preset.en;
+                                            return (
+                                                <button
+                                                    key={pIdx}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const el = document.getElementById('modal-notes-area');
+                                                        if (el) {
+                                                            el.value = el.value ? `${el.value.trim()} | ${textVal}` : textVal;
+                                                            el.focus();
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        padding: '4px 9px',
+                                                        fontSize: '11px',
+                                                        fontWeight: 600,
+                                                        borderRadius: '12px',
+                                                        border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(168, 85, 247, 0.35)',
+                                                        background: theme === 'light' ? '#f8fafc' : 'rgba(168, 85, 247, 0.14)',
+                                                        color: theme === 'light' ? '#334155' : '#e2e8f0',
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.15s ease'
+                                                    }}
+                                                >
+                                                    + {textVal}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                     <textarea 
                                         id="modal-notes-area" 
                                         rows="4" 
@@ -13677,6 +14081,42 @@
 
                             {/* Floating Tooltip Popup Card */}
                             <div className="tour-card-container" style={getTourTooltipStyle()}>
+                                {/* Quick 8-Page Module Jump Bar */}
+                                <div style={{
+                                    display: 'flex',
+                                    gap: '4px',
+                                    overflowX: 'auto',
+                                    paddingBottom: '8px',
+                                    marginBottom: '10px',
+                                    borderBottom: theme === 'light' ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.08)'
+                                }}>
+                                    {TOUR_SECTIONS.map(sec => {
+                                        const isCurrentSec = TOUR_STEPS[tourStep]?.section === sec.key;
+                                        return (
+                                            <button
+                                                key={sec.key}
+                                                type="button"
+                                                onClick={() => jumpToTourSection(sec.firstStepIdx)}
+                                                style={{
+                                                    padding: '3px 8px',
+                                                    fontSize: '10.5px',
+                                                    fontWeight: isCurrentSec ? 800 : 600,
+                                                    borderRadius: '8px',
+                                                    border: isCurrentSec ? '1px solid #a855f7' : '1px solid transparent',
+                                                    background: isCurrentSec ? (theme === 'light' ? '#f3e8ff' : 'rgba(168, 85, 247, 0.25)') : (theme === 'light' ? '#f8fafc' : 'rgba(255,255,255,0.04)'),
+                                                    color: isCurrentSec ? (theme === 'light' ? '#7c3aed' : '#e9d5ff') : 'var(--text-muted)',
+                                                    cursor: 'pointer',
+                                                    whiteSpace: 'nowrap',
+                                                    flexShrink: 0
+                                                }}
+                                                title={lang === 'TH' ? `ข้ามไปดูคู่มือหมวด: ${sec.labelTH}` : `Jump to: ${sec.labelEN}`}
+                                            >
+                                                {lang === 'TH' ? sec.labelTH : sec.labelEN}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
                                 {/* Step header bar */}
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -13851,12 +14291,12 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && (k.indexOf('mc_jsx_cache_v7_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
+                    if (k && (k.indexOf('mc_jsx_cache_v8_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v8_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v9_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
