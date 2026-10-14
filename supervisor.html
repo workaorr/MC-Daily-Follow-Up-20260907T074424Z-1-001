@@ -2741,7 +2741,7 @@
     <script id="mc-app-code" type="text/plain">
         // [MC Build: 20261001-v5-always-visible-trash-button]
         // Force recompile and cache bust
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
 
         function App() {
             // VIEW SWITCHER STATE WITH ROUTE SYNC (Dual Support: Pathname & Query ?view= for Vercel/Static Hosts)
@@ -3156,207 +3156,19 @@
                 }
             ];
 
-            const TOUR_SECTIONS = [
-                { key: 'overview', labelTH: '🏠 ภาพรวม', labelEN: '🏠 Overview', firstStepIdx: 0 },
-                { key: 'agent', labelTH: '👥 ติดตามลูกค้า', labelEN: '👥 MC Agent', firstStepIdx: 3 },
-                { key: 'supervisor', labelTH: '📊 แดชบอร์ด', labelEN: '📊 Dashboard', firstStepIdx: 8 },
-                { key: 'upload-deposits', labelTH: '☁️ อัปโหลดยอด', labelEN: '☁️ Upload', firstStepIdx: 10 },
-                { key: 'new-customer', labelTH: '➕ เพิ่มลูกค้า', labelEN: '➕ Add Lead', firstStepIdx: 11 },
-                { key: 'audit', labelTH: '🛡️ ตรวจงาน', labelEN: '🛡️ Audit', firstStepIdx: 12 },
-                { key: 'backoffice', labelTH: '⚙️ หลังบ้าน', labelEN: '⚙️ BackOffice', firstStepIdx: 13 },
-                { key: 'audit-logs', labelTH: '📜 ประวัติ Log', labelEN: '📜 Logs', firstStepIdx: 14 },
-                { key: 'recycle-bin', labelTH: '🗑️ ถังขยะ', labelEN: '🗑️ Trash', firstStepIdx: 15 }
+            const TOUR_SECTIONS_MASTER = [
+                { key: 'overview', labelTH: '🏠 ภาพรวม', labelEN: '🏠 Overview' },
+                { key: 'agent', labelTH: '👥 ติดตามลูกค้า', labelEN: '👥 MC Agent' },
+                { key: 'supervisor', labelTH: '📊 แดชบอร์ด', labelEN: '📊 Dashboard' },
+                { key: 'upload-deposits', labelTH: '☁️ อัปโหลดยอด', labelEN: '☁️ Upload' },
+                { key: 'new-customer', labelTH: '➕ เพิ่มลูกค้า', labelEN: '➕ Add Lead' },
+                { key: 'audit', labelTH: '🛡️ ตรวจงาน', labelEN: '🛡️ Audit' },
+                { key: 'backoffice', labelTH: '⚙️ หลังบ้าน', labelEN: '⚙️ BackOffice' },
+                { key: 'audit-logs', labelTH: '📜 ประวัติ Log', labelEN: '📜 Logs' },
+                { key: 'recycle-bin', labelTH: '🗑️ ถังขยะ', labelEN: '🗑️ Trash' }
             ];
 
-            const startTour = () => {
-                // Start at the section matching current viewMode, or overview if on agent/supervisor first time
-                const matchingIdx = TOUR_STEPS.findIndex(s => s.requiredView === viewMode);
-                setTourStep(matchingIdx !== -1 ? matchingIdx : 0);
-                setIsTourActive(true);
-            };
-
-            const jumpToTourSection = (stepIdx) => {
-                setTourStep(stepIdx);
-            };
-
-            const closeTour = () => {
-                setIsTourActive(false);
-                setTourTargetRect(null);
-                try {
-                    localStorage.setItem('mc_tour_dismissed', 'true');
-                } catch(e) {}
-
-                // Safely return to primary allowed tab if user closed tour on a restricted page
-                setTimeout(() => {
-                    const isCurrentModeAllowed = 
-                        (viewMode === 'supervisor' && canDashboard) ||
-                        (viewMode === 'agent' && canFollowUp) ||
-                        (viewMode === 'upload-deposits') ||
-                        (viewMode === 'new-customer' && canNewCustomer) ||
-                        (viewMode === 'audit' && canAudit) ||
-                        ((viewMode === 'backoffice' || viewMode === 'audit-logs' || viewMode === 'recycle-bin') && canBackOffice);
-                    if (!isCurrentModeAllowed) {
-                        if (canFollowUp) switchViewMode('agent');
-                        else if (canDashboard) switchViewMode('supervisor');
-                    }
-                }, 60);
-            };
-
-            const nextTourStep = () => {
-                if (tourStep < TOUR_STEPS.length - 1) {
-                    setTourStep(prev => prev + 1);
-                } else {
-                    closeTour();
-                }
-            };
-
-            const prevTourStep = () => {
-                if (tourStep > 0) {
-                    setTourStep(prev => prev - 1);
-                }
-            };
-
-            const updateTourPosition = () => {
-                if (!isTourActive) return;
-                const step = TOUR_STEPS[tourStep];
-                if (!step) return;
-
-                let targetEl = document.getElementById(step.targetId);
-                if (!targetEl && step.fallbackId) {
-                    targetEl = document.getElementById(step.fallbackId);
-                }
-                if (!targetEl) {
-                    targetEl = document.querySelector('.restricted-access-card');
-                }
-
-                if (targetEl) {
-                    const rect = targetEl.getBoundingClientRect();
-                    if (rect.width > 0 && rect.height > 0) {
-                        setTourTargetRect({
-                            top: rect.top,
-                            bottom: rect.bottom,
-                            left: rect.left,
-                            right: rect.right,
-                            width: rect.width,
-                            height: rect.height
-                        });
-                        return;
-                    }
-                }
-                setTourTargetRect(null);
-            };
-
-            useEffect(() => {
-                if (!isTourActive) return;
-                const step = TOUR_STEPS[tourStep];
-                if (!step) return;
-
-                if (step.requiredView && viewMode !== step.requiredView) {
-                    switchViewMode(step.requiredView);
-                }
-
-                const timer = setTimeout(() => {
-                    let targetEl = document.getElementById(step.targetId);
-                    if (!targetEl && step.fallbackId) {
-                        targetEl = document.getElementById(step.fallbackId);
-                    }
-                    if (!targetEl) {
-                        targetEl = document.querySelector('.restricted-access-card');
-                    }
-                    if (targetEl) {
-                        try {
-                            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-                        } catch (e) {}
-                    }
-                    setTimeout(updateTourPosition, 260);
-                }, 150);
-
-                const handleResizeOrScroll = () => {
-                    updateTourPosition();
-                };
-                window.addEventListener('resize', handleResizeOrScroll);
-                window.addEventListener('scroll', handleResizeOrScroll, true);
-
-                const handleKeyDown = (e) => {
-                    if (e.key === 'Escape') closeTour();
-                    else if (e.key === 'ArrowRight' || e.key === 'Enter') nextTourStep();
-                    else if (e.key === 'ArrowLeft') prevTourStep();
-                };
-                window.addEventListener('keydown', handleKeyDown);
-
-                return () => {
-                    clearTimeout(timer);
-                    window.removeEventListener('resize', handleResizeOrScroll);
-                    window.removeEventListener('scroll', handleResizeOrScroll, true);
-                    window.removeEventListener('keydown', handleKeyDown);
-                };
-            }, [isTourActive, tourStep, viewMode]);
-
-            const getTourTooltipStyle = () => {
-                const step = TOUR_STEPS[tourStep] || {};
-                const prefPos = step.position || 'bottom';
-                const cardWidth = 430;
-                const cardHeight = 360;
-                const winW = window.innerWidth;
-                const winH = window.innerHeight;
-
-                if (!tourTargetRect) {
-                    return {
-                        position: 'fixed',
-                        top: `${Math.max(20, (winH - cardHeight) / 2)}px`,
-                        left: `${Math.max(16, (winW - Math.min(cardWidth, winW - 32)) / 2)}px`,
-                        width: `${Math.min(cardWidth, winW - 32)}px`,
-                        zIndex: 999995
-                    };
-                }
-
-                let top = 0;
-                let left = 0;
-
-                if (prefPos === 'bottom') {
-                    top = tourTargetRect.bottom + 14;
-                    left = tourTargetRect.left + (tourTargetRect.width / 2) - (cardWidth / 2);
-                    if (top + cardHeight > winH - 16) {
-                        if (tourTargetRect.top - cardHeight - 14 > 16) {
-                            top = tourTargetRect.top - cardHeight - 14;
-                        } else {
-                            top = Math.max(16, winH - cardHeight - 16);
-                        }
-                    }
-                } else if (prefPos === 'top') {
-                    top = tourTargetRect.top - cardHeight - 14;
-                    left = tourTargetRect.left + (tourTargetRect.width / 2) - (cardWidth / 2);
-                    if (top < 16) {
-                        top = tourTargetRect.bottom + 14;
-                    }
-                } else if (prefPos === 'right') {
-                    left = tourTargetRect.right + 14;
-                    top = tourTargetRect.top + (tourTargetRect.height / 2) - (cardHeight / 2);
-                    if (left + cardWidth > winW - 16) {
-                        left = Math.max(16, tourTargetRect.left - cardWidth - 14);
-                    }
-                } else if (prefPos === 'left') {
-                    left = tourTargetRect.left - cardWidth - 14;
-                    top = tourTargetRect.top + (tourTargetRect.height / 2) - (cardHeight / 2);
-                    if (left < 16) {
-                        left = tourTargetRect.right + 14;
-                    }
-                } else {
-                    top = Math.max(20, (winH - cardHeight) / 2);
-                    left = Math.max(16, (winW - cardWidth) / 2);
-                }
-
-                left = Math.max(16, Math.min(winW - cardWidth - 16, left));
-                top = Math.max(16, Math.min(winH - cardHeight - 16, top));
-
-                return {
-                    position: 'fixed',
-                    top: `${top}px`,
-                    left: `${left}px`,
-                    width: `${Math.min(cardWidth, winW - 32)}px`,
-                    zIndex: 999995
-                };
-            };
+            // (Interactive tour handlers hoisted after permissions block below)
 
             useEffect(() => {
                 localStorage.setItem('mc_lang', lang);
@@ -7015,6 +6827,240 @@
             const canFollowUp = isSupervisor || (activePermissions?.canFollowUp !== false);
             const canNewCustomer = isSupervisor || (activePermissions?.canNewCustomer !== false);
 
+            // 🛡️ ROLE-AWARE ACCESSIBLE TOUR STEPS & MODULE JUMP BAR
+            // Dynamically filter tour steps based on logged-in user role & permissions.
+            // MC Agents (e.g. David) will ONLY be guided through pages they are authorized to access.
+            // Never send unauthorized users to Access-Restricted screens, eliminating any flickering loop!
+            const accessibleTourSteps = useMemo(() => {
+                return TOUR_STEPS.filter(step => {
+                    if (step.requiredView === 'supervisor' && !canDashboard) return false;
+                    if (step.requiredView === 'agent' && !canFollowUp) return false;
+                    if (step.requiredView === 'new-customer' && !canNewCustomer) return false;
+                    if (step.requiredView === 'audit' && !canAudit) return false;
+                    if (['backoffice', 'audit-logs', 'recycle-bin'].includes(step.requiredView) && !canBackOffice) return false;
+                    return true;
+                });
+            }, [canDashboard, canFollowUp, canNewCustomer, canAudit, canBackOffice]);
+
+            const accessibleTourSections = useMemo(() => {
+                const activeSectionKeys = new Set(accessibleTourSteps.map(s => s.section));
+                return TOUR_SECTIONS_MASTER
+                    .filter(sec => activeSectionKeys.has(sec.key))
+                    .map(sec => {
+                        const firstIdx = accessibleTourSteps.findIndex(s => s.section === sec.key);
+                        return { ...sec, firstStepIdx: firstIdx >= 0 ? firstIdx : 0 };
+                    });
+            }, [accessibleTourSteps]);
+
+            const startTour = () => {
+                const matchingIdx = accessibleTourSteps.findIndex(s => s.requiredView === viewMode);
+                setTourStep(matchingIdx !== -1 ? matchingIdx : 0);
+                setIsTourActive(true);
+            };
+
+            const jumpToTourSection = (stepIdx) => {
+                if (stepIdx >= 0 && stepIdx < accessibleTourSteps.length) {
+                    setTourStep(stepIdx);
+                }
+            };
+
+            const closeTour = () => {
+                setIsTourActive(false);
+                setTourTargetRect(null);
+                try {
+                    localStorage.setItem('mc_tour_dismissed', 'true');
+                } catch(e) {}
+
+                // Safely ensure viewMode is an allowed tab when tour closes
+                const isCurrentModeAllowed = 
+                    (viewMode === 'supervisor' && canDashboard) ||
+                    (viewMode === 'agent' && canFollowUp) ||
+                    (viewMode === 'upload-deposits') ||
+                    (viewMode === 'new-customer' && canNewCustomer) ||
+                    (viewMode === 'audit' && canAudit) ||
+                    ((viewMode === 'backoffice' || viewMode === 'audit-logs' || viewMode === 'recycle-bin') && canBackOffice);
+                if (!isCurrentModeAllowed) {
+                    if (canFollowUp) switchViewMode('agent');
+                    else if (canDashboard) switchViewMode('supervisor');
+                    else if (canNewCustomer) switchViewMode('new-customer');
+                    else switchViewMode('upload-deposits');
+                }
+            };
+
+            const nextTourStep = () => {
+                if (tourStep < accessibleTourSteps.length - 1) {
+                    setTourStep(prev => prev + 1);
+                } else {
+                    closeTour();
+                }
+            };
+
+            const prevTourStep = () => {
+                if (tourStep > 0) {
+                    setTourStep(prev => prev - 1);
+                }
+            };
+
+            const updateTourPosition = () => {
+                if (!isTourActive) return;
+                const step = accessibleTourSteps[tourStep];
+                if (!step) return;
+
+                let targetEl = document.getElementById(step.targetId);
+                if (!targetEl && step.fallbackId) {
+                    targetEl = document.getElementById(step.fallbackId);
+                }
+                if (!targetEl) {
+                    targetEl = document.querySelector('.restricted-access-card');
+                }
+
+                if (targetEl) {
+                    const rect = targetEl.getBoundingClientRect();
+                    if (rect.width > 0 && rect.height > 0) {
+                        setTourTargetRect({
+                            top: rect.top,
+                            bottom: rect.bottom,
+                            left: rect.left,
+                            right: rect.right,
+                            width: rect.width,
+                            height: rect.height
+                        });
+                        return;
+                    }
+                }
+                setTourTargetRect(null);
+            };
+
+            useEffect(() => {
+                if (!isTourActive) return;
+                
+                // Keep tourStep within valid bounds for current role
+                if (tourStep >= accessibleTourSteps.length) {
+                    setTourStep(Math.max(0, accessibleTourSteps.length - 1));
+                    return;
+                }
+
+                const step = accessibleTourSteps[tourStep];
+                if (!step) return;
+
+                // 🛡️ Only switch view if user is permitted to view that page!
+                if (step.requiredView && viewMode !== step.requiredView) {
+                    const isViewPermitted = 
+                        (step.requiredView === 'supervisor' && canDashboard) ||
+                        (step.requiredView === 'agent' && canFollowUp) ||
+                        (step.requiredView === 'upload-deposits') ||
+                        (step.requiredView === 'new-customer' && canNewCustomer) ||
+                        (step.requiredView === 'audit' && canAudit) ||
+                        ((step.requiredView === 'backoffice' || step.requiredView === 'audit-logs' || step.requiredView === 'recycle-bin') && canBackOffice);
+
+                    if (isViewPermitted) {
+                        switchViewMode(step.requiredView);
+                    }
+                }
+
+                const timer = setTimeout(() => {
+                    let targetEl = document.getElementById(step.targetId);
+                    if (!targetEl && step.fallbackId) {
+                        targetEl = document.getElementById(step.fallbackId);
+                    }
+                    if (!targetEl) {
+                        targetEl = document.querySelector('.restricted-access-card');
+                    }
+                    if (targetEl) {
+                        try {
+                            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                        } catch (e) {}
+                    }
+                    setTimeout(updateTourPosition, 260);
+                }, 150);
+
+                const handleResizeOrScroll = () => {
+                    updateTourPosition();
+                };
+                window.addEventListener('resize', handleResizeOrScroll);
+                window.addEventListener('scroll', handleResizeOrScroll, true);
+
+                const handleKeyDown = (e) => {
+                    if (e.key === 'Escape') closeTour();
+                    else if (e.key === 'ArrowRight' || e.key === 'Enter') nextTourStep();
+                    else if (e.key === 'ArrowLeft') prevTourStep();
+                };
+                window.addEventListener('keydown', handleKeyDown);
+
+                return () => {
+                    clearTimeout(timer);
+                    window.removeEventListener('resize', handleResizeOrScroll);
+                    window.removeEventListener('scroll', handleResizeOrScroll, true);
+                    window.removeEventListener('keydown', handleKeyDown);
+                };
+            }, [isTourActive, tourStep, viewMode, accessibleTourSteps, canDashboard, canFollowUp, canNewCustomer, canAudit, canBackOffice]);
+
+            const getTourTooltipStyle = () => {
+                const step = accessibleTourSteps[tourStep] || {};
+                const prefPos = step.position || 'bottom';
+                const cardWidth = 430;
+                const cardHeight = 360;
+                const winW = window.innerWidth;
+                const winH = window.innerHeight;
+
+                if (!tourTargetRect) {
+                    return {
+                        position: 'fixed',
+                        top: `${Math.max(20, (winH - cardHeight) / 2)}px`,
+                        left: `${Math.max(16, (winW - Math.min(cardWidth, winW - 32)) / 2)}px`,
+                        width: `${Math.min(cardWidth, winW - 32)}px`,
+                        zIndex: 999995
+                    };
+                }
+
+                let top = 0;
+                let left = 0;
+
+                if (prefPos === 'bottom') {
+                    top = tourTargetRect.bottom + 14;
+                    left = tourTargetRect.left + (tourTargetRect.width / 2) - (cardWidth / 2);
+                    if (top + cardHeight > winH - 16) {
+                        if (tourTargetRect.top - cardHeight - 14 > 16) {
+                            top = tourTargetRect.top - cardHeight - 14;
+                        } else {
+                            top = Math.max(16, winH - cardHeight - 16);
+                        }
+                    }
+                } else if (prefPos === 'top') {
+                    top = tourTargetRect.top - cardHeight - 14;
+                    left = tourTargetRect.left + (tourTargetRect.width / 2) - (cardWidth / 2);
+                    if (top < 16) {
+                        top = tourTargetRect.bottom + 14;
+                    }
+                } else if (prefPos === 'right') {
+                    left = tourTargetRect.right + 14;
+                    top = tourTargetRect.top + (tourTargetRect.height / 2) - (cardHeight / 2);
+                    if (left + cardWidth > winW - 16) {
+                        left = Math.max(16, tourTargetRect.left - cardWidth - 14);
+                    }
+                } else if (prefPos === 'left') {
+                    left = tourTargetRect.left - cardWidth - 14;
+                    top = tourTargetRect.top + (tourTargetRect.height / 2) - (cardHeight / 2);
+                    if (left < 16) {
+                        left = tourTargetRect.right + 14;
+                    }
+                } else {
+                    top = Math.max(20, (winH - cardHeight) / 2);
+                    left = Math.max(16, (winW - cardWidth) / 2);
+                }
+
+                left = Math.max(16, Math.min(winW - cardWidth - 16, left));
+                top = Math.max(16, Math.min(winH - cardHeight - 16, top));
+
+                return {
+                    position: 'fixed',
+                    top: `${top}px`,
+                    left: `${left}px`,
+                    width: `${Math.min(cardWidth, winW - 32)}px`,
+                    zIndex: 999995
+                };
+            };
+
             // Auto-redirect to allowed tab if current viewMode is inaccessible (Prevent loop during interactive tour)
             useEffect(() => {
                 if (isTourActive) return; // 🛡️ CRITICAL: Do NOT bounce redirect while tour is guiding the user!
@@ -7286,7 +7332,7 @@
 
                 // If user clicks a tab/button manually while tour is active, sync tour step seamlessly
                 if (isTourActive) {
-                    const matchingIdx = TOUR_STEPS.findIndex(s => s.requiredView === mode);
+                    const matchingIdx = accessibleTourSteps.findIndex(s => s.requiredView === mode);
                     if (matchingIdx !== -1 && matchingIdx !== tourStep) {
                         setTourStep(matchingIdx);
                     }
@@ -14299,8 +14345,8 @@
                                     marginBottom: '10px',
                                     borderBottom: theme === 'light' ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.08)'
                                 }}>
-                                    {TOUR_SECTIONS.map(sec => {
-                                        const isCurrentSec = TOUR_STEPS[tourStep]?.section === sec.key;
+                                    {accessibleTourSections.map(sec => {
+                                        const isCurrentSec = accessibleTourSteps[tourStep]?.section === sec.key;
                                         return (
                                             <button
                                                 key={sec.key}
@@ -14339,10 +14385,10 @@
                                             letterSpacing: '0.4px',
                                             boxShadow: '0 2px 6px rgba(168, 85, 247, 0.4)'
                                         }}>
-                                            {lang === 'TH' ? (TOUR_STEPS[tourStep]?.badgeTH) : (TOUR_STEPS[tourStep]?.badgeEN)}
+                                            {lang === 'TH' ? (accessibleTourSteps[tourStep]?.badgeTH) : (accessibleTourSteps[tourStep]?.badgeEN)}
                                         </span>
                                         <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>
-                                            {lang === 'TH' ? `ขั้นตอนที่ ${tourStep + 1} จาก ${TOUR_STEPS.length}` : `Step ${tourStep + 1} of ${TOUR_STEPS.length}`}
+                                            {lang === 'TH' ? `ขั้นตอนที่ ${tourStep + 1} จาก ${accessibleTourSteps.length}` : `Step ${tourStep + 1} of ${accessibleTourSteps.length}`}
                                         </span>
                                     </div>
                                     <button
@@ -14375,7 +14421,7 @@
                                     marginBottom: '14px'
                                 }}>
                                     <div style={{
-                                        width: `${((tourStep + 1) / TOUR_STEPS.length) * 100}%`,
+                                        width: `${((tourStep + 1) / accessibleTourSteps.length) * 100}%`,
                                         height: '100%',
                                         background: 'linear-gradient(90deg, #a855f7, #38bdf8)',
                                         transition: 'width 0.3s ease'
@@ -14390,7 +14436,7 @@
                                     margin: '0 0 8px 0',
                                     lineHeight: 1.35
                                 }}>
-                                    {lang === 'TH' ? TOUR_STEPS[tourStep]?.titleTH : TOUR_STEPS[tourStep]?.titleEN}
+                                    {lang === 'TH' ? accessibleTourSteps[tourStep]?.titleTH : accessibleTourSteps[tourStep]?.titleEN}
                                 </h4>
 
                                 {/* Description */}
@@ -14400,7 +14446,7 @@
                                     lineHeight: 1.55,
                                     margin: '0 0 12px 0'
                                 }}>
-                                    {lang === 'TH' ? TOUR_STEPS[tourStep]?.descTH : TOUR_STEPS[tourStep]?.descEN}
+                                    {lang === 'TH' ? accessibleTourSteps[tourStep]?.descTH : accessibleTourSteps[tourStep]?.descEN}
                                 </p>
 
                                 {/* Pro-Tip Box */}
@@ -14414,7 +14460,7 @@
                                     color: theme === 'light' ? '#166534' : '#6ee7b7',
                                     marginBottom: '18px'
                                 }}>
-                                    {lang === 'TH' ? TOUR_STEPS[tourStep]?.tipTH : TOUR_STEPS[tourStep]?.tipEN}
+                                    {lang === 'TH' ? accessibleTourSteps[tourStep]?.tipTH : accessibleTourSteps[tourStep]?.tipEN}
                                 </div>
 
                                 {/* Footer Buttons */}
@@ -14467,7 +14513,7 @@
                                                 gap: '5px'
                                             }}
                                         >
-                                            <span>{tourStep === TOUR_STEPS.length - 1 ? (lang === 'TH' ? 'เข้าใจแล้ว / เริ่มใช้งาน 🎉' : 'Done / Get Started 🎉') : (lang === 'TH' ? 'ถัดไป ▶' : 'Next ▶')}</span>
+                                            <span>{tourStep === accessibleTourSteps.length - 1 ? (lang === 'TH' ? 'เข้าใจแล้ว / เริ่มใช้งาน 🎉' : 'Done / Get Started 🎉') : (lang === 'TH' ? 'ถัดไป ▶' : 'Next ▶')}</span>
                                         </button>
                                     </div>
                                 </div>
@@ -14500,12 +14546,12 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && (k.indexOf('mc_jsx_cache_v12_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
+                    if (k && k.indexOf('mc_jsx_cache_') === 0 && k.indexOf('mc_jsx_cache_v14_') !== 0) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v13_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v14_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
