@@ -4180,6 +4180,17 @@
             const isAddMissingRequired = isAddFullNameEmpty || isAddUsernameEmpty || isAddPhoneEmpty || isAddLineOAEmpty || (formSource === 'เพื่อนแนะนำ' && isReferrerEmpty);
             const isAddCustomerDisabled = isAddMissingRequired || isAddUsernameDuplicate || isAddPhoneDuplicate || isAddLineOADuplicate || hasAddUsernameSpace || isAddReferrerInvalid;
             const [statusFilter, setStatusFilter] = useState('ALL');
+            const [quickNotDepSubFilter, setQuickNotDepSubFilter] = useState('ALL'); // 'ALL', 'HAS_LINE', 'WAITING_LINE', 'OVERDUE_3D', 'CURRENT_MONTH'
+
+            const handleQuickNotDepClick = (subType) => {
+                if (['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) && quickNotDepSubFilter === subType) {
+                    setStatusFilter('ALL');
+                    setQuickNotDepSubFilter('ALL');
+                } else {
+                    setStatusFilter('NOT_DEPOSITED');
+                    setQuickNotDepSubFilter(subType);
+                }
+            };
             const [lineLekFilter, setLineLekFilter] = useState('ALL');
             const [sourceChannelFilter, setSourceChannelFilter] = useState('ทั้งหมด');
             const [pastMonthSpecificFilter, setPastMonthSpecificFilter] = useState('ALL');
@@ -10490,7 +10501,7 @@
                                                 {/* Status Filter Row */}
                                                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                                                     <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>{lang === 'TH' ? '📌 กรองตามสถานะ:' : '📌 Filter Status:'}</span>
-                                                    <button className={`btn ${statusFilter === 'ALL' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '4px 10px', fontSize: '11px' }} onClick={() => setStatusFilter('ALL')}>
+                                                    <button className={`btn ${statusFilter === 'ALL' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '4px 10px', fontSize: '11px' }} onClick={() => { setStatusFilter('ALL'); setQuickNotDepSubFilter('ALL'); }}>
                                                         {lang === 'TH' ? 'ทั้งหมด' : 'All'} ({cAll})
                                                     </button>
                                                     <button className={`btn ${statusFilter === 'NOT_REGISTERED' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '4px 10px', fontSize: '11px', color: '#fbbf24' }} onClick={() => setStatusFilter('NOT_REGISTERED')}>
@@ -10674,6 +10685,14 @@
                             const cScopeDep = scopeCusts.filter(c => c.username && c.username.trim() !== '' && isDepositedAsOfDate(c)).length;
                             const cScopeNotDep = scopeCusts.filter(c => c.username && c.username.trim() !== '' && !isDepositedAsOfDate(c)).length;
 
+                            // Dynamic sub-counts for Quick Target Filter: "สมัครแต่ไม่ฝาก"
+                            const notDepScopeCusts = scopeCusts.filter(c => c.username && c.username.trim() !== '' && !isDepositedAsOfDate(c));
+                            const cNotDepTotal = notDepScopeCusts.length;
+                            const cNotDepHasLine = notDepScopeCusts.filter(c => getLineLekStatus(c.lineLek) === 'HAS').length;
+                            const cNotDepWaiting = notDepScopeCusts.filter(c => getLineLekStatus(c.lineLek) === 'WAITING').length;
+                            const cNotDepOverdue = notDepScopeCusts.filter(c => isOverdue3Days(c, selectedMonth)).length;
+                            const cNotDepCurrentMonth = notDepScopeCusts.filter(c => isCurrentMonth(c)).length;
+
                             const displayList = scopeCusts.filter(c => {
                                 const hasUser = Boolean(c.username && c.username.trim() !== '');
                                 const isDep = isDepositedAsOfDate(c);
@@ -10684,6 +10703,15 @@
                                 if (statusFilter === 'REGISTERED' && !hasUser) return false;
                                 if (statusFilter === 'DEPOSITED' && (!hasUser || !isDep)) return false;
                                 if (['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) && (!hasUser || isDep)) return false;
+
+                                // 🎯 Quick Sub-filter for "สมัครแต่ไม่ฝาก"
+                                if (['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) && quickNotDepSubFilter !== 'ALL') {
+                                    const lineSt = getLineLekStatus(c.lineLek);
+                                    if (quickNotDepSubFilter === 'HAS_LINE' && lineSt !== 'HAS') return false;
+                                    if (quickNotDepSubFilter === 'WAITING_LINE' && lineSt !== 'WAITING') return false;
+                                    if (quickNotDepSubFilter === 'OVERDUE_3D' && !isOverdue3Days(c, selectedMonth)) return false;
+                                    if (quickNotDepSubFilter === 'CURRENT_MONTH' && !isCurrentMonth(c)) return false;
+                                }
 
                                 // Line Lek Filter
                                 if (lineLekFilter && lineLekFilter !== 'ALL' && lineLekFilter !== 'ทั้งหมด') {
@@ -10765,6 +10793,275 @@
                                         {/* Unified Filter Card */}
                                         <div style={{ margin: '0 24px 14px 24px' }}>
                                             <div id="tour-filter-card" className="filter-card-box">
+                                                {/* 🎯 HERO QUICK ACTION RIBBON: โฟกัสงานด่วน "สมัครแต่ไม่ฝาก" */}
+                                                <div style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    flexWrap: 'wrap',
+                                                    gap: '10px',
+                                                    padding: '10px 14px',
+                                                    marginBottom: '12px',
+                                                    borderRadius: '10px',
+                                                    background: theme === 'light'
+                                                        ? 'linear-gradient(135deg, rgba(244, 63, 94, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%)'
+                                                        : 'linear-gradient(135deg, rgba(244, 63, 94, 0.18) 0%, rgba(168, 85, 247, 0.15) 100%)',
+                                                    border: (statusFilter === 'NOT_DEPOSITED')
+                                                        ? '1.5px solid #f43f5e'
+                                                        : (theme === 'light' ? '1px solid rgba(244, 63, 94, 0.25)' : '1px solid rgba(244, 63, 94, 0.35)'),
+                                                    boxShadow: (statusFilter === 'NOT_DEPOSITED')
+                                                        ? '0 4px 18px rgba(244, 63, 94, 0.22)'
+                                                        : 'none',
+                                                    transition: 'all 0.2s ease'
+                                                }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                        <div style={{
+                                                            padding: '4px 9px',
+                                                            borderRadius: '6px',
+                                                            background: '#f43f5e',
+                                                            color: '#ffffff',
+                                                            fontSize: '11px',
+                                                            fontWeight: 800,
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            boxShadow: '0 2px 6px rgba(244, 63, 94, 0.4)'
+                                                        }}>
+                                                            🎯 {lang === 'TH' ? 'ภารกิจหลัก MC' : 'MC Primary Target'}
+                                                        </div>
+                                                        <span style={{
+                                                            fontSize: '12.5px',
+                                                            fontWeight: 700,
+                                                            color: theme === 'light' ? '#0f172a' : '#f8fafc'
+                                                        }}>
+                                                            {lang === 'TH' ? 'ทางลัดคัดกรองด่วน "สมัครแต่ไม่ฝาก":' : 'Quick Filter: Reg (No Deposit):'}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Quick Preset Buttons */}
+                                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                        {/* Button 1: ทั้งหมด */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleQuickNotDepClick('ALL')}
+                                                            style={{
+                                                                padding: '5px 11px',
+                                                                fontSize: '11.5px',
+                                                                fontWeight: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'ALL') ? 800 : 600,
+                                                                borderRadius: '8px',
+                                                                border: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'ALL')
+                                                                    ? '1.5px solid #f43f5e'
+                                                                    : (theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255, 255, 255, 0.12)'),
+                                                                background: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'ALL')
+                                                                    ? '#f43f5e'
+                                                                    : (theme === 'light' ? '#ffffff' : 'rgba(255, 255, 255, 0.05)'),
+                                                                color: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'ALL')
+                                                                    ? '#ffffff'
+                                                                    : (theme === 'light' ? '#334155' : '#cbd5e1'),
+                                                                cursor: 'pointer',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '5px',
+                                                                transition: 'all 0.15s ease'
+                                                            }}
+                                                            title={lang === 'TH' ? 'แสดงลูกค้าที่สมัครแล้วแต่ยังไม่ฝากเงินทั้งหมด' : 'Show all registered customers pending deposit'}
+                                                        >
+                                                            <span>🔴 {lang === 'TH' ? 'ทั้งหมด' : 'All'}</span>
+                                                            <span style={{
+                                                                fontSize: '10.5px',
+                                                                padding: '1px 6px',
+                                                                borderRadius: '10px',
+                                                                background: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'ALL') ? 'rgba(255, 255, 255, 0.28)' : 'rgba(244, 63, 94, 0.14)',
+                                                                color: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'ALL') ? '#ffffff' : '#f43f5e',
+                                                                fontWeight: 800
+                                                            }}>
+                                                                {cNotDepTotal}
+                                                            </span>
+                                                        </button>
+
+                                                        {/* Button 2: มีไลน์ พร้อมทักทันที */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleQuickNotDepClick('HAS_LINE')}
+                                                            style={{
+                                                                padding: '5px 11px',
+                                                                fontSize: '11.5px',
+                                                                fontWeight: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'HAS_LINE') ? 800 : 600,
+                                                                borderRadius: '8px',
+                                                                border: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'HAS_LINE')
+                                                                    ? '1.5px solid #10b981'
+                                                                    : (theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255, 255, 255, 0.12)'),
+                                                                background: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'HAS_LINE')
+                                                                    ? '#10b981'
+                                                                    : (theme === 'light' ? '#ffffff' : 'rgba(255, 255, 255, 0.05)'),
+                                                                color: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'HAS_LINE')
+                                                                    ? '#ffffff'
+                                                                    : (theme === 'light' ? '#065f46' : '#6ee7b7'),
+                                                                cursor: 'pointer',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '5px',
+                                                                transition: 'all 0.15s ease'
+                                                            }}
+                                                            title={lang === 'TH' ? 'ลูกค้าสมัครไม่ฝากที่มีไลน์แล้ว พร้อมทักแชทติดตามได้ทันที' : 'Customers with LINE, ready to follow up'}
+                                                        >
+                                                            <span>💬 {lang === 'TH' ? 'มีไลน์ (พร้อมทักทันที)' : 'Has LINE (Ready)'}</span>
+                                                            <span style={{
+                                                                fontSize: '10.5px',
+                                                                padding: '1px 6px',
+                                                                borderRadius: '10px',
+                                                                background: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'HAS_LINE') ? 'rgba(255, 255, 255, 0.28)' : 'rgba(16, 185, 129, 0.15)',
+                                                                color: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'HAS_LINE') ? '#ffffff' : '#10b981',
+                                                                fontWeight: 800
+                                                            }}>
+                                                                {cNotDepHasLine}
+                                                            </span>
+                                                        </button>
+
+                                                        {/* Button 3: รอแอดไลน์ */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleQuickNotDepClick('WAITING_LINE')}
+                                                            style={{
+                                                                padding: '5px 11px',
+                                                                fontSize: '11.5px',
+                                                                fontWeight: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'WAITING_LINE') ? 800 : 600,
+                                                                borderRadius: '8px',
+                                                                border: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'WAITING_LINE')
+                                                                    ? '1.5px solid #f59e0b'
+                                                                    : (theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255, 255, 255, 0.12)'),
+                                                                background: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'WAITING_LINE')
+                                                                    ? '#f59e0b'
+                                                                    : (theme === 'light' ? '#ffffff' : 'rgba(255, 255, 255, 0.05)'),
+                                                                color: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'WAITING_LINE')
+                                                                    ? '#ffffff'
+                                                                    : (theme === 'light' ? '#b45309' : '#fcd34d'),
+                                                                cursor: 'pointer',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '5px',
+                                                                transition: 'all 0.15s ease'
+                                                            }}
+                                                            title={lang === 'TH' ? 'ลูกค้าสมัครไม่ฝากที่ยังรอแอดไลน์' : 'Pending LINE add'}
+                                                        >
+                                                            <span>🟡 {lang === 'TH' ? 'รอแอดไลน์' : 'Pending LINE'}</span>
+                                                            <span style={{
+                                                                fontSize: '10.5px',
+                                                                padding: '1px 6px',
+                                                                borderRadius: '10px',
+                                                                background: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'WAITING_LINE') ? 'rgba(255, 255, 255, 0.28)' : 'rgba(245, 158, 11, 0.15)',
+                                                                color: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'WAITING_LINE') ? '#ffffff' : '#f59e0b',
+                                                                fontWeight: 800
+                                                            }}>
+                                                                {cNotDepWaiting}
+                                                            </span>
+                                                        </button>
+
+                                                        {/* Button 4: ค้างตาม 3 วัน+ */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleQuickNotDepClick('OVERDUE_3D')}
+                                                            style={{
+                                                                padding: '5px 11px',
+                                                                fontSize: '11.5px',
+                                                                fontWeight: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'OVERDUE_3D') ? 800 : 600,
+                                                                borderRadius: '8px',
+                                                                border: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'OVERDUE_3D')
+                                                                    ? '1.5px solid #ef4444'
+                                                                    : (theme === 'light' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(239, 68, 68, 0.35)'),
+                                                                background: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'OVERDUE_3D')
+                                                                    ? '#ef4444'
+                                                                    : (theme === 'light' ? '#fef2f2' : 'rgba(239, 68, 68, 0.12)'),
+                                                                color: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'OVERDUE_3D')
+                                                                    ? '#ffffff'
+                                                                    : (theme === 'light' ? '#b91c1c' : '#fca5a5'),
+                                                                cursor: 'pointer',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '5px',
+                                                                transition: 'all 0.15s ease'
+                                                            }}
+                                                            title={lang === 'TH' ? 'ลูกค้าที่ค้างการทักติดตามเกิน 3 วันขึ้นไป (ต้องรีบตามด่วน)' : 'Customers overdue for follow-up by 3+ days'}
+                                                        >
+                                                            <span>⚠️ {lang === 'TH' ? 'ค้างตาม 3 วัน+' : 'Overdue 3d+'}</span>
+                                                            <span style={{
+                                                                fontSize: '10.5px',
+                                                                padding: '1px 6px',
+                                                                borderRadius: '10px',
+                                                                background: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'OVERDUE_3D') ? 'rgba(255, 255, 255, 0.28)' : 'rgba(239, 68, 68, 0.2)',
+                                                                color: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'OVERDUE_3D') ? '#ffffff' : '#ef4444',
+                                                                fontWeight: 800
+                                                            }}>
+                                                                {cNotDepOverdue}
+                                                            </span>
+                                                        </button>
+
+                                                        {/* Button 5: ลูกค้าใหม่เดือนนี้ */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleQuickNotDepClick('CURRENT_MONTH')}
+                                                            style={{
+                                                                padding: '5px 11px',
+                                                                fontSize: '11.5px',
+                                                                fontWeight: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'CURRENT_MONTH') ? 800 : 600,
+                                                                borderRadius: '8px',
+                                                                border: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'CURRENT_MONTH')
+                                                                    ? '1.5px solid #8b5cf6'
+                                                                    : (theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255, 255, 255, 0.12)'),
+                                                                background: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'CURRENT_MONTH')
+                                                                    ? '#8b5cf6'
+                                                                    : (theme === 'light' ? '#ffffff' : 'rgba(255, 255, 255, 0.05)'),
+                                                                color: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'CURRENT_MONTH')
+                                                                    ? '#ffffff'
+                                                                    : (theme === 'light' ? '#6d28d9' : '#c4b5fd'),
+                                                                cursor: 'pointer',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '5px',
+                                                                transition: 'all 0.15s ease'
+                                                            }}
+                                                            title={lang === 'TH' ? 'ลูกค้าที่สมัครในรอบเดือนปัจจุบันแล้วยังไม่ฝาก' : 'New leads registered this month'}
+                                                        >
+                                                            <span>✨ {lang === 'TH' ? 'ลูกค้าใหม่เดือนนี้' : 'New This Month'}</span>
+                                                            <span style={{
+                                                                fontSize: '10.5px',
+                                                                padding: '1px 6px',
+                                                                borderRadius: '10px',
+                                                                background: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'CURRENT_MONTH') ? 'rgba(255, 255, 255, 0.28)' : 'rgba(139, 92, 246, 0.15)',
+                                                                color: (statusFilter === 'NOT_DEPOSITED' && quickNotDepSubFilter === 'CURRENT_MONTH') ? '#ffffff' : '#8b5cf6',
+                                                                fontWeight: 800
+                                                            }}>
+                                                                {cNotDepCurrentMonth}
+                                                            </span>
+                                                        </button>
+
+                                                        {/* Clear button if active */}
+                                                        {(statusFilter === 'NOT_DEPOSITED') && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setStatusFilter('ALL');
+                                                                    setQuickNotDepSubFilter('ALL');
+                                                                }}
+                                                                style={{
+                                                                    padding: '4px 8px',
+                                                                    fontSize: '11px',
+                                                                    fontWeight: 700,
+                                                                    borderRadius: '6px',
+                                                                    border: 'none',
+                                                                    background: 'transparent',
+                                                                    color: 'var(--text-muted)',
+                                                                    cursor: 'pointer',
+                                                                    textDecoration: 'underline'
+                                                                }}
+                                                                title={lang === 'TH' ? 'รีเซ็ตกลับสู่สถานะทั้งหมด' : 'Reset filter'}
+                                                            >
+                                                                ✕ {lang === 'TH' ? 'ล้างตัวกรอง' : 'Clear'}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+
                                                 {/* Row 1: Month Dropdown Filter + Customer Status Buttons */}
                                                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
                                                     {/* Month Selector (ฟิลเตอร์ที่เลือกเดือน) */}
@@ -10826,33 +11123,33 @@
                                                         </button>
                                                         <button 
                                                             className={`filter-status-pill ${['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) ? 'active' : ''}`} 
-                                                            onClick={() => setStatusFilter(['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) ? 'ALL' : 'UNCONVERTED')}
+                                                            onClick={() => { setStatusFilter(['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) ? 'ALL' : 'UNCONVERTED'); setQuickNotDepSubFilter('ALL'); }}
                                                             title={lang === 'TH' ? 'ลูกค้าที่ยังไม่เคยฝากเงิน (รวมทั้งยังไม่สมัคร และสมัครแล้วแต่ยังไม่ฝาก)' : 'Customers who have not deposited yet'}
                                                         >
                                                             {lang === 'TH' ? `⏳ ไม่สมัครและไม่ฝาก (${cScopeUnconv})` : `⏳ Unconverted (${cScopeUnconv})`}
                                                         </button>
                                                         <button 
                                                             className={`filter-status-pill ${['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) ? 'active' : ''}`} 
-                                                            onClick={() => setStatusFilter(['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) ? 'ALL' : 'NOT_REGISTERED')}
+                                                            onClick={() => { setStatusFilter(['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) ? 'ALL' : 'NOT_REGISTERED'); setQuickNotDepSubFilter('ALL'); }}
                                                             title={lang === 'TH' ? 'ลูกค้าที่ทักเข้ามาแต่ยังไม่ได้สมัครสมาชิก' : 'Inquired but not registered yet'}
                                                         >
                                                             {lang === 'TH' ? `🟠 ทักไม่สมัคร (${cScopeNotReg})` : `🟠 Inquired (Not Reg) (${cScopeNotReg})`}
                                                         </button>
                                                         <button 
                                                             className={`filter-status-pill ${statusFilter === 'REGISTERED' ? 'active' : ''}`} 
-                                                            onClick={() => setStatusFilter(statusFilter === 'REGISTERED' ? 'ALL' : 'REGISTERED')}
+                                                            onClick={() => { setStatusFilter(statusFilter === 'REGISTERED' ? 'ALL' : 'REGISTERED'); setQuickNotDepSubFilter('ALL'); }}
                                                         >
                                                             {lang === 'TH' ? `🔵 ทักสมัคร (${cScopeReg})` : `🔵 Registered (${cScopeReg})`}
                                                         </button>
                                                         <button 
                                                             className={`filter-status-pill ${statusFilter === 'DEPOSITED' ? 'active' : ''}`} 
-                                                            onClick={() => setStatusFilter(statusFilter === 'DEPOSITED' ? 'ALL' : 'DEPOSITED')}
+                                                            onClick={() => { setStatusFilter(statusFilter === 'DEPOSITED' ? 'ALL' : 'DEPOSITED'); setQuickNotDepSubFilter('ALL'); }}
                                                         >
                                                             {lang === 'TH' ? `🟢 สมัครและฝาก (${cScopeDep})` : `🟢 Reg & Deposited (${cScopeDep})`}
                                                         </button>
                                                         <button 
                                                             className={`filter-status-pill ${['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) ? 'active' : ''}`} 
-                                                            onClick={() => setStatusFilter(['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) ? 'ALL' : 'NOT_DEPOSITED')}
+                                                            onClick={() => handleQuickNotDepClick('ALL')}
                                                             title={lang === 'TH' ? 'ลูกค้าที่มียูสเซอร์แล้วแต่ยังไม่ได้ฝากเงิน' : 'Registered user but no deposit'}
                                                         >
                                                             {lang === 'TH' ? `🔴 สมัครไม่ฝาก (${cScopeNotDep})` : `🔴 Reg (No Deposit) (${cScopeNotDep})`}
@@ -11005,7 +11302,11 @@
                                                             {['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) && (lang === 'TH' ? '🟠 ทักแต่ยังไม่สมัคร' : '🟠 Inquired (Not Reg)')}
                                                             {statusFilter === 'REGISTERED' && (lang === 'TH' ? '🔵 ทักสมัครแล้ว' : '🔵 Registered')}
                                                             {statusFilter === 'DEPOSITED' && (lang === 'TH' ? '🟢 สมัครและฝากแล้ว' : '🟢 Reg & Deposited')}
-                                                            {['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) && (lang === 'TH' ? '🔴 สมัครแล้วแต่ยังไม่ฝาก' : '🔴 Reg (No Deposit)')}
+                                                            {['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) && (
+                                                                lang === 'TH'
+                                                                    ? `🔴 สมัครแล้วแต่ยังไม่ฝาก ${quickNotDepSubFilter === 'HAS_LINE' ? '[💬 มีไลน์ พร้อมทักทันที]' : quickNotDepSubFilter === 'WAITING_LINE' ? '[🟡 รอแอดไลน์]' : quickNotDepSubFilter === 'OVERDUE_3D' ? '[⚠️ ค้างตาม 3 วัน+]' : quickNotDepSubFilter === 'CURRENT_MONTH' ? '[✨ ลูกค้าใหม่เดือนนี้]' : '[ทั้งหมด]'}`
+                                                                    : `🔴 Reg (No Deposit) ${quickNotDepSubFilter === 'HAS_LINE' ? '[💬 Has LINE (Ready)]' : quickNotDepSubFilter === 'WAITING_LINE' ? '[🟡 Pending LINE]' : quickNotDepSubFilter === 'OVERDUE_3D' ? '[⚠️ Overdue 3d+]' : quickNotDepSubFilter === 'CURRENT_MONTH' ? '[✨ New This Month]' : '[All]'}`
+                                                            )}
                                                             {statusFilter === 'ALL' && pastMonthSpecificFilter !== 'ALL' && (lang === 'TH' ? 'ลูกค้าทั้งหมดของรอบเดือนนี้' : 'All portfolio customers in this period')}
                                                         </strong> ({lang === 'TH' ? `พบ ${displayList.length} รายการ` : `${displayList.length} records`})
                                                     </span>
@@ -14291,12 +14592,12 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && (k.indexOf('mc_jsx_cache_v8_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
+                    if (k && (k.indexOf('mc_jsx_cache_v9_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v9_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v10_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
