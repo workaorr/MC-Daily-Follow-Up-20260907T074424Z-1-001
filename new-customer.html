@@ -2947,12 +2947,12 @@
                     requiredView: 'agent',
                     badgeTH: '🔍 หน้าติดตามลูกค้า (1/5)',
                     badgeEN: '🔍 MC Agent (1/5)',
-                    titleTH: 'ตัวกรองเดือนแคมเปญ & คัดกรองกลุ่มลูกค้า',
-                    titleEN: 'Month Selector & Customer Filters',
-                    descTH: 'เลือกเดือนแคมเปญที่ต้องการ และคลิกปุ่มฟิลเตอร์เพื่อคัดกรองเฉพาะกลุ่ม: เช่น "🔴 สมัครไม่ฝาก", "⏳ ไม่สมัครและไม่ฝาก" หรือกรองตามสถานะไลน์ (🟢 มีไลน์ / 🟡 รอแอด / 🔴 ไม่มีไลน์)',
-                    descEN: 'Select campaign month and click quick filters to segment leads: "Reg (No Deposit)", "Unconverted", or filter by LINE status.',
-                    tipTH: '💡 ทริค: กดปุ่ม "🔴 สมัครไม่ฝาก" เพื่อโฟกัสกลุ่มเป้าหมายหลักที่ต้องทักแชทตามยอดฝากได้ทันที',
-                    tipEN: '💡 Pro-tip: Click "🔴 Reg (No Deposit)" to immediately focus on registered leads pending first deposit.',
+                    titleTH: 'ตัวกรองรอบเดือน & ทางลัดคัดกรอง "สมัครแต่ไม่ฝาก"',
+                    titleEN: 'Month Selector & Dynamic Sub-Filters',
+                    descTH: 'เลือกดูงานตามรอบเดือน และคลิกปุ่มสถานะเพื่อคัดกรองงาน โดยเฉพาะเมื่อกดปุ่ม "🔴 สมัครไม่ฝาก" จะมีชิปตัวกรองย่อยคลี่ออกมาให้เลือกทันที: มีไลน์พร้อมทักทันที, รอแอดไลน์ หรือค้างตาม 3 วัน+',
+                    descEN: 'Select campaign month and filter leads. Clicking "🔴 Reg (No Deposit)" smoothly reveals dynamic sub-filters: Has LINE (Ready to Chat), Pending LINE, or Overdue 3d+.',
+                    tipTH: '💡 ทริคใหม่: คลิกปุ่ม "🔴 สมัครไม่ฝาก" แล้วเลือก "💬 มีไลน์ (พร้อมทัก)" เพื่อดึงเคสที่พร้อมทักแชทได้ทันทีในคลิกเดียว!',
+                    tipEN: '💡 Pro-tip: Click "🔴 Reg (No Deposit)" then pick "💬 Has LINE (Ready)" to isolate immediately actionable leads with 1 click!',
                     position: 'bottom'
                 },
                 {
@@ -14476,12 +14476,12 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && (k.indexOf('mc_jsx_cache_v10_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
+                    if (k && (k.indexOf('mc_jsx_cache_v11_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v11_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v12_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
