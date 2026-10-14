@@ -3185,6 +3185,21 @@
                 try {
                     localStorage.setItem('mc_tour_dismissed', 'true');
                 } catch(e) {}
+
+                // Safely return to primary allowed tab if user closed tour on a restricted page
+                setTimeout(() => {
+                    const isCurrentModeAllowed = 
+                        (viewMode === 'supervisor' && canDashboard) ||
+                        (viewMode === 'agent' && canFollowUp) ||
+                        (viewMode === 'upload-deposits') ||
+                        (viewMode === 'new-customer' && canNewCustomer) ||
+                        (viewMode === 'audit' && canAudit) ||
+                        ((viewMode === 'backoffice' || viewMode === 'audit-logs' || viewMode === 'recycle-bin') && canBackOffice);
+                    if (!isCurrentModeAllowed) {
+                        if (canFollowUp) switchViewMode('agent');
+                        else if (canDashboard) switchViewMode('supervisor');
+                    }
+                }, 60);
             };
 
             const nextTourStep = () => {
@@ -7000,8 +7015,9 @@
             const canFollowUp = isSupervisor || (activePermissions?.canFollowUp !== false);
             const canNewCustomer = isSupervisor || (activePermissions?.canNewCustomer !== false);
 
-            // Auto-redirect to allowed tab if current viewMode is inaccessible
+            // Auto-redirect to allowed tab if current viewMode is inaccessible (Prevent loop during interactive tour)
             useEffect(() => {
+                if (isTourActive) return; // 🛡️ CRITICAL: Do NOT bounce redirect while tour is guiding the user!
                 const isCurrentModeAllowed = 
                     (viewMode === 'supervisor' && canDashboard) ||
                     (viewMode === 'agent' && canFollowUp) ||
@@ -7016,7 +7032,7 @@
                     else if (canNewCustomer) switchViewMode('new-customer');
                     else switchViewMode('upload-deposits');
                 }
-            }, [viewMode, canAudit, canBackOffice, canDashboard, canFollowUp, canNewCustomer]);
+            }, [viewMode, canAudit, canBackOffice, canDashboard, canFollowUp, canNewCustomer, isTourActive]);
 
             // Security: If current active account is suspended/deactivated, immediately logout
             useEffect(() => {
@@ -7266,6 +7282,14 @@
                 } else {
                     setStartDateFilter('');
                     setEndDateFilter('');
+                }
+
+                // If user clicks a tab/button manually while tour is active, sync tour step seamlessly
+                if (isTourActive) {
+                    const matchingIdx = TOUR_STEPS.findIndex(s => s.requiredView === mode);
+                    if (matchingIdx !== -1 && matchingIdx !== tourStep) {
+                        setTourStep(matchingIdx);
+                    }
                 }
             };
 
@@ -14476,12 +14500,12 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && (k.indexOf('mc_jsx_cache_v11_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
+                    if (k && (k.indexOf('mc_jsx_cache_v12_') === 0 || k.indexOf('mc_jsx_cache_v2_') === 0 || (isPurge && k.indexOf('mc_jsx_cache') === 0))) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v12_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v13_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
