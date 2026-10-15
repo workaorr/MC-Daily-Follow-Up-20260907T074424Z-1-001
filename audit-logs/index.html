@@ -3575,8 +3575,8 @@
                 return `${y}-${m}-${dayStr}`;
             };
             const [backofficeSearch, setBackofficeSearch] = useState('');
-            const [startDateFilter, setStartDateFilter] = useState(getTodayLocalDateStr);
-            const [endDateFilter, setEndDateFilter] = useState(getTodayLocalDateStr);
+            const [startDateFilter, setStartDateFilter] = useState('');
+            const [endDateFilter, setEndDateFilter] = useState('');
 
             // Central Database Control Center (Customer DB) Filter States (Default to 'ALL' to show full database)
             const [boMonthFilter, setBoMonthFilter] = useState('ALL');
@@ -7322,9 +7322,9 @@
             const switchViewMode = (mode) => {
                 setViewMode(mode);
                 if (mode === 'supervisor') {
-                    const today = getTodayLocalDateStr();
-                    setStartDateFilter(today);
-                    setEndDateFilter(today);
+                    // Default to full month overview so supervisor sees complete stats immediately
+                    setStartDateFilter('');
+                    setEndDateFilter('');
                 } else {
                     setStartDateFilter('');
                     setEndDateFilter('');
@@ -8429,7 +8429,13 @@
                                             <select 
                                                 className="select-input" 
                                                 value={selectedMonth}
-                                                onChange={(e) => setSelectedMonth(e.target.value)}
+                                                onChange={(e) => {
+                                                    const newMonth = e.target.value;
+                                                    setSelectedMonth(newMonth);
+                                                    // 🚀 Auto-clear daily date filter when switching campaign month so historical records display immediately
+                                                    setStartDateFilter('');
+                                                    setEndDateFilter('');
+                                                }}
                                                 style={{ minWidth: '180px' }}
                                             >
                                                 {monthsList.map(m => {
@@ -8472,6 +8478,10 @@
                                                                 className={`btn filter-status-pill ${isFilterToday ? 'active' : ''}`} 
                                                                 style={{ padding: '3px 9px', fontSize: '11px' }}
                                                                 onClick={() => {
+                                                                    // If currently viewing a past month, switch back to current month so today's leads are found
+                                                                    if (selectedMonth !== 'ALL' && selectedMonth !== currentMonthStr) {
+                                                                        setSelectedMonth(currentMonthStr);
+                                                                    }
                                                                     setStartDateFilter(todayVal);
                                                                     setEndDateFilter(todayVal);
                                                                 }}
@@ -9554,7 +9564,13 @@
                                                 <select 
                                                     className="select-input" 
                                                     value={selectedMonth}
-                                                    onChange={(e) => setSelectedMonth(e.target.value)}
+                                                    onChange={(e) => {
+                                                        const newMonth = e.target.value;
+                                                        setSelectedMonth(newMonth);
+                                                        // 🚀 Auto-clear daily date filter when switching campaign month
+                                                        setStartDateFilter('');
+                                                        setEndDateFilter('');
+                                                    }}
                                                     style={{ 
                                                         minWidth: '220px', 
                                                         padding: '7px 14px', 
@@ -14546,12 +14562,12 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && k.indexOf('mc_jsx_cache_') === 0 && k.indexOf('mc_jsx_cache_v14_') !== 0) {
+                    if (k && k.indexOf('mc_jsx_cache_') === 0 && k.indexOf('mc_jsx_cache_v15_') !== 0) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v14_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v15_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
