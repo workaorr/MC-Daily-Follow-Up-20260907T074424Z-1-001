@@ -3224,6 +3224,7 @@
                     lang === 'TH' ? 'Line OA' : 'Line OA',
                     lang === 'TH' ? 'สถานะไลน์เล็ก' : 'Line Lek Status',
                     lang === 'TH' ? 'ช่องทางสมัคร' : 'Source Channel',
+                    lang === 'TH' ? 'ผู้แนะนำ (Referrer)' : 'Referrer',
                     lang === 'TH' ? 'ผู้ดูแลหลัก (Owner)' : 'Owner Agent',
                     lang === 'TH' ? 'ยอดฝากเงินสะสม' : 'Total Deposit Amount',
                     lang === 'TH' ? 'สถานะการฝาก' : 'Deposit Status',
@@ -3249,6 +3250,7 @@
                         `"${(c.lineOA || '').replace(/"/g, '""')}"`,
                         `"${(c.lineLek || '').replace(/"/g, '""')}"`,
                         `"${(c.sourceChannel || '').replace(/"/g, '""')}"`,
+                        `"${(c.referrer || '-').replace(/"/g, '""')}"`,
                         `"${(c.createdBy || '').replace(/"/g, '""')}"`,
                         c.totalDeposit || 0,
                         c.hasDeposited ? (lang === 'TH' ? 'ฝากแล้ว' : 'Deposited') : (lang === 'TH' ? 'ยังไม่ฝาก' : 'Pending Deposit'),
@@ -3288,6 +3290,7 @@
                             lang === 'TH' ? 'Line OA' : 'Line OA',
                             lang === 'TH' ? 'สถานะไลน์เล็ก' : 'Line Lek Status',
                             lang === 'TH' ? 'ช่องทางสมัคร' : 'Source Channel',
+                            lang === 'TH' ? 'ผู้แนะนำ (Referrer)' : 'Referrer',
                             lang === 'TH' ? 'ผู้ดูแลหลัก (Owner)' : 'Owner Agent',
                             lang === 'TH' ? 'ยอดฝากเงินสะสม' : 'Total Deposit Amount',
                             lang === 'TH' ? 'สถานะการฝาก' : 'Deposit Status',
@@ -3313,6 +3316,7 @@
                                 c.lineOA || '',
                                 c.lineLek || '',
                                 c.sourceChannel || '',
+                                String(c.referrer || '-'),
                                 c.createdBy || '',
                                 Number(c.totalDeposit) || 0,
                                 c.hasDeposited ? (lang === 'TH' ? 'ฝากแล้ว' : 'Deposited') : (lang === 'TH' ? 'ยังไม่ฝาก' : 'Pending Deposit'),
@@ -3334,6 +3338,10 @@
 
                             const pRef = XLSX.utils.encode_cell({ r: R, c: 5 });
                             if (ws[pRef]) { ws[pRef].t = 's'; ws[pRef].z = '@'; }
+
+                            // Col 9: Referrer
+                            const refRef = XLSX.utils.encode_cell({ r: R, c: 9 });
+                            if (ws[refRef]) { ws[refRef].t = 's'; ws[refRef].z = '@'; }
                         }
 
                         // Auto-fit column widths nicely
@@ -3610,6 +3618,7 @@
                     'LINE ID',
                     'สถานะไลน์เล็ก',
                     'ช่องทางสมัคร',
+                    'ผู้แนะนำ (Referrer)',
                     'ผู้ดูแลหลัก (Owner)',
                     'ยอดฝากสะสม (บาท)',
                     'สถานะฝากเงิน',
@@ -3622,6 +3631,7 @@
                     'LINE ID',
                     'LINE OA Status',
                     'Source Channel',
+                    'Referrer',
                     'Owner Agent',
                     'Total Deposit (THB)',
                     'Deposit Status',
@@ -3638,6 +3648,7 @@
                             c.lineOA || '-',
                             c.lineLek || (lang === 'TH' ? 'รอแอด' : 'Pending Add'),
                             c.sourceChannel || '-',
+                            c.referrer || '-',
                             c.createdBy || '-',
                             Number(c.totalDeposit) || 0,
                             c.hasDeposited ? (lang === 'TH' ? 'ฝากเงินแล้ว' : 'Deposited') : (lang === 'TH' ? 'ค้างฝาก' : 'Pending'),
@@ -3650,6 +3661,8 @@
                             if (ws[uRef]) { ws[uRef].t = 's'; ws[uRef].z = '@'; }
                             const pRef = XLSX.utils.encode_cell({ r: R, c: 3 });
                             if (ws[pRef]) { ws[pRef].t = 's'; ws[pRef].z = '@'; }
+                            const refRef = XLSX.utils.encode_cell({ r: R, c: 7 });
+                            if (ws[refRef]) { ws[refRef].t = 's'; ws[refRef].z = '@'; }
                         }
                         const colWidths = headers.map((h, i) => {
                             let maxLen = h.length * 2;
@@ -3680,6 +3693,7 @@
                     sanitizeCsvCell(c.lineOA || '-'),
                     sanitizeCsvCell(c.lineLek || (lang === 'TH' ? 'รอแอด' : 'Pending Add')),
                     sanitizeCsvCell(c.sourceChannel || '-'),
+                    sanitizeCsvCell(c.referrer || '-'),
                     sanitizeCsvCell(c.createdBy || '-'),
                     c.totalDeposit || 0,
                     sanitizeCsvCell(c.hasDeposited ? (lang === 'TH' ? 'ฝากเงินแล้ว' : 'Deposited') : (lang === 'TH' ? 'ค้างฝาก' : 'Pending')),
@@ -4520,6 +4534,7 @@
                                 lineOA: c.line_oa || '',
                                 lineLek: c.line_lek || '',
                                 sourceChannel: c.source_channel || 'Facebook',
+                                referrer: c.referrer || '',
                                 totalDeposit: parseFloat(c.total_deposit || 0),
                                 createdBy: c.created_by || 'ระบบกลาง',
                                 campaignMonth: c.campaign_month || (c.created_at ? c.created_at.substring(0, 7) : currentMonthStr),
@@ -4688,6 +4703,7 @@
                                         lineOA: r.line_oa || '',
                                         lineLek: r.line_lek || '',
                                         sourceChannel: r.source_channel || 'Facebook',
+                                        referrer: r.referrer || '',
                                         totalDeposit: parseFloat(r.total_deposit || 0),
                                         createdBy: r.created_by || 'ระบบกลาง',
                                         campaignMonth: r.campaign_month || (r.created_at ? r.created_at.substring(0, 7) : currentMonthStr),
@@ -4724,6 +4740,7 @@
                                             lineOA: r.line_oa || '',
                                             lineLek: r.line_lek || '',
                                             sourceChannel: r.source_channel || 'Facebook',
+                                            referrer: r.referrer || '',
                                             totalDeposit: parseFloat(r.total_deposit || 0),
                                             createdBy: r.created_by || 'ระบบกลาง',
                                             campaignMonth: r.campaign_month || (r.created_at ? r.created_at.substring(0, 7) : currentMonthStr),
@@ -4760,6 +4777,7 @@
                                                 lineOA: r.line_oa !== undefined ? r.line_oa : '',
                                                 lineLek: r.line_lek !== undefined ? r.line_lek : '',
                                                 sourceChannel: r.source_channel !== undefined ? r.source_channel : 'Facebook',
+                                                referrer: r.referrer !== undefined ? (r.referrer || '') : (cur.find(c => c.id === r.id)?.referrer || ''),
                                                 totalDeposit: r.total_deposit !== undefined ? parseFloat(r.total_deposit || 0) : 0,
                                                 createdBy: r.created_by !== undefined ? r.created_by : 'ระบบกลาง',
                                                 campaignMonth: r.campaign_month !== undefined ? r.campaign_month : currentMonthStr,
@@ -14737,12 +14755,12 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && k.indexOf('mc_jsx_cache_') === 0 && k.indexOf('mc_jsx_cache_v16_') !== 0) {
+                    if (k && k.indexOf('mc_jsx_cache_') === 0 && k.indexOf('mc_jsx_cache_v17_') !== 0) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v16_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v17_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
