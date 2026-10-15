@@ -3207,6 +3207,21 @@
                 setTheme(nextTheme);
             };
 
+            const getCustomerKpiCategory = (c) => {
+                const hasUser = Boolean(c.username && String(c.username).trim() !== '');
+                const hasDep = Boolean(c.hasDeposited || (Number(c.totalDeposit) > 0));
+                if (!hasUser) {
+                    return lang === 'TH' ? 'ทักแต่ไม่สมัคร' : 'Inquired (Not Registered)';
+                }
+                if (hasDep) {
+                    if (Number(c.returnedDepositAmount) > 0) {
+                        return lang === 'TH' ? 'ลูกค้าฝากซ้ำ' : 'Repeat Depositor';
+                    }
+                    return lang === 'TH' ? 'สมัครและฝากเงินแล้ว' : 'Registered & Deposited';
+                }
+                return lang === 'TH' ? 'สมัครแต่ไม่ฝาก' : 'Registered (Pending Deposit)';
+            };
+
             const exportCustomersToCSV = (targetList, filename = 'MC_Customer_List.csv') => {
                 const listToExport = targetList || filteredCustomers;
                 if (!listToExport || listToExport.length === 0) {
@@ -3226,6 +3241,7 @@
                     lang === 'TH' ? 'ช่องทางสมัคร' : 'Source Channel',
                     lang === 'TH' ? 'ผู้แนะนำ (Referrer)' : 'Referrer',
                     lang === 'TH' ? 'ผู้ดูแลหลัก (Owner)' : 'Owner Agent',
+                    lang === 'TH' ? 'กลุ่มสถานะลูกค้า (KPI)' : 'Customer Segment (KPI)',
                     lang === 'TH' ? 'ยอดฝากเงินสะสม' : 'Total Deposit Amount',
                     lang === 'TH' ? 'สถานะการฝาก' : 'Deposit Status',
                     lang === 'TH' ? 'ประวัติการติ๊กตาม (1-31)' : 'Follow-Up Days (1-31)',
@@ -3252,6 +3268,7 @@
                         `"${(c.sourceChannel || '').replace(/"/g, '""')}"`,
                         `"${(c.referrer || '-').replace(/"/g, '""')}"`,
                         `"${(c.createdBy || '').replace(/"/g, '""')}"`,
+                        `"${getCustomerKpiCategory(c)}"`,
                         c.totalDeposit || 0,
                         c.hasDeposited ? (lang === 'TH' ? 'ฝากแล้ว' : 'Deposited') : (lang === 'TH' ? 'ยังไม่ฝาก' : 'Pending Deposit'),
                         `"${followUpDays.replace(/"/g, '""')}"`,
@@ -3292,6 +3309,7 @@
                             lang === 'TH' ? 'ช่องทางสมัคร' : 'Source Channel',
                             lang === 'TH' ? 'ผู้แนะนำ (Referrer)' : 'Referrer',
                             lang === 'TH' ? 'ผู้ดูแลหลัก (Owner)' : 'Owner Agent',
+                            lang === 'TH' ? 'กลุ่มสถานะลูกค้า (KPI)' : 'Customer Segment (KPI)',
                             lang === 'TH' ? 'ยอดฝากเงินสะสม' : 'Total Deposit Amount',
                             lang === 'TH' ? 'สถานะการฝาก' : 'Deposit Status',
                             lang === 'TH' ? 'ประวัติการติ๊กตาม (1-31)' : 'Follow-Up Days (1-31)',
@@ -3318,6 +3336,7 @@
                                 c.sourceChannel || '',
                                 String(c.referrer || '-'),
                                 c.createdBy || '',
+                                getCustomerKpiCategory(c),
                                 Number(c.totalDeposit) || 0,
                                 c.hasDeposited ? (lang === 'TH' ? 'ฝากแล้ว' : 'Deposited') : (lang === 'TH' ? 'ยังไม่ฝาก' : 'Pending Deposit'),
                                 followUpDays,
@@ -3620,6 +3639,7 @@
                     'ช่องทางสมัคร',
                     'ผู้แนะนำ (Referrer)',
                     'ผู้ดูแลหลัก (Owner)',
+                    'กลุ่มสถานะลูกค้า (KPI)',
                     'ยอดฝากสะสม (บาท)',
                     'สถานะฝากเงิน',
                     'รอบเดือน'
@@ -3633,6 +3653,7 @@
                     'Source Channel',
                     'Referrer',
                     'Owner Agent',
+                    'Customer Segment (KPI)',
                     'Total Deposit (THB)',
                     'Deposit Status',
                     'Campaign Month'
@@ -3650,6 +3671,7 @@
                             c.sourceChannel || '-',
                             c.referrer || '-',
                             c.createdBy || '-',
+                            getCustomerKpiCategory(c),
                             Number(c.totalDeposit) || 0,
                             c.hasDeposited ? (lang === 'TH' ? 'ฝากเงินแล้ว' : 'Deposited') : (lang === 'TH' ? 'ค้างฝาก' : 'Pending'),
                             c.campaignMonth || selectedMonth
@@ -3695,6 +3717,7 @@
                     sanitizeCsvCell(c.sourceChannel || '-'),
                     sanitizeCsvCell(c.referrer || '-'),
                     sanitizeCsvCell(c.createdBy || '-'),
+                    sanitizeCsvCell(getCustomerKpiCategory(c)),
                     c.totalDeposit || 0,
                     sanitizeCsvCell(c.hasDeposited ? (lang === 'TH' ? 'ฝากเงินแล้ว' : 'Deposited') : (lang === 'TH' ? 'ค้างฝาก' : 'Pending')),
                     sanitizeCsvCell(c.campaignMonth || selectedMonth)
@@ -14755,12 +14778,12 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && k.indexOf('mc_jsx_cache_') === 0 && k.indexOf('mc_jsx_cache_v17_') !== 0) {
+                    if (k && k.indexOf('mc_jsx_cache_') === 0 && k.indexOf('mc_jsx_cache_v18_') !== 0) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v17_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v18_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
