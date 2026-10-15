@@ -3028,10 +3028,10 @@
                     requiredView: 'supervisor',
                     badgeTH: '📊 หน้าแดชบอร์ด (1/2)',
                     badgeEN: '📊 Dashboard (1/2)',
-                    titleTH: 'ตัวกรองรอบเดือน ช่วงวันที่ และปุ่ม Export CSV',
+                    titleTH: 'ตัวกรองรอบเดือน ช่วงวันที่ และปุ่มดาวน์โหลด Excel (.xlsx)',
                     titleEN: 'Campaign Period, Date Range & CSV Export',
-                    descTH: 'ในหน้าแดชบอร์ดสรุป หัวหน้างานสามารถเลือกดูข้อมูลตามรอบเดือน หรือกรองเฉพาะช่วงวันที่คีย์งาน พร้อมกดปุ่ม "ดาวน์โหลด CSV" เพื่อนำข้อมูลลูกค้าไปสำรองหรือวิเคราะห์ต่อได้ทันที',
-                    descEN: 'Filter dashboard metrics by campaign month or custom date range, and click "Export CSV" to download backup reports.',
+                    descTH: 'ในหน้าแดชบอร์ดสรุป หัวหน้างานสามารถเลือกดูข้อมูลตามรอบเดือน หรือกรองเฉพาะช่วงวันที่คีย์งาน พร้อมกดปุ่ม "ดาวน์โหลด Excel (.xlsx)" เพื่อนำข้อมูลลูกค้าไปสำรองหรือวิเคราะห์ต่อได้ทันที',
+                    descEN: 'Filter dashboard metrics by campaign month or custom date range, and click "Export Excel (.xlsx)" to download backup reports.',
                     tipTH: '💡 กดปุ่ม "✓ วันนี้" เพื่อดูสรุปยอดลูกค้าใหม่ที่เพิ่งคีย์เข้ามาในวันนี้แบบเรียลไทม์',
                     tipEN: '💡 Click "✓ Today" to inspect leads added today in real time.',
                     position: 'bottom'
@@ -3267,6 +3267,105 @@
                 link.click();
                 document.body.removeChild(link);
             };
+
+            const exportCustomersToExcel = (targetList, filename = 'MC_Customer_List.xlsx') => {
+                const listToExport = targetList || filteredCustomers;
+                if (!listToExport || listToExport.length === 0) {
+                    alert(lang === 'TH' ? 'ไม่มีข้อมูลสำหรับดาวน์โหลด Excel' : 'No data available for Excel export');
+                    return;
+                }
+
+                // If XLSX library is available, export high quality .xlsx with preserved string formats & auto column widths
+                if (typeof XLSX !== 'undefined') {
+                    try {
+                        const headers = [
+                            'ID',
+                            lang === 'TH' ? 'วันที่คีย์สมัคร' : 'Registration Date',
+                            lang === 'TH' ? 'รอบเดือน' : 'Campaign Month',
+                            lang === 'TH' ? 'ชื่อ-นามสกุล' : 'Full Name',
+                            lang === 'TH' ? 'ยูสเซอร์เนม' : 'Username',
+                            lang === 'TH' ? 'เบอร์โทร' : 'Phone',
+                            lang === 'TH' ? 'Line OA' : 'Line OA',
+                            lang === 'TH' ? 'สถานะไลน์เล็ก' : 'Line Lek Status',
+                            lang === 'TH' ? 'ช่องทางสมัคร' : 'Source Channel',
+                            lang === 'TH' ? 'ผู้ดูแลหลัก (Owner)' : 'Owner Agent',
+                            lang === 'TH' ? 'ยอดฝากเงินสะสม' : 'Total Deposit Amount',
+                            lang === 'TH' ? 'สถานะการฝาก' : 'Deposit Status',
+                            lang === 'TH' ? 'ประวัติการติ๊กตาม (1-31)' : 'Follow-Up Days (1-31)',
+                            lang === 'TH' ? 'โน้ตรายละเอียด' : 'Notes'
+                        ];
+
+                        const dataRows = listToExport.map(c => {
+                            const followUpDays = c.followUp
+                                ? Object.entries(c.followUp)
+                                    .filter(([_, val]) => val)
+                                    .map(([d]) => lang === 'TH' ? `วันที่ ${d}` : `Day ${d}`)
+                                    .join(', ')
+                                : '';
+
+                            return [
+                                String(c.id != null ? c.id : ''),
+                                c.createdAt ? c.createdAt.substring(0, 10) : (c.registrationDate || ''),
+                                c.campaignMonth || '',
+                                c.fullName || '',
+                                c.username || '',
+                                String(c.phone || ''),
+                                c.lineOA || '',
+                                c.lineLek || '',
+                                c.sourceChannel || '',
+                                c.createdBy || '',
+                                Number(c.totalDeposit) || 0,
+                                c.hasDeposited ? (lang === 'TH' ? 'ฝากแล้ว' : 'Deposited') : (lang === 'TH' ? 'ยังไม่ฝาก' : 'Pending Deposit'),
+                                followUpDays,
+                                c.notes || ''
+                            ];
+                        });
+
+                        const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+
+                        // Explicitly set text format ('s') for ID, Username, and Phone so leading zeroes are never lost in Excel
+                        const range = XLSX.utils.decode_range(ws['!ref']);
+                        for (let R = 1; R <= range.e.r; ++R) {
+                            const idRef = XLSX.utils.encode_cell({ r: R, c: 0 });
+                            if (ws[idRef]) { ws[idRef].t = 's'; ws[idRef].z = '@'; }
+
+                            const uRef = XLSX.utils.encode_cell({ r: R, c: 4 });
+                            if (ws[uRef]) { ws[uRef].t = 's'; ws[uRef].z = '@'; }
+
+                            const pRef = XLSX.utils.encode_cell({ r: R, c: 5 });
+                            if (ws[pRef]) { ws[pRef].t = 's'; ws[pRef].z = '@'; }
+                        }
+
+                        // Auto-fit column widths nicely
+                        const colWidths = headers.map((h, i) => {
+                            let maxLen = h.length * 2;
+                            for (let R = 0; R < dataRows.length; ++R) {
+                                const val = dataRows[R][i];
+                                const strVal = val != null ? String(val) : '';
+                                if (strVal.length > maxLen) {
+                                    maxLen = Math.min(strVal.length + 4, 45);
+                                }
+                            }
+                            return { wch: Math.max(maxLen, 12) };
+                        });
+                        ws['!cols'] = colWidths;
+
+                        const wb = XLSX.utils.book_new();
+                        const sheetTitle = selectedMonth === 'ALL' ? 'ลูกค้าทั้งหมด' : `ลูกค้า_${selectedMonth.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+                        XLSX.utils.book_append_sheet(wb, ws, sheetTitle.substring(0, 31));
+
+                        const xlsxFilename = filename.endsWith('.xlsx') ? filename : filename.replace(/\.csv$/, '') + '.xlsx';
+                        XLSX.writeFile(wb, xlsxFilename);
+                        return;
+                    } catch (e) {
+                        console.error('Failed to export XLSX via SheetJS, falling back to CSV:', e);
+                    }
+                }
+
+                // Fallback to CSV if XLSX fails or library not loaded
+                exportCustomersToCSV(listToExport, filename.replace(/\.xlsx$/, '.csv'));
+            };
+
 
             const exportLogsToCSV = (filename = 'MC_Audit_Logs.csv') => {
                 if (!logs || logs.length === 0) {
@@ -3528,6 +3627,51 @@
                     'Deposit Status',
                     'Campaign Month'
                 ];
+
+                if (typeof XLSX !== 'undefined') {
+                    try {
+                        const dataRows = reportCusts.map((c, i) => [
+                            i + 1,
+                            c.fullName || '-',
+                            c.username || (lang === 'TH' ? 'ค้างสมัคร' : 'Unregistered'),
+                            String(c.phone || '-'),
+                            c.lineOA || '-',
+                            c.lineLek || (lang === 'TH' ? 'รอแอด' : 'Pending Add'),
+                            c.sourceChannel || '-',
+                            c.createdBy || '-',
+                            Number(c.totalDeposit) || 0,
+                            c.hasDeposited ? (lang === 'TH' ? 'ฝากเงินแล้ว' : 'Deposited') : (lang === 'TH' ? 'ค้างฝาก' : 'Pending'),
+                            c.campaignMonth || selectedMonth
+                        ]);
+                        const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+                        const range = XLSX.utils.decode_range(ws['!ref']);
+                        for (let R = 1; R <= range.e.r; ++R) {
+                            const uRef = XLSX.utils.encode_cell({ r: R, c: 2 });
+                            if (ws[uRef]) { ws[uRef].t = 's'; ws[uRef].z = '@'; }
+                            const pRef = XLSX.utils.encode_cell({ r: R, c: 3 });
+                            if (ws[pRef]) { ws[pRef].t = 's'; ws[pRef].z = '@'; }
+                        }
+                        const colWidths = headers.map((h, i) => {
+                            let maxLen = h.length * 2;
+                            for (let R = 0; R < dataRows.length; ++R) {
+                                const val = dataRows[R][i];
+                                const strVal = val != null ? String(val) : '';
+                                if (strVal.length > maxLen) {
+                                    maxLen = Math.min(strVal.length + 4, 35);
+                                }
+                            }
+                            return { wch: Math.max(maxLen, 12) };
+                        });
+                        ws['!cols'] = colWidths;
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, 'DeepAnalytics');
+                        XLSX.writeFile(wb, `MC-Executive-Deep-Analytics-${selectedMonth}.xlsx`);
+                        return;
+                    } catch (e) {
+                        console.error('Failed to export executive analytics via XLSX, falling back to CSV:', e);
+                    }
+                }
+
                 const rows = reportCusts.map((c, i) => [
                     i + 1,
                     sanitizeCsvCell(c.fullName || '-'),
@@ -8507,19 +8651,35 @@
                                                 })()}
                                             </div>
 
-                                            {/* 3. ปุ่มดาวน์โหลดรายงาน CSV (จัดวางลำดับหลังตัวเลือกเดือนและวันที่ตาม UX Flow) */}
+                                            {/* 3. ปุ่มดาวน์โหลดรายงาน Excel (.xlsx) (จัดวางลำดับหลังตัวเลือกเดือนและวันที่ตาม UX Flow) */}
                                             <button 
-                                                className="btn btn-secondary" 
-                                                style={{ padding: '6px 14px', fontSize: '12px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.35)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}
+                                                className="btn" 
+                                                style={{ 
+                                                    padding: '7px 16px', 
+                                                    fontSize: '12px', 
+                                                    background: '#107c41', 
+                                                    color: '#ffffff', 
+                                                    border: '1px solid #15803d', 
+                                                    borderRadius: '8px', 
+                                                    fontWeight: 700, 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    gap: '7px',
+                                                    boxShadow: '0 2px 6px rgba(16, 124, 65, 0.3)',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s ease'
+                                                }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.background = '#15803d'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.background = '#107c41'; e.currentTarget.style.transform = 'translateY(0)'; }}
                                                 onClick={() => {
                                                     const monthSuffix = selectedMonth === 'ALL' ? (lang === 'TH' ? 'ทั้งหมด' : 'All') : selectedMonth;
-                                                    const exportFilename = `MC_Customer_List_${monthSuffix}.csv`;
-                                                    exportCustomersToCSV(filteredCustomers, exportFilename);
+                                                    const exportFilename = `MC_Customer_List_${monthSuffix}.xlsx`;
+                                                    exportCustomersToExcel(filteredCustomers, exportFilename);
                                                 }}
-                                                title={lang === 'TH' ? 'ดาวน์โหลดรายการลูกค้าเป็นไฟล์ CSV' : 'Export customer records to CSV'}
+                                                title={lang === 'TH' ? 'ดาวน์โหลดรายการลูกค้าเป็นไฟล์ Excel (.xlsx)' : 'Export customer records to Excel (.xlsx)'}
                                             >
-                                                <i data-lucide="download" style={{ width: '13px', height: '13px' }}></i>
-                                                <span>{lang === 'TH' ? 'ดาวน์โหลด CSV' : 'Export CSV'}</span>
+                                                <i data-lucide="file-spreadsheet" style={{ width: '15px', height: '15px' }}></i>
+                                                <span>{lang === 'TH' ? 'ดาวน์โหลด Excel (.xlsx)' : 'Export Excel (.xlsx)'}</span>
                                             </button>
                                         </div>
                                     </div>
@@ -9866,11 +10026,26 @@
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                                         <button 
-                                            className="btn btn-primary"
+                                            className="btn"
                                             onClick={handleExportExecutiveCSV}
-                                            style={{ padding: '10px 18px', fontSize: '12px', fontWeight: 700 }}
+                                            style={{ 
+                                                padding: '9px 18px', 
+                                                fontSize: '12px', 
+                                                fontWeight: 700, 
+                                                background: '#107c41', 
+                                                color: '#ffffff', 
+                                                border: '1px solid #15803d', 
+                                                borderRadius: '8px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '7px',
+                                                boxShadow: '0 2px 6px rgba(16, 124, 65, 0.3)',
+                                                cursor: 'pointer'
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#15803d'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = '#107c41'; }}
                                         >
-                                            <i data-lucide="download" style={{ width: '15px', height: '15px' }}></i> {lang === 'TH' ? 'ดาวน์โหลดรายงานเชิงลึก (CSV)' : 'Export Analytics (CSV)'}
+                                            <i data-lucide="file-spreadsheet" style={{ width: '15px', height: '15px' }}></i> {lang === 'TH' ? 'ดาวน์โหลดรายงานเชิงลึก (.xlsx)' : 'Export Analytics (.xlsx)'}
                                         </button>
                                         <button 
                                             className="btn btn-secondary"
@@ -14562,12 +14737,12 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && k.indexOf('mc_jsx_cache_') === 0 && k.indexOf('mc_jsx_cache_v15_') !== 0) {
+                    if (k && k.indexOf('mc_jsx_cache_') === 0 && k.indexOf('mc_jsx_cache_v16_') !== 0) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v15_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v16_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
