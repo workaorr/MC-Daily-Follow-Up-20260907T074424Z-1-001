@@ -3778,53 +3778,70 @@
             const daysInMonth = getDaysInSelectedMonth();
 
             // FORMAT TIMESTAMP FOR DISPLAY (Date & Time when customer was keyed in)
-            const formatLineLekDisplay = (val, currentLang) => {
+            const formatLineLekDisplay = (val, currentLang = (typeof lang !== 'undefined' ? lang : 'TH')) => {
                 const v = (val || '').trim();
                 if (!v) return '-';
-                const isTH = (currentLang || lang) === 'TH';
-                if (v === 'มี' || v === 'มีไลน์เล็ก' || v === 'HAS' || v.toLowerCase() === 'has') {
+                const isTH = currentLang === 'TH';
+                if (v === 'มี' || v === 'มีไลน์เล็ก' || v === 'HAS' || v.toLowerCase() === 'has' || v === 'Has LINE') {
                     return isTH ? 'มี' : 'Has LINE';
                 }
-                if (v === 'ไม่มี' || v === 'ไม่มีไลน์เล็ก' || v === 'NONE' || v.toLowerCase() === 'none') {
+                if (v === 'ไม่มี' || v === 'ไม่มีไลน์เล็ก' || v === 'NONE' || v.toLowerCase() === 'none' || v === 'No LINE') {
                     return isTH ? 'ไม่มี' : 'No LINE';
                 }
-                if (v === 'รอแอด' || v === 'รอแอดไลน์เล็ก' || v === 'WAITING' || v.toLowerCase() === 'waiting') {
+                if (v === 'รอแอด' || v === 'รอแอดไลน์เล็ก' || v === 'WAITING' || v.toLowerCase() === 'waiting' || v === 'Pending Add' || v === 'Pending') {
                     return isTH ? 'รอแอด' : 'Pending Add';
                 }
                 return v;
             };
 
-            const formatLastLogin = (val) => {
+            const formatLastLogin = (val, currentLang = (typeof lang !== 'undefined' ? lang : 'TH')) => {
                 if (!val) return null;
+                const isTH = currentLang === 'TH';
+                const s = String(val).trim();
+
+                // Direct support for already-formatted strings like "วันนี้ 11:52" or "Today 11:52"
+                if (s.startsWith('วันนี้ ') || s.startsWith('Today ')) {
+                    const timePart = s.replace(/^(วันนี้|Today)\s+/, '');
+                    return `${isTH ? 'วันนี้' : 'Today'} ${timePart}`;
+                }
+
                 try {
-                    const parts = String(val).replace('T', ' ').split(' ');
+                    const clean = s.replace('T', ' ');
+                    const parts = clean.split(' ');
                     if (parts.length >= 2) {
                         const [dPart, tPart] = parts;
                         const dParts = dPart.split('-');
                         const tParts = tPart.split(':');
                         if (dParts.length === 3 && tParts.length >= 2) {
-                            const todayStr = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).split(' ')[0];
-                            const hh = tParts[0];
-                            const mm = tParts[1];
+                            const nowBangkok = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+                            const y = nowBangkok.getFullYear();
+                            const m = String(nowBangkok.getMonth() + 1).padStart(2, '0');
+                            const d = String(nowBangkok.getDate()).padStart(2, '0');
+                            const todayStr = `${y}-${m}-${d}`;
+
+                            const hh = tParts[0].padStart(2, '0');
+                            const mm = tParts[1].padStart(2, '0');
                             if (dPart === todayStr) {
-                                return `${lang === 'TH' ? 'วันนี้' : 'Today'} ${hh}:${mm}`;
+                                return `${isTH ? 'วันนี้' : 'Today'} ${hh}:${mm}`;
                             }
-                            return `${dParts[2]}/${dParts[1]}/${dParts[0].slice(2)} ${hh}:${mm}`;
+                            const yr = dParts[0].length === 4 ? dParts[0].slice(2) : dParts[0];
+                            return `${dParts[2]}/${dParts[1]}/${yr} ${hh}:${mm}`;
                         }
                     }
-                    const d = new Date(val);
-                    if (!isNaN(d.getTime())) {
+
+                    const dObj = new Date(val);
+                    if (!isNaN(dObj.getTime())) {
                         const now = new Date();
-                        const isToday = d.toDateString() === now.toDateString();
-                        const timePart = d.toLocaleTimeString(lang === 'TH' ? 'th-TH' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
-                        if (isToday) return `${lang === 'TH' ? 'วันนี้' : 'Today'} ${timePart}`;
-                        const datePart = d.toLocaleDateString(lang === 'TH' ? 'th-TH' : 'en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                        const isToday = dObj.toDateString() === now.toDateString();
+                        const timePart = dObj.toLocaleTimeString(isTH ? 'th-TH' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+                        if (isToday) return `${isTH ? 'วันนี้' : 'Today'} ${timePart}`;
+                        const datePart = dObj.toLocaleDateString(isTH ? 'th-TH' : 'en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
                         return `${datePart} ${timePart}`;
                     }
                 } catch (e) {
-                    return String(val);
+                    return s;
                 }
-                return String(val);
+                return s;
             };
 
             const formatKeyedDateTime = (isoStr, customLang) => {
@@ -8344,7 +8361,11 @@
 
                             {/* Language Toggle */}
                             <button
-                                onClick={() => setLang(lang === 'TH' ? 'EN' : 'TH')}
+                                onClick={() => {
+                                    const nextLang = lang === 'TH' ? 'EN' : 'TH';
+                                    setLang(nextLang);
+                                    localStorage.setItem('mc_lang', nextLang);
+                                }}
                                 className="btn btn-secondary"
                                 style={{ padding: '6px 10px', fontSize: '11px', fontWeight: 700, borderRadius: '8px' }}
                                 title={lang === 'TH' ? 'สลับภาษา (Switch Language)' : 'Switch Language'}
@@ -9309,7 +9330,7 @@
                                             className="btn btn-secondary" 
                                             onClick={() => downloadDepositTemplate('csv')}
                                             style={{ padding: '8px 16px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', border: '1px solid rgba(255,255,255,0.1)' }}
-                                            title="ดาวน์โหลดไฟล์เทมเพลตมาตรฐานแบบ CSV"
+                                            title={lang === 'TH' ? "ดาวน์โหลดไฟล์เทมเพลตมาตรฐานแบบ CSV" : "Download standard CSV template"}
                                         >
                                             <i data-lucide="download" style={{ width: '14px', height: '14px', color: '#38bdf8' }}></i>
                                             <span>{lang === 'TH' ? '📥 ดาวน์โหลดเทมเพลตมาตรฐาน (.csv)' : '📥 Download Template (.csv)'}</span>
@@ -9319,7 +9340,7 @@
                                             className="btn btn-secondary" 
                                             onClick={() => downloadDepositTemplate('xlsx')}
                                             style={{ padding: '8px 16px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', border: '1px solid rgba(255,255,255,0.1)' }}
-                                            title="ดาวน์โหลดไฟล์เทมเพลตมาตรฐานแบบ Excel"
+                                            title={lang === 'TH' ? "ดาวน์โหลดไฟล์เทมเพลตมาตรฐานแบบ Excel" : "Download standard Excel template"}
                                         >
                                             <i data-lucide="file-spreadsheet" style={{ width: '14px', height: '14px', color: '#34d399' }}></i>
                                             <span>{lang === 'TH' ? '📥 ดาวน์โหลดเทมเพลตมาตรฐาน (.xlsx)' : '📥 Download Template (.xlsx)'}</span>
@@ -12629,7 +12650,7 @@
                                                                             <i data-lucide="clock" style={{ width: '11px', height: '11px' }}></i>
                                                                             <span>
                                                                                 {a.lastLoginAt 
-                                                                                    ? `${lang === 'TH' ? 'ล็อกอินล่าสุด:' : 'Last:'} ${formatLastLogin(a.lastLoginAt)}` 
+                                                                                    ? `${lang === 'TH' ? 'ล็อกอินล่าสุด:' : 'Last:'} ${formatLastLogin(a.lastLoginAt, lang)}` 
                                                                                     : (lang === 'TH' ? 'ยังไม่เคยเข้าสู่ระบบ' : 'Never logged in')}
                                                                             </span>
                                                                         </span>
@@ -14794,12 +14815,14 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && k.indexOf('mc_jsx_cache_') === 0 && k.indexOf('mc_jsx_cache_v19_') !== 0) {
-                        localStorage.removeItem(k);
+                    if (k && k.indexOf('mc_jsx_cache_') === 0) {
+                        if (isPurge || k.indexOf('mc_jsx_cache_v20_') !== 0) {
+                            localStorage.removeItem(k);
+                        }
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v19_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v20_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
