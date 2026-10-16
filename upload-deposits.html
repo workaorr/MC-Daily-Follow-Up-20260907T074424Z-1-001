@@ -3264,7 +3264,7 @@
                         `"${(c.username || '').replace(/"/g, '""')}"`,
                         `"${(c.phone || '').replace(/"/g, '""')}"`,
                         `"${(c.lineOA || '').replace(/"/g, '""')}"`,
-                        `"${(c.lineLek || '').replace(/"/g, '""')}"`,
+                        `"${formatLineLekDisplay(c.lineLek, lang).replace(/"/g, '""')}"`,
                         `"${(c.sourceChannel || '').replace(/"/g, '""')}"`,
                         `"${(c.referrer || '-').replace(/"/g, '""')}"`,
                         `"${(c.createdBy || '').replace(/"/g, '""')}"`,
@@ -3332,7 +3332,7 @@
                                 c.username || '',
                                 String(c.phone || ''),
                                 c.lineOA || '',
-                                c.lineLek || '',
+                                formatLineLekDisplay(c.lineLek, lang),
                                 c.sourceChannel || '',
                                 String(c.referrer || '-'),
                                 c.createdBy || '',
@@ -3778,6 +3778,22 @@
             const daysInMonth = getDaysInSelectedMonth();
 
             // FORMAT TIMESTAMP FOR DISPLAY (Date & Time when customer was keyed in)
+            const formatLineLekDisplay = (val, currentLang) => {
+                const v = (val || '').trim();
+                if (!v) return '-';
+                const isTH = (currentLang || lang) === 'TH';
+                if (v === 'มี' || v === 'มีไลน์เล็ก' || v === 'HAS' || v.toLowerCase() === 'has') {
+                    return isTH ? 'มี' : 'Has LINE';
+                }
+                if (v === 'ไม่มี' || v === 'ไม่มีไลน์เล็ก' || v === 'NONE' || v.toLowerCase() === 'none') {
+                    return isTH ? 'ไม่มี' : 'No LINE';
+                }
+                if (v === 'รอแอด' || v === 'รอแอดไลน์เล็ก' || v === 'WAITING' || v.toLowerCase() === 'waiting') {
+                    return isTH ? 'รอแอด' : 'Pending Add';
+                }
+                return v;
+            };
+
             const formatLastLogin = (val) => {
                 if (!val) return null;
                 try {
@@ -3791,7 +3807,7 @@
                             const hh = tParts[0];
                             const mm = tParts[1];
                             if (dPart === todayStr) {
-                                return `วันนี้ ${hh}:${mm}`;
+                                return `${lang === 'TH' ? 'วันนี้' : 'Today'} ${hh}:${mm}`;
                             }
                             return `${dParts[2]}/${dParts[1]}/${dParts[0].slice(2)} ${hh}:${mm}`;
                         }
@@ -3800,9 +3816,9 @@
                     if (!isNaN(d.getTime())) {
                         const now = new Date();
                         const isToday = d.toDateString() === now.toDateString();
-                        const timePart = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-                        if (isToday) return `วันนี้ ${timePart}`;
-                        const datePart = d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                        const timePart = d.toLocaleTimeString(lang === 'TH' ? 'th-TH' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+                        if (isToday) return `${lang === 'TH' ? 'วันนี้' : 'Today'} ${timePart}`;
+                        const datePart = d.toLocaleDateString(lang === 'TH' ? 'th-TH' : 'en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
                         return `${datePart} ${timePart}`;
                     }
                 } catch (e) {
@@ -7394,7 +7410,7 @@
                 }
                 if (n.includes('เพื่อน')) {
                     return {
-                        label: 'เพื่อนแนะนำ',
+                        label: lang === 'TH' ? 'เพื่อนแนะนำ' : 'Friend Referral',
                         icon: '🤝',
                         bg: isLight ? '#f3e8ff' : 'rgba(168, 85, 247, 0.25)',
                         text: isLight ? '#6b21a8' : '#d8b4fe',
@@ -7411,7 +7427,7 @@
                     };
                 }
                 return {
-                    label: rawName || 'ไม่ระบุ',
+                    label: rawName ? formatChannelDisplayName(rawName, lang) : (lang === 'TH' ? 'ไม่ระบุ' : 'Unspecified'),
                     icon: '📌',
                     bg: isLight ? '#f1f5f9' : 'rgba(148, 163, 184, 0.25)',
                     text: isLight ? '#1e293b' : '#f1f5f9',
@@ -9357,7 +9373,7 @@
                                             <div style={{ padding: '14px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{lang === 'TH' ? 'รายการทั้งหมดในไฟล์' : 'Total Records'}</div>
                                                 <div style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>
-                                                    {depositPreviewData.totalRows.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)' }}>รายการ</span>
+                                                    {depositPreviewData.totalRows.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)' }}>{lang === 'TH' ? 'รายการ' : 'records'}</span>
                                                 </div>
                                             </div>
 
@@ -9371,21 +9387,21 @@
                                             <div style={{ padding: '14px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.25)' }}>
                                                 <div style={{ fontSize: '11px', color: '#38bdf8' }}>{lang === 'TH' ? 'ตรงกับลูกค้าในพอร์ต' : 'Matched Portfolio Leads'}</div>
                                                 <div style={{ fontSize: '20px', fontWeight: 800, color: '#38bdf8', marginTop: '4px' }}>
-                                                    {depositPreviewData.matchedRows.length.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)' }}>คน</span>
+                                                    {depositPreviewData.matchedRows.length.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)' }}>{lang === 'TH' ? 'คน' : 'leads'}</span>
                                                 </div>
                                             </div>
 
                                             <div style={{ padding: '14px', borderRadius: '12px', background: depositPreviewData.unmatchedUsers.length > 0 ? 'rgba(234, 179, 8, 0.1)' : 'rgba(255,255,255,0.03)', border: depositPreviewData.unmatchedUsers.length > 0 ? '1px solid rgba(234, 179, 8, 0.3)' : '1px solid rgba(255,255,255,0.06)' }}>
                                                 <div style={{ fontSize: '11px', color: depositPreviewData.unmatchedUsers.length > 0 ? '#facc15' : 'var(--text-muted)' }}>{lang === 'TH' ? 'ยูสเซอร์ใหม่ (ไม่มีในพอร์ต)' : 'Unmatched / New Users'}</div>
                                                 <div style={{ fontSize: '20px', fontWeight: 800, color: depositPreviewData.unmatchedUsers.length > 0 ? '#facc15' : '#fff', marginTop: '4px' }}>
-                                                    {depositPreviewData.unmatchedUsers.length.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)' }}>คน</span>
+                                                    {depositPreviewData.unmatchedUsers.length.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)' }}>{lang === 'TH' ? 'คน' : 'leads'}</span>
                                                 </div>
                                             </div>
 
                                             <div style={{ padding: '14px', borderRadius: '12px', background: 'rgba(244, 63, 94, 0.08)', border: '1px solid rgba(244, 63, 94, 0.2)' }}>
                                                 <div style={{ fontSize: '11px', color: '#fb7185' }}>{lang === 'TH' ? 'ข้ามรายการซ้ำในระบบ' : 'Duplicates Skipped'}</div>
                                                 <div style={{ fontSize: '20px', fontWeight: 800, color: '#fb7185', marginTop: '4px' }}>
-                                                    {depositPreviewData.duplicateCount.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)' }}>รายการ</span>
+                                                    {depositPreviewData.duplicateCount.toLocaleString()} <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-muted)' }}>{lang === 'TH' ? 'รายการ' : 'duplicates'}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -12609,7 +12625,7 @@
                                                                                 {lang === 'TH' ? '🔑 ยูส: ' : '🔑 User: '}{a.loginUsername}
                                                                             </span>
                                                                         )}
-                                                                        <span className="staff-login-time" title={a.lastLoginAt ? `เข้าสู่ระบบล่าสุดเมื่อ: ${a.lastLoginAt}` : 'ยังไม่มีประวัติเข้าสู่ระบบ'}>
+                                                                        <span className="staff-login-time" title={a.lastLoginAt ? (lang === 'TH' ? `เข้าสู่ระบบล่าสุดเมื่อ: ${a.lastLoginAt}` : `Last login at: ${a.lastLoginAt}`) : (lang === 'TH' ? 'ยังไม่มีประวัติเข้าสู่ระบบ' : 'No login history yet')}>
                                                                             <i data-lucide="clock" style={{ width: '11px', height: '11px' }}></i>
                                                                             <span>
                                                                                 {a.lastLoginAt 
@@ -13168,7 +13184,7 @@
                                                                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                                                                     📞 {cust.phone || '-'}<br/>
                                                                     💬 OA: {cust.lineOA || '-'}<br/>
-                                                                    👤 {lang === 'TH' ? 'เล็ก:' : 'Lek:'} {cust.lineLek || '-'}
+                                                                    👤 {lang === 'TH' ? 'เล็ก:' : 'Lek:'} {formatLineLekDisplay(cust.lineLek, lang)}
                                                                 </span>
                                                             </td>
                                                             <td>
@@ -14268,7 +14284,7 @@
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ color: 'var(--text-muted)' }}>{lang === 'TH' ? '💬 ไลน์ลูกค้า:' : '💬 LINE ID:'}</span>
-                                        <span style={{ color: theme === 'light' ? '#334155' : '#cbd5e1' }}>{addConfirmModalData.lineOA || '-'} ({lang === 'TH' ? 'ไลน์เล็ก:' : 'LINE Lek:'} {addConfirmModalData.lineLek || 'รอแอด'})</span>
+                                        <span style={{ color: theme === 'light' ? '#334155' : '#cbd5e1' }}>{addConfirmModalData.lineOA || '-'} ({lang === 'TH' ? 'ไลน์เล็ก:' : 'LINE Lek:'} {formatLineLekDisplay(addConfirmModalData.lineLek, lang)})</span>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ color: 'var(--text-muted)' }}>{lang === 'TH' ? '📢 ช่องทางที่มา:' : '📢 Channel:'}</span>
@@ -14394,7 +14410,7 @@
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ color: 'var(--text-muted)' }}>{lang === 'TH' ? '💬 ไลน์ลูกค้า:' : '💬 LINE ID:'}</span>
-                                        <span style={{ color: theme === 'light' ? '#334155' : '#cbd5e1' }}>{addSuccessModalData.lineOA || '-'} ({lang === 'TH' ? 'ไลน์เล็ก:' : 'LINE Lek:'} {addSuccessModalData.lineLek || 'รอแอด'})</span>
+                                        <span style={{ color: theme === 'light' ? '#334155' : '#cbd5e1' }}>{addSuccessModalData.lineOA || '-'} ({lang === 'TH' ? 'ไลน์เล็ก:' : 'LINE Lek:'} {formatLineLekDisplay(addSuccessModalData.lineLek, lang)})</span>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ color: 'var(--text-muted)' }}>{lang === 'TH' ? '📢 ช่องทางที่มา:' : '📢 Channel:'}</span>
@@ -14778,12 +14794,12 @@
             try {
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
-                    if (k && k.indexOf('mc_jsx_cache_') === 0 && k.indexOf('mc_jsx_cache_v18_') !== 0) {
+                    if (k && k.indexOf('mc_jsx_cache_') === 0 && k.indexOf('mc_jsx_cache_v19_') !== 0) {
                         localStorage.removeItem(k);
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v18_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v19_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
