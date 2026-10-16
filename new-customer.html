@@ -2842,12 +2842,17 @@
                 if (!target || target.lineLek === newLineStatus) return;
                 const oldVal = target.lineLek || 'ไม่มี';
 
-                setCustomers(prev => prev.map(c => c.id === custId ? { ...c, lineLek: newLineStatus } : c));
+                const updateTime = new Date().toISOString();
+                setCustomers(prev => prev.map(c => c.id === custId ? { ...c, lineLek: newLineStatus, updatedBy: activeAgentName, updatedAt: updateTime } : c));
 
                 if (supabaseClient) {
                     supabaseClient
                         .from('mc_customers')
-                        .update({ line_lek: newLineStatus })
+                        .update({ 
+                            line_lek: newLineStatus,
+                            updated_by: activeAgentName,
+                            updated_at: updateTime
+                        })
                         .eq('id', custId)
                         .then(({ error }) => {
                             if (error) console.error('Quick lineLek update error:', error);
@@ -2868,14 +2873,19 @@
                 const cleanNote = (noteToSave !== undefined ? noteToSave : quickNoteText || '').trim();
                 const oldNote = target.notes || '';
 
-                setCustomers(prev => prev.map(c => c.id === custId ? { ...c, notes: cleanNote } : c));
+                const updateTime = new Date().toISOString();
+                setCustomers(prev => prev.map(c => c.id === custId ? { ...c, notes: cleanNote, updatedBy: activeAgentName, updatedAt: updateTime } : c));
                 setQuickEditCustId(null);
 
                 if (oldNote !== cleanNote) {
                     if (supabaseClient) {
                         supabaseClient
                             .from('mc_customers')
-                            .update({ notes: cleanNote })
+                            .update({ 
+                                notes: cleanNote,
+                                updated_by: activeAgentName,
+                                updated_at: updateTime
+                            })
                             .eq('id', custId)
                             .then(({ error }) => {
                                 if (error) console.error('Quick note update error:', error);
@@ -4593,6 +4603,8 @@
                                 referrer: c.referrer || '',
                                 totalDeposit: parseFloat(c.total_deposit || 0),
                                 createdBy: c.created_by || 'ระบบกลาง',
+                                updatedBy: c.updated_by || null,
+                                updatedAt: c.updated_at || null,
                                 campaignMonth: c.campaign_month || (c.created_at ? c.created_at.substring(0, 7) : currentMonthStr),
                                 followUp: typeof c.follow_up === 'object' && c.follow_up !== null ? c.follow_up : { Mon: false, Tue: false, Wed: false, Thu: false, Fri: false, Sat: false, Sun: false },
                                 followUpByMonth: typeof c.follow_up_by_month === 'object' && c.follow_up_by_month !== null ? c.follow_up_by_month : {},
@@ -4836,6 +4848,8 @@
                                                 referrer: r.referrer !== undefined ? (r.referrer || '') : (cur.find(c => c.id === r.id)?.referrer || ''),
                                                 totalDeposit: r.total_deposit !== undefined ? parseFloat(r.total_deposit || 0) : 0,
                                                 createdBy: r.created_by !== undefined ? r.created_by : 'ระบบกลาง',
+                                                updatedBy: r.updated_by !== undefined ? r.updated_by : (cur.find(c => c.id === r.id)?.updatedBy || null),
+                                                updatedAt: r.updated_at !== undefined ? r.updated_at : (cur.find(c => c.id === r.id)?.updatedAt || null),
                                                 campaignMonth: r.campaign_month !== undefined ? r.campaign_month : currentMonthStr,
                                                 followUp: r.follow_up !== undefined ? (typeof r.follow_up === 'object' && r.follow_up !== null ? r.follow_up : {}) : {},
                                                 followUpByMonth: r.follow_up_by_month !== undefined ? (typeof r.follow_up_by_month === 'object' && r.follow_up_by_month !== null ? r.follow_up_by_month : {}) : {},
@@ -6488,6 +6502,7 @@
 
                 const updated = customers.map(c => {
                     if (c.id === selectedCustForModal.id) {
+                        const updateTime = new Date().toISOString();
                         const targetCust = {
                             ...c,
                             fullName: fullNameVal,
@@ -6496,7 +6511,9 @@
                             createdBy: agentVal,
                             phone: phoneVal,
                             lineOA: lineOAVal,
-                            lineLek: lineLekVal
+                            lineLek: lineLekVal,
+                            updatedBy: activeAgentName,
+                            updatedAt: updateTime
                         };
 
                         if (supabaseClient) {
@@ -6509,7 +6526,9 @@
                                     created_by: agentVal,
                                     phone: phoneVal,
                                     line_oa: lineOAVal,
-                                    line_lek: lineLekVal
+                                    line_lek: lineLekVal,
+                                    updated_by: activeAgentName,
+                                    updated_at: updateTime
                                 })
                                 .eq('id', c.id)
                                 .then(({ error }) => {
@@ -13745,9 +13764,17 @@
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
                                     <div>
                                         <h4 style={{ fontWeight: 600, margin: 0 }}>{lang === 'TH' ? 'แก้ไขเคสลูกค้า: ' : 'Edit Customer Case: '}{selectedCustForModal.fullName || selectedCustForModal.username || (lang === 'TH' ? '(ยังไม่สมัคร)' : '(Not Reg)')}</h4>
-                                        <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                            <i data-lucide="clock" style={{ width: '13px', height: '13px', color: '#38bdf8' }}></i>
-                                            <span>{lang === 'TH' ? 'วัน-เวลาที่คีย์ข้อมูล:' : 'Keyed Date & Time:'} <strong>{formatKeyedDateTime(selectedCustForModal.createdAt)}</strong></span>
+                                        <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                <i data-lucide="clock" style={{ width: '13px', height: '13px', color: '#38bdf8' }}></i>
+                                                <span>{lang === 'TH' ? 'วัน-เวลาที่คีย์ข้อมูล:' : 'Keyed Date & Time:'} <strong>{formatKeyedDateTime(selectedCustForModal.createdAt)}</strong></span>
+                                            </span>
+                                            {selectedCustForModal.updatedBy && (
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginLeft: '6px', color: '#34d399', fontWeight: 600 }}>
+                                                    <i data-lucide="edit-3" style={{ width: '12px', height: '12px' }}></i>
+                                                    <span>{lang === 'TH' ? 'แก้ไขล่าสุดโดย:' : 'Last edited by:'} <strong>{selectedCustForModal.updatedBy}</strong> {selectedCustForModal.updatedAt ? ('(' + formatKeyedDateTime(selectedCustForModal.updatedAt) + ')') : ''}</span>
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                     <button style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', fontSize: '20px', cursor: 'pointer' }} onClick={() => setSelectedCustForModal(null)}>&times;</button>
@@ -14816,13 +14843,13 @@
                 var isPurge = window.location.search.indexOf('v=') !== -1 || window.location.search.indexOf('nocache') !== -1;
                 for (var k in localStorage) {
                     if (k && k.indexOf('mc_jsx_cache_') === 0) {
-                        if (isPurge || k.indexOf('mc_jsx_cache_v20_') !== 0) {
+                        if (isPurge || k.indexOf('mc_jsx_cache_v21_') !== 0) {
                             localStorage.removeItem(k);
                         }
                     }
                 }
             } catch(e) {}
-            var cacheKey = 'mc_jsx_cache_v20_' + Math.abs(hash);
+            var cacheKey = 'mc_jsx_cache_v21_' + Math.abs(hash);
 
             var cachedCode = null;
             try {
