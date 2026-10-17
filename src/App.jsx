@@ -1,35 +1,29 @@
 import React from 'react';
 import { useApp } from './context/AppContext';
 
-// Common Components
+// Common Shell Components
 import { 
     Navbar, 
     Sidebar, 
-    LoginModal, 
     DbSettingsModal, 
     TourOverlay 
 } from './components/common';
 
-// Subcomponents / Modals
+// Domain Feature Modules
+import { LoginModal, ChangePasscodeModal } from './features/auth';
 import { 
+    NewCustomerView, 
     EditCustomerModal, 
     AddConfirmModal, 
-    AddSuccessModal, 
-    ArchiveAgentModal, 
-    ChangePasscodeModal 
-} from './components/subcomponents';
-
-// Views
-import { 
-    DashboardView, 
-    FollowUpView, 
-    UploadDepositsView, 
-    SupervisorAuditView, 
-    NewCustomerView, 
-    BackOfficeView, 
-    AuditLogsView, 
-    RecycleBinView 
-} from './components/views';
+    AddSuccessModal 
+} from './features/customers';
+import { DashboardView } from './features/dashboard';
+import { FollowUpView } from './features/followUp';
+import { UploadDepositsView } from './features/deposits';
+import { SupervisorAuditView } from './features/supervisor';
+import { BackOfficeView } from './features/backoffice';
+import { AuditLogsView } from './features/auditLogs';
+import { RecycleBinView, ArchiveAgentModal } from './features/recycleBin';
 
 export default function App() {
     const {
@@ -93,14 +87,23 @@ export default function App() {
                 {renderActiveView()}
             </main>
 
-            {/* Global Context-Driven Modals */}
+            {/* Customer Domain Modals */}
             <EditCustomerModal />
             <AddConfirmModal />
             <AddSuccessModal />
-            <ArchiveAgentModal />
-            <ChangePasscodeModal />
 
-            {/* Admin Supabase Connection Settings Modal */}
+            {/* Recycle Bin & Staff Lifecycle Modal */}
+            <ArchiveAgentModal />
+
+            {/* Auth Domain Modals */}
+            <ChangePasscodeModal />
+            <LoginModal 
+                isOpen={isLoginModalOpen || !activeAgentName}
+                isFullscreen={!activeAgentName}
+                onClose={isLockedDueToInactivity ? null : handleCloseLogin}
+            />
+
+            {/* System DB Connection Settings */}
             <DbSettingsModal 
                 isOpen={showDbSettings} 
                 onClose={() => setShowDbSettings(false)} 
@@ -110,13 +113,6 @@ export default function App() {
             <TourOverlay 
                 isActive={isTourActive} 
                 onClose={() => setIsTourActive(false)} 
-            />
-
-            {/* Staff Login / Account Switcher / Inactivity Lock Modal */}
-            <LoginModal 
-                isOpen={isLoginModalOpen || !activeAgentName}
-                isFullscreen={!activeAgentName}
-                onClose={isLockedDueToInactivity ? null : handleCloseLogin}
             />
         </div>
     );
