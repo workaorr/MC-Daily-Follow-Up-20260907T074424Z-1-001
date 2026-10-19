@@ -3933,18 +3933,24 @@
                 const isArchived = Boolean(a.isArchived || (parsedPerms && parsedPerms.isArchived));
                 const archivedAt = a.archivedAt || (parsedPerms && parsedPerms.archivedAt) || null;
                 const archivedBy = a.archivedBy || (parsedPerms && parsedPerms.archivedBy) || null;
+                const isLocked = Boolean(a.isLocked || a.is_locked || (parsedPerms && parsedPerms.isLocked));
+                const lockedReason = a.lockedReason || a.locked_reason || (parsedPerms && parsedPerms.lockedReason) || null;
+                const lockedAt = a.lockedAt || a.locked_at || (parsedPerms && parsedPerms.lockedAt) || null;
                 return {
                     id: a.id || (Date.now() + idx),
                     name: name,
                     role: role,
                     loginUsername: a.loginUsername || a.login_username || '',
                     passcode: a.passcode || '1234',
-                    permissions: (parsedPerms && typeof parsedPerms === 'object') ? { ...defaultPerms, ...parsedPerms } : defaultPerms,
+                    permissions: (parsedPerms && typeof parsedPerms === 'object') ? { ...defaultPerms, ...parsedPerms, isLocked, lockedReason, lockedAt } : { ...defaultPerms, isLocked, lockedReason, lockedAt },
                     isActive: isActive,
                     lastLoginAt: lastLoginAt,
                     isArchived: isArchived,
                     archivedAt: archivedAt,
-                    archivedBy: archivedBy
+                    archivedBy: archivedBy,
+                    isLocked: isLocked,
+                    lockedReason: lockedReason,
+                    lockedAt: lockedAt
                 };
             };
 
@@ -3996,6 +4002,14 @@
             const [loginLockoutUntil, setLoginLockoutUntil] = useState(0);
             const [loginLockoutRemaining, setLoginLockoutRemaining] = useState(0);
             const [lastKeepAliveTime, setLastKeepAliveTime] = useState(null);
+
+            // Supervisor quick unlock states on login screen
+            const [showSuperUnlockCard, setShowSuperUnlockCard] = useState(false);
+            const [superUnlockSupervisor, setSuperUnlockSupervisor] = useState('');
+            const [superUnlockPassword, setSuperUnlockPassword] = useState('');
+            const [superUnlockNewPass, setSuperUnlockNewPass] = useState('1234');
+            const [superUnlockError, setSuperUnlockError] = useState('');
+            const [superUnlockSuccess, setSuperUnlockSuccess] = useState('');
 
             // Brute-force lockout countdown timer
             useEffect(() => {
@@ -6061,6 +6075,159 @@
                 if (target) startEditAgent(target);
             };
 
+            // SUPERVISOR UNLOCK AND RESET PASSCODE FOR STAFF (BACKOFFICE & DIRECT)
+            const handleUnlockAgent = async (targetAgent) => {
+                const newPass = window.prompt(
+                    lang === 'TH' 
+                        ? `👑 ปลดล็อกบัญชี [${targetAgent.name}]\nกรุณากำหนดรหัสผ่านใหม่ (4-6 หลัก):` 
+                        : `👑 Unlock account [${targetAgent.name}]\nEnter new passcode (4-6 digits):`,
+                    '1234'
+                );
+                if (!newPass || !newPass.trim()) return;
+
+                const trimmedPass = newPass.trim();
+                if (trimmedPass.length < 4 || trimmedPass.length > 6) {
+                    alert(lang === 'TH' ? 'รหัสผ่านต้องมีความยาว 4-6 หลัก' : 'Passcode must be 4-6 digits');
+                    return;
+                }
+
+                const hashed = await hashPasscode(trimmedPass);
+                const updatedAgents = agents.map(a => {
+                    if (a.id !== targetAgent.id && a.name !== targetAgent.name) return a;
+                    return {
+                        ...a,
+                        isLocked: false,
+                        lockedReason: null,
+                        lockedAt: null,
+                        isActive: true,
+                        passcode: hashed
+                    };
+                });
+
+                setAgents(updatedAgents);
+                localStorage.setItem('mc_agents', JSON.stringify(updatedAgents));
+
+                if (supabaseClient) {
+                    try {
+                        const updatePayload = {
+                            passcode: hashed,
+                            is_active: true,
+                            permissions: {
+                                ...(targetAgent.permissions || {}),
+                                isLocked: false,
+                                lockedReason: null,
+                                lockedAt: null
+                            }
+                        };
+                        let query = supabaseClient.from('mc_agents').update(updatePayload);
+                        if (targetAgent.id && typeof targetAgent.id === 'number' && targetAgent.id < 1000000000) {
+                            query = query.eq('id', targetAgent.id);
+                        } else {
+                            query = query.eq('name', targetAgent.name);
+                        }
+                        query.then();
+                    } catch (e) {
+                        console.warn('Supabase unlock sync error:', e);
+                    }
+                }
+
+                writeLog('AUTH', `👑 หัวหน้า [${activeAgentName}] ได้ทำการปลดล็อกบัญชีและตั้งรหัสผ่านใหม่ให้ [${targetAgent.name}] สำเร็จ`, 'success', activeAgentName);
+                alert(lang === 'TH' 
+                    ? `✅ ปลดล็อกบัญชี [${targetAgent.name}] สำเร็จแล้ว!\nรหัสผ่านใหม่คือ: "${trimmedPass}"\nพนักงานสามารถเข้าสู่ระบบด้วยรหัสนี้ได้ทันที` 
+                    : `✅ Account [${targetAgent.name}] unlocked successfully!\nNew passcode is: "${trimmedPass}"`);
+            };
+
+            const handleSupervisorQuickUnlock = async (e) => {
+                if (e) e.preventDefault();
+                setSuperUnlockError('');
+                setSuperUnlockSuccess('');
+
+                const chosenAgentName = selectedLoginAgent || activeAgentName || (agents[0] && agents[0].name);
+                const targetAgent = agents.find(a => a.name === chosenAgentName);
+                if (!targetAgent) {
+                    setSuperUnlockError(lang === 'TH' ? 'กรุณาเลือกบัญชีเจ้าหน้าที่ที่ต้องการปลดล็อก' : 'Please select the account to unlock');
+                    return;
+                }
+
+                const supervisors = agents.filter(a => a.role === 'SUPERVISOR' && a.isActive !== false);
+                const supervisorName = superUnlockSupervisor || (supervisors[0] && supervisors[0].name);
+                if (!supervisorName) {
+                    setSuperUnlockError(lang === 'TH' ? 'ไม่พบบัญชีหัวหน้า (Supervisor) ในระบบ' : 'No active supervisor found');
+                    return;
+                }
+
+                const supervisorObj = agents.find(a => a.name === supervisorName);
+                if (!supervisorObj) {
+                    setSuperUnlockError(lang === 'TH' ? 'ไม่พบบัญชีหัวหน้านี้' : 'Supervisor not found');
+                    return;
+                }
+
+                if (!superUnlockPassword) {
+                    setSuperUnlockError(lang === 'TH' ? 'กรุณากรอกรหัสผ่านของหัวหน้าเพื่อยืนยันตัวตน' : 'Please enter supervisor passcode');
+                    return;
+                }
+
+                const isSuperMatch = await verifyPasscode(superUnlockPassword, supervisorObj.passcode || '1234');
+                if (!isSuperMatch) {
+                    setSuperUnlockError(lang === 'TH' ? 'รหัสผ่านหัวหน้าไม่ถูกต้อง ไม่อนุมัติการปลดล็อก' : 'Invalid supervisor passcode. Access denied.');
+                    return;
+                }
+
+                const cleanNewPass = (superUnlockNewPass || '1234').trim();
+                if (cleanNewPass.length < 4 || cleanNewPass.length > 6) {
+                    setSuperUnlockError(lang === 'TH' ? 'รหัสผ่านใหม่ต้องมีความยาว 4-6 หลัก' : 'New passcode must be 4-6 digits');
+                    return;
+                }
+
+                const hashed = await hashPasscode(cleanNewPass);
+                const updatedAgents = agents.map(a => {
+                    if (a.id !== targetAgent.id && a.name !== targetAgent.name) return a;
+                    return {
+                        ...a,
+                        isLocked: false,
+                        lockedReason: null,
+                        lockedAt: null,
+                        isActive: true,
+                        passcode: hashed
+                    };
+                });
+
+                setAgents(updatedAgents);
+                localStorage.setItem('mc_agents', JSON.stringify(updatedAgents));
+
+                if (supabaseClient) {
+                    try {
+                        const updatePayload = {
+                            passcode: hashed,
+                            is_active: true,
+                            permissions: {
+                                ...(targetAgent.permissions || {}),
+                                isLocked: false,
+                                lockedReason: null,
+                                lockedAt: null
+                            }
+                        };
+                        let query = supabaseClient.from('mc_agents').update(updatePayload);
+                        if (targetAgent.id && typeof targetAgent.id === 'number' && targetAgent.id < 1000000000) {
+                            query = query.eq('id', targetAgent.id);
+                        } else {
+                            query = query.eq('name', targetAgent.name);
+                        }
+                        query.then();
+                    } catch (err) {
+                        console.warn('Supabase quick unlock error:', err);
+                    }
+                }
+
+                writeLog('AUTH', `👑 หัวหน้า [${supervisorName}] ได้ปลดล็อกและตั้งรหัสผ่านใหม่ให้ [${targetAgent.name}] หน้าล็อกอิน`, 'success', supervisorName);
+                setLoginErrorMsg('');
+                setLoginFailedAttempts(0);
+                setSuperUnlockPassword('');
+                setSuperUnlockSuccess(lang === 'TH'
+                    ? `✅ ปลดล็อกบัญชี [${targetAgent.name}] สำเร็จแล้ว! รหัสผ่านใหม่คือ: "${cleanNewPass}"`
+                    : `✅ Account [${targetAgent.name}] unlocked! New passcode is: "${cleanNewPass}"`);
+            };
+
             const handleToggleAgentActive = async (agentId, agentName) => {
                 const target = agents.find(a => a.id === agentId || a.name === agentName);
                 if (!target) return;
@@ -6572,6 +6739,12 @@
                         : `⛔ Account [${chosenAgentName}] is archived in Recycle Bin. Please contact Supervisor to restore.`);
                     return;
                 }
+                if (matchedAgent && matchedAgent.isLocked) {
+                    setLoginErrorMsg(lang === 'TH'
+                        ? `🔒 บัญชี [${chosenAgentName}] ถูกล็อกเนื่องจากใส่รหัสผ่านผิดเกิน 3 ครั้ง กรุณาให้หัวหน้า (Supervisor) ปลดล็อกและตั้งรหัสผ่านใหม่ให้`
+                        : `🔒 Account [${chosenAgentName}] is locked due to 3 failed attempts. Please contact a Supervisor to unlock and reset passcode.`);
+                    return;
+                }
                 if (matchedAgent && matchedAgent.isActive === false) {
                     setLoginErrorMsg(lang === 'TH'
                         ? `⛔ บัญชี [${chosenAgentName}] ถูกระงับหรือพักงานชั่วคราว กรุณาติดต่อหัวหน้า (Supervisor)`
@@ -6610,18 +6783,55 @@
                 if (!isMatch) {
                     const nextAttempts = loginFailedAttempts + 1;
                     setLoginFailedAttempts(nextAttempts);
-                    if (nextAttempts >= 5) {
-                        const lockUntil = Date.now() + 30000;
-                        setLoginLockoutUntil(lockUntil);
-                        setLoginLockoutRemaining(30);
+                    if (nextAttempts >= 3) {
+                        const updatedAgents = agents.map(a => {
+                            if (a.name === chosenAgentName || (matchedAgent && a.id === matchedAgent.id)) {
+                                return {
+                                    ...a,
+                                    isLocked: true,
+                                    lockedReason: 'FAILED_ATTEMPTS_3',
+                                    lockedAt: new Date().toISOString()
+                                };
+                            }
+                            return a;
+                        });
+                        setAgents(updatedAgents);
+                        localStorage.setItem('mc_agents', JSON.stringify(updatedAgents));
+
+                        if (supabaseClient) {
+                            try {
+                                const targetObj = agents.find(a => a.name === chosenAgentName || (matchedAgent && a.id === matchedAgent.id));
+                                const updatePayload = {
+                                    permissions: {
+                                        ...((targetObj && targetObj.permissions) || {}),
+                                        isLocked: true,
+                                        lockedReason: 'FAILED_ATTEMPTS_3',
+                                        lockedAt: new Date().toISOString()
+                                    }
+                                };
+                                let query = supabaseClient.from('mc_agents').update(updatePayload);
+                                if (matchedAgent && matchedAgent.id && typeof matchedAgent.id === 'number' && matchedAgent.id < 1000000000) {
+                                    query = query.eq('id', matchedAgent.id);
+                                } else {
+                                    query = query.eq('name', chosenAgentName);
+                                }
+                                query.then();
+                            } catch (e) {
+                                console.warn('Supabase lock sync error:', e);
+                            }
+                        }
+
                         setLoginFailedAttempts(0);
-                        setLoginErrorMsg(lang === 'TH'
-                            ? '⚠️ กรอกรหัสผ่านไม่ถูกต้องเกิน 5 ครั้ง ระบบระงับการเข้าสู่ระบบ 30 วินาที เพื่อความปลอดภัย'
-                            : '⚠️ Too many failed attempts. Locked out for 30 seconds.');
+                        setLoginPasswordInput('');
+                        const lockMsg = lang === 'TH'
+                            ? `🔒 บัญชี [${chosenAgentName}] ถูกล็อกแล้วเนื่องจากกรอกรหัสผ่านผิดครบ 3 ครั้ง กรุณาติดต่อหัวหน้า (Supervisor) เพื่อปลดล็อกและตั้งรหัสผ่านใหม่`
+                            : `🔒 Account [${chosenAgentName}] has been locked due to 3 failed attempts. Please contact a Supervisor to unlock and reset passcode.`;
+                        setLoginErrorMsg(lockMsg);
+                        writeLog('SECURITY', `🔒 บัญชี [${chosenAgentName}] ถูกล็อกเนื่องจากกรอกรหัสผ่านผิดครบ 3 ครั้ง - ต้องให้หัวหน้า (Supervisor) ปลดล็อกเท่านั้น`, 'danger', chosenAgentName);
                     } else {
                         setLoginErrorMsg(lang === 'TH'
-                            ? `รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง (ครั้งที่ ${nextAttempts}/5)`
-                            : `Incorrect passcode. Please try again (${nextAttempts}/5)`);
+                            ? `รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง (ครั้งที่ ${nextAttempts}/3)`
+                            : `Incorrect passcode. Please try again (${nextAttempts}/3)`);
                     }
                     return;
                 }
@@ -7764,14 +7974,18 @@
                                     onChange={(e) => {
                                         setSelectedLoginAgent(e.target.value);
                                         setLoginErrorMsg('');
+                                        setSuperUnlockError('');
+                                        setSuperUnlockSuccess('');
                                         localStorage.setItem('mc_last_selected_agent', e.target.value);
                                     }}
                                 >
                                     {availableAgents.map(a => (
-                                        <option key={a.id} value={a.name} style={{ background: theme === 'light' ? '#fff' : '#0f172a', color: a.isActive === false ? '#94a3b8' : (theme === 'light' ? '#000' : '#fff') }}>
-                                            {a.isActive === false 
-                                                ? '⏸️ ' + a.name + ' (พักงาน/ระงับใช้งาน)' 
-                                                : (a.role === 'SUPERVISOR' ? '👑 ' + a.name + ' (Supervisor)' : '👤 ' + a.name + ' (MC Agent)')}
+                                        <option key={a.id} value={a.name} style={{ background: theme === 'light' ? '#fff' : '#0f172a', color: a.isLocked ? '#ef4444' : (a.isActive === false ? '#94a3b8' : (theme === 'light' ? '#000' : '#fff')) }}>
+                                            {a.isLocked
+                                                ? '🔒 ' + a.name + ' (บัญชีถูกล็อก - รหัสผิด 3 ครั้ง)'
+                                                : (a.isActive === false 
+                                                    ? '⏸️ ' + a.name + ' (พักงาน/ระงับใช้งาน)' 
+                                                    : (a.role === 'SUPERVISOR' ? '👑 ' + a.name + ' (Supervisor)' : '👤 ' + a.name + ' (MC Agent)'))}
                                         </option>
                                     ))}
                                 </select>
@@ -7841,33 +8055,176 @@
                                 </div>
                             </div>
 
-                            <button
-                                className="btn btn-primary"
-                                style={{
-                                    width: '100%',
-                                    padding: '13px 20px',
-                                    fontSize: '15px',
-                                    fontWeight: 700,
-                                    borderRadius: '14px',
-                                    marginTop: '26px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '8px',
-                                    background: loginLockoutRemaining > 0 ? 'rgba(100, 116, 139, 0.4)' : 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
-                                    boxShadow: loginLockoutRemaining > 0 ? 'none' : '0 8px 24px rgba(124, 58, 237, 0.35)',
-                                    border: 'none',
-                                    cursor: loginLockoutRemaining > 0 ? 'not-allowed' : 'pointer',
-                                    opacity: loginLockoutRemaining > 0 ? 0.6 : 1
-                                }}
-                                disabled={loginLockoutRemaining > 0}
-                                onClick={handleConfirmLogin}
-                            >
-                                <i data-lucide={loginLockoutRemaining > 0 ? 'lock' : 'log-in'} style={{ width: '17px', height: '17px' }}></i>
-                                {loginLockoutRemaining > 0 
-                                    ? (lang === 'TH' ? `กรุณารอ ${loginLockoutRemaining} วินาที...` : `Please wait ${loginLockoutRemaining}s...`) 
-                                    : (lang === 'TH' ? 'เข้าสู่ระบบ (Sign In)' : 'Sign In to Dashboard')}
-                            </button>
+                            {(() => {
+                                const curAgentName = selectedLoginAgent || ((availableAgents.find(a => a.isActive !== false) || availableAgents[0])?.name);
+                                const curAgent = agents.find(a => a.name === curAgentName);
+                                const isCurLocked = Boolean(curAgent && curAgent.isLocked);
+
+                                return (
+                                    <>
+                                        {isCurLocked && (
+                                            <div style={{
+                                                marginTop: '16px',
+                                                padding: '12px 14px',
+                                                borderRadius: '12px',
+                                                background: 'rgba(239, 68, 68, 0.15)',
+                                                border: '1px solid rgba(239, 68, 68, 0.4)',
+                                                color: '#f87171',
+                                                fontSize: '12.5px',
+                                                lineHeight: 1.5
+                                            }}>
+                                                <div style={{ fontWeight: 800, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <span>🔒 บัญชีถูกล็อกความปลอดภัย (รหัสผิดครบ 3 ครั้ง)</span>
+                                                </div>
+                                                <div>กรุณาให้หัวหน้า (Supervisor) ปลดล็อกและตั้งรหัสผ่านใหม่ให้ หรือกดปุ่มด้านล่างเพื่อให้หัวหน้าปลดล็อกให้ตรงนี้</div>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            className="btn btn-primary"
+                                            style={{
+                                                width: '100%',
+                                                padding: '13px 20px',
+                                                fontSize: '15px',
+                                                fontWeight: 700,
+                                                borderRadius: '14px',
+                                                marginTop: '26px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '8px',
+                                                background: (isCurLocked || loginLockoutRemaining > 0) ? 'rgba(100, 116, 139, 0.4)' : 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                                                boxShadow: (isCurLocked || loginLockoutRemaining > 0) ? 'none' : '0 8px 24px rgba(124, 58, 237, 0.35)',
+                                                border: 'none',
+                                                cursor: (isCurLocked || loginLockoutRemaining > 0) ? 'not-allowed' : 'pointer',
+                                                opacity: (isCurLocked || loginLockoutRemaining > 0) ? 0.6 : 1
+                                            }}
+                                            disabled={isCurLocked || loginLockoutRemaining > 0}
+                                            onClick={handleConfirmLogin}
+                                        >
+                                            <i data-lucide={(isCurLocked || loginLockoutRemaining > 0) ? 'lock' : 'log-in'} style={{ width: '17px', height: '17px' }}></i>
+                                            {isCurLocked
+                                                ? (lang === 'TH' ? '🔒 บัญชีถูกล็อก (ให้หัวหน้าปลดล็อก)' : '🔒 Account Locked')
+                                                : loginLockoutRemaining > 0 
+                                                    ? (lang === 'TH' ? `กรุณารอ ${loginLockoutRemaining} วินาที...` : `Please wait ${loginLockoutRemaining}s...`) 
+                                                    : (lang === 'TH' ? 'เข้าสู่ระบบ (Sign In)' : 'Sign In to Dashboard')}
+                                        </button>
+
+                                        {/* Supervisor Direct Unlock Panel */}
+                                        <div style={{ marginTop: '20px', borderTop: '1px dashed rgba(168, 85, 247, 0.3)', paddingTop: '16px' }}>
+                                            <button
+                                                type="button"
+                                                style={{
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    color: '#a855f7',
+                                                    cursor: 'pointer',
+                                                    fontSize: '12px',
+                                                    fontWeight: 700,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    margin: '0 auto',
+                                                    padding: '6px 12px',
+                                                    borderRadius: '8px'
+                                                }}
+                                                onClick={() => setShowSuperUnlockCard(!showSuperUnlockCard)}
+                                            >
+                                                <span>👑 {showSuperUnlockCard ? 'ซ่อนแผงปลดล็อกหัวหน้า' : 'หัวหน้าปลดล็อกให้ตรงนี้ (Supervisor Quick Unlock)'}</span>
+                                            </button>
+
+                                            {showSuperUnlockCard && (
+                                                <div style={{
+                                                    marginTop: '12px',
+                                                    padding: '16px',
+                                                    borderRadius: '12px',
+                                                    background: theme === 'light' ? '#faf5ff' : 'rgba(88, 28, 135, 0.2)',
+                                                    border: '1px solid rgba(168, 85, 247, 0.4)'
+                                                }}>
+                                                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#c084fc', marginBottom: '10px' }}>
+                                                        🔓 ปลดล็อกและตั้งรหัสผ่านใหม่โดย Supervisor
+                                                    </div>
+
+                                                    {superUnlockError && (
+                                                        <div style={{ color: '#ef4444', fontSize: '11.5px', marginBottom: '8px' }}>
+                                                            ⚠️ {superUnlockError}
+                                                        </div>
+                                                    )}
+                                                    {superUnlockSuccess && (
+                                                        <div style={{ color: '#10b981', fontSize: '11.5px', marginBottom: '8px', fontWeight: 700 }}>
+                                                            {superUnlockSuccess}
+                                                        </div>
+                                                    )}
+
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                        <div>
+                                                            <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                                                บัญชีหัวหน้าผู้ปลดล็อก:
+                                                            </label>
+                                                            <select
+                                                                className="select-input"
+                                                                style={{ width: '100%', padding: '8px 10px', fontSize: '12px', borderRadius: '8px' }}
+                                                                value={superUnlockSupervisor}
+                                                                onChange={(e) => setSuperUnlockSupervisor(e.target.value)}
+                                                            >
+                                                                {agents.filter(a => a.role === 'SUPERVISOR' && a.isActive !== false).map(s => (
+                                                                    <option key={s.id} value={s.name}>👑 {s.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+
+                                                        <div>
+                                                            <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                                                รหัสผ่านของหัวหน้า (Supervisor Passcode):
+                                                            </label>
+                                                            <input
+                                                                type="password"
+                                                                className="text-input"
+                                                                placeholder="กรอกรหัสผ่านหัวหน้า"
+                                                                style={{ width: '100%', padding: '8px 10px', fontSize: '12px', borderRadius: '8px', boxSizing: 'border-box' }}
+                                                                value={superUnlockPassword}
+                                                                onChange={(e) => setSuperUnlockPassword(e.target.value)}
+                                                            />
+                                                        </div>
+
+                                                        <div>
+                                                            <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                                                กำหนดรหัสผ่านใหม่ให้พนักงาน (4-6 หลัก):
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                className="text-input"
+                                                                placeholder="เช่น 1234"
+                                                                style={{ width: '100%', padding: '8px 10px', fontSize: '12px', borderRadius: '8px', boxSizing: 'border-box' }}
+                                                                value={superUnlockNewPass}
+                                                                onChange={(e) => setSuperUnlockNewPass(e.target.value)}
+                                                            />
+                                                        </div>
+
+                                                        <button
+                                                            type="button"
+                                                            style={{
+                                                                marginTop: '6px',
+                                                                padding: '9px 16px',
+                                                                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                                                color: '#ffffff',
+                                                                border: 'none',
+                                                                borderRadius: '8px',
+                                                                fontSize: '12px',
+                                                                fontWeight: 700,
+                                                                cursor: 'pointer'
+                                                            }}
+                                                            onClick={handleSupervisorQuickUnlock}
+                                                        >
+                                                            ยืนยันการปลดล็อกและเปลี่ยนรหัสผ่าน
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </div>
 
                         {/* Footer info */}
@@ -12651,7 +13008,19 @@
                                                                         <span className={`role-badge ${isSuper ? 'role-badge-supervisor' : 'role-badge-agent'}`}>
                                                                             {isSuper ? (lang === 'TH' ? '👑 หัวหน้า' : '👑 Supervisor') : (lang === 'TH' ? '👤 พนักงาน' : '👤 Agent')}
                                                                         </span>
-                                                                        {a.isActive === false ? (
+                                                                        {a.isLocked ? (
+                                                                            <span className="role-badge" style={{
+                                                                                background: 'rgba(239, 68, 68, 0.2)',
+                                                                                color: '#ef4444',
+                                                                                border: '1px solid rgba(239, 68, 68, 0.4)',
+                                                                                fontWeight: 800,
+                                                                                display: 'inline-flex',
+                                                                                alignItems: 'center',
+                                                                                gap: '4px'
+                                                                            }}>
+                                                                                🔒 {lang === 'TH' ? 'ถูกล็อก (รหัสผิด 3 ครั้ง)' : 'Locked (3 failed attempts)'}
+                                                                            </span>
+                                                                        ) : a.isActive === false ? (
                                                                             <span className="role-badge staff-status-suspended">
                                                                                 {lang === 'TH' ? '⏸️ พักงาน' : '⏸️ Suspended'}
                                                                             </span>
@@ -12680,6 +13049,30 @@
                                                                         )}
                                                                     </div>
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                        {a.isLocked && (
+                                                                            <button 
+                                                                                type="button" 
+                                                                                style={{ 
+                                                                                    border: 'none', 
+                                                                                    padding: '5px 12px', 
+                                                                                    borderRadius: '6px', 
+                                                                                    cursor: 'pointer', 
+                                                                                    fontSize: '11px', 
+                                                                                    fontWeight: 700, 
+                                                                                    display: 'inline-flex', 
+                                                                                    alignItems: 'center', 
+                                                                                    gap: '5px',
+                                                                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                                                                    color: '#ffffff',
+                                                                                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)'
+                                                                                }} 
+                                                                                onClick={() => handleUnlockAgent(a)} 
+                                                                                title={lang === 'TH' ? "ปลดล็อกและกำหนดรหัสผ่านใหม่ให้พนักงาน" : "Unlock and set new passcode for staff"}
+                                                                            >
+                                                                                <i data-lucide="unlock" style={{ width: '12px', height: '12px' }}></i>
+                                                                                <span>{lang === 'TH' ? '🔓 ปลดล็อกและตั้งรหัสใหม่' : '🔓 Unlock & Reset'}</span>
+                                                                            </button>
+                                                                        )}
                                                                         {a.isActive === false ? (
                                                                             <button 
                                                                                 type="button" 
