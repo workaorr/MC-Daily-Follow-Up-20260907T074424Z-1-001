@@ -25,11 +25,14 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
         theme, 
         toggleTheme, 
         supabaseClient, 
-        writeLog 
+        writeLog,
+        isLockedDueToInactivity,
+        setIsLockedDueToInactivity,
+        setIsLoginModalOpen
     } = useApp();
 
     const [selectedAgentName, setSelectedAgentName] = useState(() => {
-        return localStorage.getItem('mc_last_selected_agent') || '';
+        return activeAgentName || localStorage.getItem('mc_last_selected_agent') || '';
     });
     const [passwordInput, setPasswordInput] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -52,13 +55,21 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
         return () => clearInterval(interval);
     }, [lockoutUntil]);
 
-    // Set default selected agent if empty
+    // Keep selectedAgentName in sync with activeAgentName or fallback
     useEffect(() => {
-        if (!selectedAgentName && agents && agents.length > 0) {
-            const firstActive = agents.find(a => !a.isArchived && a.isActive !== false);
-            if (firstActive) setSelectedAgentName(firstActive.name);
+        if (activeAgentName) {
+            setSelectedAgentName(activeAgentName);
+        } else if (!selectedAgentName && agents && agents.length > 0) {
+            const lastSaved = localStorage.getItem('mc_last_selected_agent');
+            const foundSaved = agents.find(a => a.name === lastSaved && !a.isArchived && a.isActive !== false);
+            if (foundSaved) {
+                setSelectedAgentName(foundSaved.name);
+            } else {
+                const firstActive = agents.find(a => !a.isArchived && a.isActive !== false);
+                if (firstActive) setSelectedAgentName(firstActive.name);
+            }
         }
-    }, [agents, selectedAgentName]);
+    }, [activeAgentName, agents, selectedAgentName]);
 
     if (!isOpen && !isFullscreen) return null;
 
@@ -163,6 +174,9 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
             } catch (e) {}
         }
 
+        if (setIsLockedDueToInactivity) setIsLockedDueToInactivity(false);
+        if (setIsLoginModalOpen) setIsLoginModalOpen(false);
+
         if (onClose) onClose();
     };
 
@@ -200,20 +214,26 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
                     height: '60px',
                     margin: '0 auto 12px auto',
                     borderRadius: '18px',
-                    background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #ec4899 100%)',
+                    background: isLockedDueToInactivity 
+                        ? 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)' 
+                        : 'linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #ec4899 100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: '0 8px 24px rgba(168, 85, 247, 0.4)',
+                    boxShadow: isLockedDueToInactivity ? '0 8px 24px rgba(239, 68, 68, 0.4)' : '0 8px 24px rgba(168, 85, 247, 0.4)',
                     color: '#ffffff'
                 }}>
-                    <PhoneOutgoing size={30} />
+                    {isLockedDueToInactivity ? <Lock size={30} /> : <PhoneOutgoing size={30} />}
                 </div>
                 <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
-                    {lang === 'TH' ? 'เข้าสู่ระบบเจ้าหน้าที่' : 'Staff Sign In'}
+                    {isLockedDueToInactivity 
+                        ? (lang === 'TH' ? '🔒 ล็อกหน้าจออัตโนมัติ' : '🔒 Session Locked')
+                        : (lang === 'TH' ? 'เข้าสู่ระบบเจ้าหน้าที่' : 'Staff Sign In')}
                 </h2>
                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    {lang === 'TH' ? 'กรุณาเลือกบัญชีและกรอกรหัสผ่านเพื่อเข้าใช้งาน' : 'Select staff account and enter passcode'}
+                    {isLockedDueToInactivity
+                        ? (lang === 'TH' ? `ไม่มีการใช้งานเกิน 15 นาที กรุณากรอกรหัสผ่านเพื่อใช้งานต่อ` : `Inactive for 15 minutes. Enter passcode to continue`)
+                        : (lang === 'TH' ? 'กรุณาเลือกบัญชีและกรอกรหัสผ่านเพื่อเข้าใช้งาน' : 'Select staff account and enter passcode')}
                 </p>
             </div>
 
@@ -324,15 +344,19 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
     if (isFullscreen) {
         return (
             <div className="login-fullscreen-page" style={{
-                minHeight: '100vh',
+                position: 'fixed',
+                inset: 0,
                 width: '100vw',
+                height: '100vh',
+                minHeight: '100vh',
+                zIndex: 99999,
+                overflowY: 'auto',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '24px',
                 boxSizing: 'border-box',
-                position: 'relative',
                 background: theme === 'light'
                     ? 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%)'
                     : 'radial-gradient(circle at 50% 25%, #1e1b4b 0%, #0b0f19 50%, #030712 100%)',
@@ -385,8 +409,22 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
     }
 
     return (
-        <div className="modal-backdrop" onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div onClick={(e) => e.stopPropagation()}>
+        <div 
+            className="modal-backdrop" 
+            onClick={onClose} 
+            style={{ 
+                position: 'fixed',
+                inset: 0,
+                zIndex: 99999,
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                backdropFilter: 'blur(8px)',
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                padding: '16px'
+            }}
+        >
+            <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: '440px' }}>
                 {content}
             </div>
         </div>

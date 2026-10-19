@@ -44,6 +44,20 @@ export default function App() {
         setIsLoginModalOpen(false);
     };
 
+    // 🛡️ Strict Auth Guard:
+    // If unauthenticated or session is locked due to inactivity,
+    // do NOT render the application layout, navbar, sidebar, or customer data.
+    // Mount ONLY the secure full-screen staff login portal.
+    if (!activeAgentName || isLockedDueToInactivity) {
+        return (
+            <LoginModal 
+                isOpen={true}
+                isFullscreen={true}
+                onClose={null}
+            />
+        );
+    }
+
     const renderActiveView = () => {
         switch (viewMode) {
             case 'supervisor':
@@ -95,13 +109,15 @@ export default function App() {
             {/* Recycle Bin & Staff Lifecycle Modal */}
             <ArchiveAgentModal />
 
-            {/* Auth Domain Modals */}
+            {/* Auth Domain Modals (Account Switcher Modal for authenticated user) */}
             <ChangePasscodeModal />
-            <LoginModal 
-                isOpen={isLoginModalOpen || !activeAgentName}
-                isFullscreen={!activeAgentName}
-                onClose={isLockedDueToInactivity ? null : handleCloseLogin}
-            />
+            {isLoginModalOpen && (
+                <LoginModal 
+                    isOpen={isLoginModalOpen}
+                    isFullscreen={false}
+                    onClose={handleCloseLogin}
+                />
+            )}
 
             {/* System DB Connection Settings */}
             <DbSettingsModal 
