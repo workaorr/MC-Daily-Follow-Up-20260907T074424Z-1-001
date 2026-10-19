@@ -1,5 +1,5 @@
 // CSV Exporter with Formula Injection Protection (RFC 4180 + Excel Guard) & UTF-8 BOM
-import { formatLineLekDisplay, getCustomerKpiCategory } from './customerFormatters';
+import { formatLineLekDisplay, getCustomerKpiCategory } from './customerFormatters.js';
 
 export const sanitizeCsvCell = (val) => {
     if (val === null || val === undefined) return '""';

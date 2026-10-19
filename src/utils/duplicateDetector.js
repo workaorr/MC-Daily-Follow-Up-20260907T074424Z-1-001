@@ -2,7 +2,7 @@
  * Pure Duplicate Detection & Validation Utilities
  */
 
-import { sanitizePhone, normalizeKey } from './depositMatcher';
+import { sanitizePhone, normalizeKey } from './depositMatcher.js';
 
 /**
  * Checks if a username already exists in customer list (excluding a specific customer ID if editing)

@@ -1,7 +1,7 @@
 // SheetJS (.xlsx) Exporter with Phone Zero Protection and Auto Column Widths
 import * as XLSX from 'xlsx';
-import { formatLineLekDisplay, getCustomerKpiCategory } from './customerFormatters';
-import { exportCustomersToCSV, exportExecutiveCSV } from './exportCsv';
+import { formatLineLekDisplay, getCustomerKpiCategory } from './customerFormatters.js';
+import { exportCustomersToCSV, exportExecutiveCSV } from './exportCsv.js';
 
 export const exportCustomersToExcel = (targetList, filename = 'MC_Customer_List.xlsx', lang = 'TH', selectedMonth = 'ALL') => {
     if (!targetList || targetList.length === 0) {
