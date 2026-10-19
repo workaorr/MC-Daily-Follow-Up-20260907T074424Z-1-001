@@ -1,8 +1,9 @@
 // Staff Login Component (Full-page & Modal Mode)
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { verifyPasscode, hashPasscode } from '../../utils/auth';
 import { APP_CONFIG } from '../../constants/config';
+import { pushAgentToCloud } from '../../services/supabase';
 import { 
     PhoneOutgoing, 
     Lock, 
@@ -12,7 +13,9 @@ import {
     Globe, 
     Sun, 
     Moon, 
-    X 
+    X,
+    ShieldCheck,
+    CheckCircle2
 } from 'lucide-react';
 
 export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
@@ -42,19 +45,28 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
     const [lockoutUntil, setLockoutUntil] = useState(0);
     const [lockoutRemaining, setLockoutRemaining] = useState(0);
 
-    // Brute-force lockout countdown timer
+    // Supervisor Quick Unlock state
+    const supervisorsList = useMemo(() => {
+        return (agents || []).filter(a => a.role === 'SUPERVISOR' && !a.isArchived && a.isActive !== false);
+    }, [agents]);
+
+    const [showSuperUnlock, setShowSuperUnlock] = useState(false);
+    const [superUnlockName, setSuperUnlockName] = useState('');
+    const [superUnlockPasscode, setSuperUnlockPasscode] = useState('');
+    const [superNewPassForAgent, setSuperNewPassForAgent] = useState('1234');
+    const [superUnlockError, setSuperUnlockError] = useState('');
+    const [superUnlockSuccess, setSuperUnlockSuccess] = useState('');
+
     useEffect(() => {
-        if (!lockoutUntil) return;
-        const interval = setInterval(() => {
-            const rem = Math.max(0, Math.ceil((lockoutUntil - Date.now()) / 1000));
-            setLockoutRemaining(rem);
-            if (rem <= 0) {
-                setLockoutUntil(0);
-                setErrorMsg('');
-            }
-        }, 500);
-        return () => clearInterval(interval);
-    }, [lockoutUntil]);
+        if (!superUnlockName && supervisorsList.length > 0) {
+            setSuperUnlockName(supervisorsList[0].name);
+        }
+    }, [supervisorsList, superUnlockName]);
+
+    // Matched agent lookup
+    const matchedAgent = useMemo(() => {
+        return (agents || []).find(a => a.name === selectedAgentName) || null;
+    }, [agents, selectedAgentName]);
 
     // Keep selectedAgentName in sync with activeAgentName or fallback
     useEffect(() => {
@@ -72,7 +84,77 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
         }
     }, [activeAgentName, agents, selectedAgentName]);
 
+    // Auto-detect locked account when selected
+    useEffect(() => {
+        if (matchedAgent && matchedAgent.isLocked) {
+            setErrorMsg(lang === 'TH' 
+                ? `🔒 บัญชี [${matchedAgent.name}] ถูกระงับการใช้งานเนื่องจากกรอกรหัสผ่านผิดครบ 3 ครั้ง กรุณาให้หัวหน้า (Supervisor) ปลดล็อกและตั้งรหัสผ่านใหม่` 
+                : `🔒 Account [${matchedAgent.name}] is locked due to 3 failed attempts. Please contact a Supervisor to unlock.`);
+        } else {
+            setShowSuperUnlock(false);
+            setSuperUnlockError('');
+        }
+    }, [matchedAgent, lang]);
+
     if (!isOpen && !isFullscreen) return null;
+
+    // Supervisor in-place unlock handler
+    const handleSupervisorDirectUnlock = async () => {
+        if (!superUnlockName) {
+            setSuperUnlockError(lang === 'TH' ? 'กรุณาเลือกบัญชีหัวหน้า' : 'Please select supervisor account');
+            return;
+        }
+        if (!superUnlockPasscode) {
+            setSuperUnlockError(lang === 'TH' ? 'กรุณากรอกรหัสผ่านของหัวหน้า' : 'Please enter supervisor passcode');
+            return;
+        }
+
+        const superAccount = (agents || []).find(a => a.name === superUnlockName);
+        if (!superAccount) {
+            setSuperUnlockError(lang === 'TH' ? 'ไม่พบบัญชีหัวหน้า' : 'Supervisor not found');
+            return;
+        }
+
+        const isSuperMatch = await verifyPasscode(superUnlockPasscode, superAccount.passcode || '1234');
+        if (!isSuperMatch) {
+            setSuperUnlockError(lang === 'TH' ? 'รหัสผ่านหัวหน้าไม่ถูกต้อง กรุณาตรวจสอบใหม่' : 'Incorrect supervisor passcode');
+            return;
+        }
+
+        const newPass = superNewPassForAgent.trim() || '1234';
+        const hashed = await hashPasscode(newPass);
+
+        const updated = (agents || []).map(a => {
+            if (a.name === selectedAgentName) {
+                const unlocked = {
+                    ...a,
+                    isLocked: false,
+                    lockedReason: null,
+                    lockedAt: null,
+                    isActive: true,
+                    passcode: hashed
+                };
+                if (supabaseClient) {
+                    pushAgentToCloud(supabaseClient, unlocked);
+                }
+                return unlocked;
+            }
+            return a;
+        });
+
+        setAgents(updated);
+        localStorage.setItem('mc_agents', JSON.stringify(updated));
+        writeLog('AUTH', `👑 หัวหน้า [${superUnlockName}] ได้ปลดล็อกบัญชี [${selectedAgentName}] และตั้งรหัสผ่านใหม่สำเร็จ`, 'success', superUnlockName);
+
+        setShowSuperUnlock(false);
+        setSuperUnlockPasscode('');
+        setSuperUnlockError('');
+        setErrorMsg('');
+        setFailedAttempts(0);
+        setSuperUnlockSuccess(lang === 'TH' 
+            ? `✅ ปลดล็อกบัญชี [${selectedAgentName}] สำเร็จแล้ว! รหัสใหม่คือ "${newPass}" สามารถเข้าสู่ระบบได้ทันที`
+            : `✅ Unlocked account [${selectedAgentName}] successfully! New passcode is "${newPass}"`);
+    };
 
     const handleConfirmLogin = async () => {
         if (lockoutRemaining > 0) return;
@@ -81,9 +163,15 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
             return;
         }
 
-        const matchedAgent = (agents || []).find(a => a.name === selectedAgentName);
         if (!matchedAgent) {
             setErrorMsg(lang === 'TH' ? 'ไม่พบบัญชีพนักงานในระบบ' : 'Staff account not found');
+            return;
+        }
+
+        if (matchedAgent.isLocked) {
+            setErrorMsg(lang === 'TH' 
+                ? `🔒 บัญชี [${matchedAgent.name}] ถูกระงับการใช้งานเนื่องจากกรอกรหัสผ่านผิดครบ 3 ครั้ง กรุณาให้หัวหน้า (Supervisor) ปลดล็อกและตั้งรหัสผ่านใหม่` 
+                : `🔒 Account [${matchedAgent.name}] is locked due to 3 failed attempts. Please contact a Supervisor to unlock.`);
             return;
         }
 
@@ -121,17 +209,35 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
             const nextAttempts = failedAttempts + 1;
             setFailedAttempts(nextAttempts);
             const maxAttempts = APP_CONFIG.MAX_LOGIN_ATTEMPTS || 3;
-            const lockoutSec = APP_CONFIG.LOCKOUT_DURATION_SEC || 30;
 
             if (nextAttempts >= maxAttempts) {
-                const lockUntil = Date.now() + (lockoutSec * 1000);
-                setLockoutUntil(lockUntil);
-                setLockoutRemaining(lockoutSec);
+                // 🔒 PERMANENT LOCK: Account is locked until a Supervisor unlocks it!
+                const updatedAgents = (agents || []).map(a => {
+                    if (a.name === selectedAgentName) {
+                        const updated = {
+                            ...a,
+                            isLocked: true,
+                            lockedReason: 'FAILED_ATTEMPTS_3',
+                            lockedAt: new Date().toISOString()
+                        };
+                        if (supabaseClient) {
+                            pushAgentToCloud(supabaseClient, updated);
+                        }
+                        return updated;
+                    }
+                    return a;
+                });
+
+                setAgents(updatedAgents);
+                localStorage.setItem('mc_agents', JSON.stringify(updatedAgents));
                 setFailedAttempts(0);
-                setErrorMsg(lang === 'TH'
-                    ? `⚠️ กรอกรหัสผ่านไม่ถูกต้องเกิน ${maxAttempts} ครั้ง ระบบระงับการเข้าสู่ระบบ ${lockoutSec} วินาที เพื่อความปลอดภัย`
-                    : `⚠️ Too many failed attempts. Locked out for ${lockoutSec} seconds.`);
-                writeLog('AUTH', `⚠️ พยายามเข้าสู่ระบบบัญชี [${selectedAgentName}] ด้วยรหัสผ่านผิดเกิน ${maxAttempts} ครั้ง - ระงับชั่วคราว ${lockoutSec} วินาที`, 'warning', selectedAgentName);
+                setPasswordInput('');
+                
+                const lockMsg = lang === 'TH'
+                    ? `🔒 บัญชี [${selectedAgentName}] ถูกล็อกแล้วเนื่องจากกรอกรหัสผ่านผิดครบ 3 ครั้ง กรุณาติดต่อหัวหน้า (Supervisor) เพื่อปลดล็อกและตั้งรหัสผ่านใหม่`
+                    : `🔒 Account [${selectedAgentName}] has been locked due to 3 failed attempts. Please contact a Supervisor to unlock and reset passcode.`;
+                setErrorMsg(lockMsg);
+                writeLog('SECURITY', `🔒 บัญชี [${selectedAgentName}] ถูกล็อกเนื่องจากกรอกรหัสผ่านผิดครบ 3 ครั้ง - ต้องให้หัวหน้า (Supervisor) ปลดล็อกเท่านั้น`, 'danger', selectedAgentName);
             } else {
                 setErrorMsg(lang === 'TH'
                     ? `รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง (ครั้งที่ ${nextAttempts}/${maxAttempts})`
@@ -242,6 +348,23 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
                 </p>
             </div>
 
+            {superUnlockSuccess && (
+                <div style={{
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    color: '#10b981',
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    fontSize: '12.5px',
+                    marginBottom: '18px',
+                    textAlign: 'center',
+                    fontWeight: 700,
+                    lineHeight: 1.5
+                }}>
+                    {superUnlockSuccess}
+                </div>
+            )}
+
             {errorMsg && (
                 <div style={{
                     background: 'rgba(239, 68, 68, 0.15)',
@@ -252,7 +375,8 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
                     fontSize: '12px',
                     marginBottom: '18px',
                     textAlign: 'center',
-                    fontWeight: 600
+                    fontWeight: 600,
+                    lineHeight: 1.5
                 }}>
                     {errorMsg}
                 </div>
@@ -269,12 +393,13 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
                         onChange={(e) => {
                             setSelectedAgentName(e.target.value);
                             setErrorMsg('');
+                            setSuperUnlockSuccess('');
                         }}
                         style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', fontSize: '14px' }}
                     >
                         {(agents || []).filter(a => !a.isArchived).map(a => (
                             <option key={a.id || a.name} value={a.name}>
-                                {a.role === 'SUPERVISOR' ? '👑 ' : '👤 '} {a.name} ({a.role})
+                                {a.isLocked ? '🔒 ' : (a.role === 'SUPERVISOR' ? '👑 ' : '👤 ')} {a.name} ({a.role}){a.isLocked ? (lang === 'TH' ? ' - ถูกล็อก' : ' - Locked') : ''}
                             </option>
                         ))}
                     </select>
@@ -288,21 +413,32 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
                         <input
                             type={showPassword ? 'text' : 'password'}
                             className="text-input"
-                            placeholder={lang === 'TH' ? 'กรอกรหัสผ่าน 4 หลัก...' : 'Enter passcode...'}
+                            placeholder={matchedAgent?.isLocked 
+                                ? (lang === 'TH' ? '🔒 บัญชีถูกล็อก (กรุณาให้หัวหน้าปลดล็อก)' : '🔒 Account is locked')
+                                : (lang === 'TH' ? 'กรอกรหัสผ่าน 4 หลัก...' : 'Enter passcode...')}
                             value={passwordInput}
                             onChange={(e) => {
                                 setPasswordInput(e.target.value);
                                 setErrorMsg('');
+                                setSuperUnlockSuccess('');
                             }}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') handleConfirmLogin();
                             }}
-                            disabled={lockoutRemaining > 0}
-                            style={{ width: '100%', padding: '12px 42px 12px 14px', borderRadius: '12px', fontSize: '15px' }}
+                            disabled={matchedAgent?.isLocked || lockoutRemaining > 0}
+                            style={{ 
+                                width: '100%', 
+                                padding: '12px 42px 12px 14px', 
+                                borderRadius: '12px', 
+                                fontSize: '15px',
+                                opacity: matchedAgent?.isLocked ? 0.6 : 1,
+                                cursor: matchedAgent?.isLocked ? 'not-allowed' : 'text'
+                            }}
                         />
                         <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
+                            disabled={matchedAgent?.isLocked}
                             style={{
                                 position: 'absolute',
                                 right: '12px',
@@ -311,7 +447,7 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
                                 background: 'none',
                                 border: 'none',
                                 color: 'var(--text-muted)',
-                                cursor: 'pointer'
+                                cursor: matchedAgent?.isLocked ? 'not-allowed' : 'pointer'
                             }}
                         >
                             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -322,7 +458,7 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
                 <button
                     className="btn btn-primary"
                     onClick={handleConfirmLogin}
-                    disabled={lockoutRemaining > 0}
+                    disabled={matchedAgent?.isLocked || lockoutRemaining > 0}
                     style={{
                         padding: '13px',
                         fontSize: '15px',
@@ -333,15 +469,148 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '8px',
-                        background: lockoutRemaining > 0 ? 'rgba(100, 116, 139, 0.4)' : 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
-                        cursor: lockoutRemaining > 0 ? 'not-allowed' : 'pointer'
+                        background: (matchedAgent?.isLocked || lockoutRemaining > 0)
+                            ? 'rgba(100, 116, 139, 0.4)' 
+                            : 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                        cursor: (matchedAgent?.isLocked || lockoutRemaining > 0) ? 'not-allowed' : 'pointer'
                     }}
                 >
-                    {lockoutRemaining > 0 ? <Lock size={17} /> : <LogIn size={17} />}
-                    {lockoutRemaining > 0 
-                        ? (lang === 'TH' ? `กรุณารอ ${lockoutRemaining} วินาที...` : `Please wait ${lockoutRemaining}s...`) 
-                        : (lang === 'TH' ? 'เข้าสู่ระบบ (Sign In)' : 'Sign In')}
+                    {matchedAgent?.isLocked ? <Lock size={17} /> : (lockoutRemaining > 0 ? <Lock size={17} /> : <LogIn size={17} />)}
+                    {matchedAgent?.isLocked 
+                        ? (lang === 'TH' ? '🔒 บัญชีถูกล็อก (ให้หัวหน้าปลดล็อก)' : '🔒 Account Locked (Contact Supervisor)')
+                        : (lockoutRemaining > 0 
+                            ? (lang === 'TH' ? `กรุณารอ ${lockoutRemaining} วินาที...` : `Please wait ${lockoutRemaining}s...`) 
+                            : (lang === 'TH' ? 'เข้าสู่ระบบ (Sign In)' : 'Sign In'))}
                 </button>
+
+                {/* Supervisor Direct Unlock Box for Locked Account */}
+                {matchedAgent?.isLocked && (
+                    <div style={{
+                        marginTop: '12px',
+                        padding: '14px',
+                        borderRadius: '16px',
+                        background: theme === 'light' ? '#fffbeb' : 'rgba(245, 158, 11, 0.1)',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        boxShadow: '0 4px 14px rgba(245, 158, 11, 0.15)'
+                    }}>
+                        {!showSuperUnlock ? (
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => setShowSuperUnlock(true)}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px 14px',
+                                    fontSize: '13px',
+                                    fontWeight: 700,
+                                    borderRadius: '10px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    background: theme === 'light' ? '#ffffff' : 'rgba(245, 158, 11, 0.2)',
+                                    color: '#d97706',
+                                    border: '1px solid rgba(245, 158, 11, 0.4)',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <span>👑</span>
+                                <span>{lang === 'TH' ? 'หัวหน้าปลดล็อกให้ตรงนี้ (Supervisor Unlock)' : 'Supervisor Unlock Here'}</span>
+                            </button>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'left' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#d97706', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <ShieldCheck size={16} />
+                                        {lang === 'TH' ? '👑 ปลดล็อกโดยหัวหน้างาน' : '👑 Supervisor Direct Unlock'}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowSuperUnlock(false); setSuperUnlockError(''); }}
+                                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+
+                                {superUnlockError && (
+                                    <div style={{ color: '#ef4444', fontSize: '11.5px', fontWeight: 700, padding: '4px 0' }}>
+                                        ⚠️ {superUnlockError}
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                        {lang === 'TH' ? 'เลือกบัญชีหัวหน้า (Supervisor):' : 'Select Supervisor:'}
+                                    </label>
+                                    <select
+                                        className="select-input"
+                                        value={superUnlockName}
+                                        onChange={(e) => setSuperUnlockName(e.target.value)}
+                                        style={{ width: '100%', padding: '8px 10px', fontSize: '13px', borderRadius: '8px' }}
+                                    >
+                                        {supervisorsList.map(s => (
+                                            <option key={s.id || s.name} value={s.name}>
+                                                👑 {s.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                        {lang === 'TH' ? 'รหัสผ่านของหัวหน้า (Supervisor Passcode):' : 'Supervisor Passcode:'}
+                                    </label>
+                                    <input
+                                        type="password"
+                                        className="text-input"
+                                        placeholder={lang === 'TH' ? 'กรอกรหัสผ่านหัวหน้า...' : 'Supervisor passcode...'}
+                                        value={superUnlockPasscode}
+                                        onChange={(e) => setSuperUnlockPasscode(e.target.value)}
+                                        style={{ width: '100%', padding: '8px 12px', fontSize: '13px', borderRadius: '8px' }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                        {lang === 'TH' ? `กำหนดรหัสใหม่ให้ [${selectedAgentName}] (New Passcode):` : 'New Passcode for Staff:'}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="text-input"
+                                        placeholder={lang === 'TH' ? 'รหัสใหม่ 4 หลัก (เช่น 1234)' : 'New passcode (e.g. 1234)'}
+                                        value={superNewPassForAgent}
+                                        onChange={(e) => setSuperNewPassForAgent(e.target.value)}
+                                        style={{ width: '100%', padding: '8px 12px', fontSize: '13px', borderRadius: '8px', fontWeight: 700, letterSpacing: '2px' }}
+                                    />
+                                </div>
+
+                                <button
+                                    type="button"
+                                    className="btn btn-primary"
+                                    onClick={handleSupervisorDirectUnlock}
+                                    style={{
+                                        padding: '10px',
+                                        fontSize: '13px',
+                                        fontWeight: 700,
+                                        borderRadius: '10px',
+                                        marginTop: '6px',
+                                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                        color: '#ffffff',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <ShieldCheck size={15} />
+                                    <span>{lang === 'TH' ? 'ยืนยันปลดล็อกและตั้งรหัสผ่านใหม่' : 'Confirm Unlock & Reset Passcode'}</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

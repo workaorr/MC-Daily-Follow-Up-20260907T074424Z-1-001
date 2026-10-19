@@ -11,7 +11,9 @@ import {
     Eye, 
     EyeOff, 
     Check, 
-    X 
+    X,
+    Lock,
+    Unlock
 } from 'lucide-react';
 
 export const StaffRow = ({ 
@@ -21,7 +23,8 @@ export const StaffRow = ({
     onCancelEdit, 
     onSaveEdit, 
     onToggleActive, 
-    onDelete 
+    onDelete,
+    onUnlock
 }) => {
     const { activeAgentName, agents, lang, theme } = useApp();
     const isSuper = agent.role === 'SUPERVISOR';
@@ -34,6 +37,7 @@ export const StaffRow = ({
     const [showPassword, setShowPassword] = useState(false);
     const [role, setRole] = useState(agent.role || 'AGENT');
     const [isActive, setIsActive] = useState(agent.isActive !== false);
+    const [isLockedState, setIsLockedState] = useState(Boolean(agent.isLocked));
 
     // Granular permissions
     const [permDashboard, setPermDashboard] = useState(perms.canDashboard !== false);
@@ -50,6 +54,7 @@ export const StaffRow = ({
             setShowPassword(false);
             setRole(agent.role || 'AGENT');
             setIsActive(agent.isActive !== false);
+            setIsLockedState(Boolean(agent.isLocked));
             setPermDashboard(perms.canDashboard !== false);
             setPermFollowUp(perms.canFollowUp !== false);
             setPermNewCustomer(perms.canNewCustomer !== false);
@@ -80,6 +85,9 @@ export const StaffRow = ({
             passcode: passcode.trim(),
             role,
             isActive,
+            isLocked: isLockedState,
+            lockedReason: isLockedState ? agent.lockedReason : null,
+            lockedAt: isLockedState ? agent.lockedAt : null,
             permissions: {
                 canDashboard: permDashboard,
                 canFollowUp: permFollowUp,
@@ -235,7 +243,19 @@ export const StaffRow = ({
                         <span className={`role-badge ${isSuper ? 'role-badge-supervisor' : 'role-badge-agent'}`}>
                             {isSuper ? (lang === 'TH' ? '👑 หัวหน้า' : '👑 Supervisor') : (lang === 'TH' ? '👤 พนักงาน' : '👤 Agent')}
                         </span>
-                        {agent.isActive === false ? (
+                        {agent.isLocked ? (
+                            <span className="role-badge" style={{
+                                background: 'rgba(239, 68, 68, 0.2)',
+                                color: '#ef4444',
+                                border: '1px solid rgba(239, 68, 68, 0.4)',
+                                fontWeight: 800,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                            }}>
+                                🔒 {lang === 'TH' ? 'ถูกล็อก (รหัสผิด 3 ครั้ง)' : 'Locked (3 failed attempts)'}
+                            </span>
+                        ) : agent.isActive === false ? (
                             <span className="role-badge staff-status-suspended">
                                 {lang === 'TH' ? '⏸️ พักงาน' : '⏸️ Suspended'}
                             </span>
@@ -264,6 +284,30 @@ export const StaffRow = ({
                         )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {agent.isLocked && onUnlock && (
+                            <button 
+                                type="button" 
+                                style={{ 
+                                    border: 'none', 
+                                    padding: '5px 12px', 
+                                    borderRadius: '6px', 
+                                    cursor: 'pointer', 
+                                    fontSize: '11px', 
+                                    fontWeight: 700, 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '5px',
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    color: '#ffffff',
+                                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)'
+                                }} 
+                                onClick={() => onUnlock(agent)} 
+                                title={lang === 'TH' ? "ปลดล็อกและกำหนดรหัสผ่านใหม่ให้พนักงาน" : "Unlock and set new passcode for staff"}
+                            >
+                                <Unlock size={12} />
+                                <span>{lang === 'TH' ? '🔓 ปลดล็อกและตั้งรหัสใหม่' : '🔓 Unlock & Reset'}</span>
+                            </button>
+                        )}
                         {agent.isActive === false ? (
                             <button 
                                 type="button" 

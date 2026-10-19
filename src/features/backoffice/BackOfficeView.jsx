@@ -198,6 +198,46 @@ export default function BackOfficeView() {
     setArchiveAgentModalData(agent);
   };
 
+  const handleUnlockStaff = async (agent) => {
+    const newPass = window.prompt(
+      lang === 'TH' 
+        ? `👑 ปลดล็อกบัญชี [${agent.name}]\nกรุณากำหนดรหัสผ่านใหม่ (4-6 หลัก):` 
+        : `👑 Unlock account [${agent.name}]\nEnter new passcode (4-6 digits):`,
+      '1234'
+    );
+    if (!newPass || !newPass.trim()) return;
+
+    const trimmedPass = newPass.trim();
+    if (trimmedPass.length < 4 || trimmedPass.length > 6) {
+      alert(lang === 'TH' ? 'รหัสผ่านต้องมีความยาว 4-6 หลัก' : 'Passcode must be 4-6 digits');
+      return;
+    }
+
+    const hashed = await hashPasscode(trimmedPass);
+    const updated = agents.map(a => {
+      if (a.id !== agent.id) return a;
+      const merged = {
+        ...a,
+        isLocked: false,
+        lockedReason: null,
+        lockedAt: null,
+        isActive: true,
+        passcode: hashed
+      };
+      if (supabaseClient) {
+        pushAgentToCloud(supabaseClient, merged);
+      }
+      return merged;
+    });
+
+    setAgents(updated);
+    localStorage.setItem('mc_agents', JSON.stringify(updated));
+    writeLog('AUTH', `👑 หัวหน้า [${activeAgentName}] ได้ทำการปลดล็อกบัญชีและตั้งรหัสผ่านใหม่ให้ [${agent.name}] สำเร็จ`, 'success', activeAgentName);
+    alert(lang === 'TH' 
+      ? `✅ ปลดล็อกบัญชี [${agent.name}] สำเร็จแล้ว!\nรหัสผ่านใหม่คือ: "${trimmedPass}"\nพนักงานสามารถเข้าสู่ระบบด้วยรหัสนี้ได้ทันที` 
+      : `✅ Account [${agent.name}] unlocked successfully!\nNew passcode is: "${trimmedPass}"`);
+  };
+
   // Channels Management Handlers
   const handleAddChannel = () => {
     const val = newChannelInput.trim().toLowerCase();
@@ -572,6 +612,7 @@ export default function BackOfficeView() {
                     onSaveEdit={(data) => handleSaveStaffEdit(agent.id, data)}
                     onToggleActive={() => handleToggleActiveStaff(agent.id)}
                     onDelete={() => handleDeleteStaff(agent)}
+                    onUnlock={() => handleUnlockStaff(agent)}
                   />
                 ))}
               </tbody>

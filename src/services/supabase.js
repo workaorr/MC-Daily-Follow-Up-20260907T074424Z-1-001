@@ -89,8 +89,12 @@ export const pushAgentToCloud = async (supabaseClient, agent) => {
             name: agent.name.trim(),
             role: agent.role || 'AGENT',
             login_username: (agent.loginUsername || '').trim(),
-            passcode: (agent.passcode || '1234').trim(),
-            permissions: agent.permissions || {},
+            permissions: {
+                ...(agent.permissions || {}),
+                isLocked: Boolean(agent.isLocked),
+                lockedReason: agent.lockedReason || null,
+                lockedAt: agent.lockedAt || null
+            },
             is_active: agent.isActive !== false
         };
         if (agent.id && typeof agent.id === 'number' && agent.id < 1000000000) {

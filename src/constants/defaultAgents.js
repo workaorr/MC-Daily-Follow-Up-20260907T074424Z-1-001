@@ -25,7 +25,9 @@ export const normalizeAgent = (a, idx = 0) => {
     const lastLoginAt = a.last_login_at || a.lastLoginAt || null;
     const isArchived = Boolean(a.isArchived || (parsedPerms && parsedPerms.isArchived));
     const archivedAt = a.archivedAt || (parsedPerms && parsedPerms.archivedAt) || null;
-    const archivedBy = a.archivedBy || (parsedPerms && parsedPerms.archivedBy) || null;
+    const isLocked = Boolean(a.isLocked || a.is_locked || (parsedPerms && parsedPerms.isLocked));
+    const lockedReason = a.lockedReason || a.locked_reason || (parsedPerms && parsedPerms.lockedReason) || null;
+    const lockedAt = a.lockedAt || a.locked_at || (parsedPerms && parsedPerms.lockedAt) || null;
     return {
         id: a.id || (Date.now() + idx),
         name: name,
@@ -34,6 +36,9 @@ export const normalizeAgent = (a, idx = 0) => {
         passcode: a.passcode || '1234',
         permissions: (parsedPerms && typeof parsedPerms === 'object') ? { ...defaultPerms, ...parsedPerms } : defaultPerms,
         isActive: isActive,
+        isLocked: isLocked,
+        lockedReason: lockedReason,
+        lockedAt: lockedAt,
         lastLoginAt: lastLoginAt,
         isArchived: isArchived,
         archivedAt: archivedAt,
