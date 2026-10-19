@@ -5,6 +5,7 @@ import { QUICK_REMARK_PRESETS } from '../../constants/presets';
 import { formatChannelDisplayName, isOverdue3Days } from '../../utils/customerFormatters';
 import { getCurrentMonthStr } from '../../utils/dateFormatters';
 import { pushCustomerToCloud } from '../../services/supabase';
+import { SearchInput } from '../../components/common';
 import { 
   ClipboardList, 
   User, 
@@ -42,6 +43,7 @@ export default function FollowUpView() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [quickNotDepSubFilter, setQuickNotDepSubFilter] = useState('ALL');
   const [lineLekFilter, setLineLekFilter] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Inline Quick Remark state
   const [quickEditCustId, setQuickEditCustId] = useState(null);
@@ -143,9 +145,20 @@ export default function FollowUpView() {
         if (lineLekFilter !== st && lineLekFilter !== (st === 'HAS' ? 'มี' : st === 'WAITING' ? 'รอแอด' : 'ไม่มี')) return false;
       }
 
+      // Search Query filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const matchName = (c.fullName || '').toLowerCase().includes(q);
+        const matchUser = (c.username || '').toLowerCase().includes(q);
+        const matchPhone = (c.phone || '').toLowerCase().includes(q);
+        const matchLine = (c.lineOA || '').toLowerCase().includes(q);
+        const matchOwner = (c.createdBy || '').toLowerCase().includes(q);
+        if (!matchName && !matchUser && !matchPhone && !matchLine && !matchOwner) return false;
+      }
+
       return true;
     });
-  }, [scopeCusts, statusFilter, quickNotDepSubFilter, lineLekFilter, selectedMonth]);
+  }, [scopeCusts, statusFilter, quickNotDepSubFilter, lineLekFilter, searchQuery, selectedMonth]);
 
   // Aggregate totals
   const displayTotalDeposit = displayList.reduce((sum, c) => sum + (parseFloat(c.totalDeposit || 0)), 0);
@@ -492,6 +505,15 @@ export default function FollowUpView() {
               <button className={`filter-status-pill ${lineLekFilter === 'NONE' ? 'active' : ''}`} onClick={() => setLineLekFilter(lineLekFilter === 'NONE' ? 'ALL' : 'NONE')}>
                 {lang === 'TH' ? '🔴 ไม่มีไลน์' : '🔴 No LINE'} ({cLineNone})
               </button>
+
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                <SearchInput
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder={lang === 'TH' ? '🔍 ค้นหาชื่อ, ยูสเซอร์, เบอร์, LINE...' : '🔍 Search name, user, phone...'}
+                  width="250px"
+                />
+              </div>
             </div>
           </div>
 

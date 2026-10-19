@@ -51,12 +51,14 @@ export default function SupervisorAuditView() {
     }
     // Also include months present in customers
     customers.forEach(c => {
-      if (c.createdAt) {
+      if (c.campaignMonth && c.campaignMonth.length === 7) {
+        monthsSet.add(c.campaignMonth);
+      } else if (c.createdAt) {
         const dStr = c.createdAt.slice(0, 7);
         if (dStr && dStr.length === 7) monthsSet.add(dStr);
       }
-      if (c.history) {
-        Object.keys(c.history).forEach(k => {
+      if (c.followUpByMonth) {
+        Object.keys(c.followUpByMonth).forEach(k => {
           if (k.length === 7) monthsSet.add(k);
         });
       }
@@ -79,11 +81,10 @@ export default function SupervisorAuditView() {
       }
       // Month filter
       if (selectedMonth !== 'ALL' && selectedMonth) {
-        const custMonth = c.createdAt ? c.createdAt.slice(0, 7) : '';
-        const hasHistoryInMonth = c.history && c.history[selectedMonth];
-        if (custMonth !== selectedMonth && !hasHistoryInMonth) {
-          // If customer was created in another month and has no history in this month, check if created before
-          if (custMonth > selectedMonth) return false;
+        const custMonth = c.campaignMonth || (c.createdAt ? c.createdAt.slice(0, 7) : '');
+        const hasFollowUpInMonth = c.followUpByMonth && c.followUpByMonth[selectedMonth] && Object.values(c.followUpByMonth[selectedMonth]).some(Boolean);
+        if (custMonth !== selectedMonth && !hasFollowUpInMonth) {
+          return false;
         }
       }
       return true;

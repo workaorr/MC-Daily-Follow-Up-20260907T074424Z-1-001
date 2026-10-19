@@ -137,22 +137,37 @@ export const EditCustomerModal = () => {
         try { localStorage.setItem('mc_customers', JSON.stringify(updated)); } catch (e) {}
 
         if (supabaseClient) {
+            const updatePayload = { 
+                full_name: fullNameVal,
+                username: usernameVal,
+                notes: noteVal, 
+                created_by: agentVal,
+                phone: phoneVal,
+                line_oa: lineOAVal,
+                line_lek: lineLekVal,
+                updated_by: activeAgentName,
+                updated_at: updateTime
+            };
             supabaseClient
                 .from('mc_customers')
-                .update({ 
-                    full_name: fullNameVal,
-                    username: usernameVal,
-                    notes: noteVal, 
-                    created_by: agentVal,
-                    phone: phoneVal,
-                    line_oa: lineOAVal,
-                    line_lek: lineLekVal,
-                    updated_by: activeAgentName,
-                    updated_at: updateTime
-                })
+                .update(updatePayload)
                 .eq('id', selectedCustForModal.id)
-                .then(({ error }) => {
-                    if (error) writeLog('SUPABASE', `อัปเดตข้อมูลผ่านโมดูลคลาวด์ล้มเหลว: ${error.message}`, 'danger');
+                .then(async ({ error }) => {
+                    if (error && (error.message.includes('updated_by') || error.message.includes('updated_at') || error.code === '42703')) {
+                        delete updatePayload.updated_by;
+                        delete updatePayload.updated_at;
+                        const retry = await supabaseClient
+                            .from('mc_customers')
+                            .update(updatePayload)
+                            .eq('id', selectedCustForModal.id);
+                        if (retry.error) {
+                            writeLog('SUPABASE', `อัปเดตข้อมูลผ่านโมดูลคลาวด์ล้มเหลว: ${retry.error.message}`, 'danger');
+                        } else {
+                            writeLog('SUPABASE', `⚠️ บันทึกข้อมูลสำเร็จ แต่คลาวด์ยังไม่มีคอลัมน์ updated_by/updated_at (กรุณาเพิ่มคอลัมน์ใน Supabase)`, 'warning');
+                        }
+                    } else if (error) {
+                        writeLog('SUPABASE', `อัปเดตข้อมูลผ่านโมดูลคลาวด์ล้มเหลว: ${error.message}`, 'danger');
+                    }
                 });
         }
 

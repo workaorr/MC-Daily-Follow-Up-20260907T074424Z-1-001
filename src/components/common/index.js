@@ -10,6 +10,8 @@ export { TabGroup } from './TabGroup';
 // Shell & Layout Components
 export { Navbar } from './Navbar';
 export { Sidebar } from './Sidebar';
-export { LoginModal } from './LoginModal';
 export { DbSettingsModal } from './DbSettingsModal';
 export { TourOverlay } from './TourOverlay';
+
+// Re-export Auth for backward compatibility
+export { LoginModal } from '../../features/auth';
