@@ -5,5 +5,7 @@ export const SUPABASE_CONFIG = {
 
 export const APP_CONFIG = {
     STORAGE_PREFIX: 'mc_',
-    INACTIVITY_LOCK_MS: 15 * 60 * 1000 // 15 minutes
+    INACTIVITY_LOCK_MS: 15 * 60 * 1000, // 15 minutes
+    MAX_LOGIN_ATTEMPTS: 3,
+    LOCKOUT_DURATION_SEC: 30
 };

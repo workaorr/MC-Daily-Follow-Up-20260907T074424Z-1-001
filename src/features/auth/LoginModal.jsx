@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { verifyPasscode, hashPasscode } from '../../utils/auth';
+import { APP_CONFIG } from '../../constants/config';
 import { 
     PhoneOutgoing, 
     Lock, 
@@ -119,18 +120,22 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
         if (!isMatch) {
             const nextAttempts = failedAttempts + 1;
             setFailedAttempts(nextAttempts);
-            if (nextAttempts >= 5) {
-                const lockUntil = Date.now() + 30000;
+            const maxAttempts = APP_CONFIG.MAX_LOGIN_ATTEMPTS || 3;
+            const lockoutSec = APP_CONFIG.LOCKOUT_DURATION_SEC || 30;
+
+            if (nextAttempts >= maxAttempts) {
+                const lockUntil = Date.now() + (lockoutSec * 1000);
                 setLockoutUntil(lockUntil);
-                setLockoutRemaining(30);
+                setLockoutRemaining(lockoutSec);
                 setFailedAttempts(0);
                 setErrorMsg(lang === 'TH'
-                    ? '⚠️ กรอกรหัสผ่านไม่ถูกต้องเกิน 5 ครั้ง ระบบระงับการเข้าสู่ระบบ 30 วินาที เพื่อความปลอดภัย'
-                    : '⚠️ Too many failed attempts. Locked out for 30 seconds.');
+                    ? `⚠️ กรอกรหัสผ่านไม่ถูกต้องเกิน ${maxAttempts} ครั้ง ระบบระงับการเข้าสู่ระบบ ${lockoutSec} วินาที เพื่อความปลอดภัย`
+                    : `⚠️ Too many failed attempts. Locked out for ${lockoutSec} seconds.`);
+                writeLog('AUTH', `⚠️ พยายามเข้าสู่ระบบบัญชี [${selectedAgentName}] ด้วยรหัสผ่านผิดเกิน ${maxAttempts} ครั้ง - ระงับชั่วคราว ${lockoutSec} วินาที`, 'warning', selectedAgentName);
             } else {
                 setErrorMsg(lang === 'TH'
-                    ? `รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง (ครั้งที่ ${nextAttempts}/5)`
-                    : `Incorrect passcode. Please try again (${nextAttempts}/5)`);
+                    ? `รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง (ครั้งที่ ${nextAttempts}/${maxAttempts})`
+                    : `Incorrect passcode. Please try again (${nextAttempts}/${maxAttempts})`);
             }
             return;
         }
