@@ -36,7 +36,11 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
     } = useApp();
 
     const [selectedAgentName, setSelectedAgentName] = useState(() => {
-        return activeAgentName || localStorage.getItem('mc_last_selected_agent') || '';
+        if (activeAgentName) return activeAgentName;
+        const lastSaved = localStorage.getItem('mc_last_selected_agent');
+        if (lastSaved) return lastSaved;
+        const firstActive = (agents || []).find(a => !a.isArchived && a.isActive !== false);
+        return firstActive ? firstActive.name : ((agents && agents[0]) ? agents[0].name : '');
     });
     const [passwordInput, setPasswordInput] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -87,9 +91,10 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
     // Auto-detect locked account when selected
     useEffect(() => {
         if (matchedAgent && matchedAgent.isLocked) {
+            setShowSuperUnlock(true);
             setErrorMsg(lang === 'TH' 
-                ? `🔒 บัญชี [${matchedAgent.name}] ถูกระงับการใช้งานเนื่องจากกรอกรหัสผ่านผิดครบ 3 ครั้ง กรุณาให้หัวหน้า (Supervisor) ปลดล็อกและตั้งรหัสผ่านใหม่` 
-                : `🔒 Account [${matchedAgent.name}] is locked due to 3 failed attempts. Please contact a Supervisor to unlock.`);
+                ? `🔒 บัญชี [${matchedAgent.name}] ถูกระงับการใช้งานเนื่องจากกรอกรหัสผ่านผิดครบ 3 ครั้ง กรุณาให้หัวหน้า (Supervisor) ปลดล็อกด้านล่าง หรือเลือกบัญชีพนักงานท่านอื่น` 
+                : `🔒 Account [${matchedAgent.name}] is locked due to 3 failed attempts. Please unlock below or switch account.`);
         } else {
             setShowSuperUnlock(false);
             setSuperUnlockError('');
@@ -610,6 +615,36 @@ export const LoginModal = ({ isOpen, onClose, isFullscreen = false }) => {
                             </div>
                         )}
                     </div>
+                )}
+
+                {matchedAgent?.isLocked && supervisorsList.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSelectedAgentName(supervisorsList[0].name);
+                            setPasswordInput('');
+                            setErrorMsg('');
+                            setShowSuperUnlock(false);
+                        }}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#a855f7',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            marginTop: '4px',
+                            textAlign: 'center',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                        }}
+                    >
+                        <span>👑</span>
+                        <span>{lang === 'TH' ? `สลับไปเข้าสู่ระบบด้วยบัญชีหัวหน้า [${supervisorsList[0].name}]` : `Switch to Supervisor [${supervisorsList[0].name}]`}</span>
+                    </button>
                 )}
             </div>
         </div>

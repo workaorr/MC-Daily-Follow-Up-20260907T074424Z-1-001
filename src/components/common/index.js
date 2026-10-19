@@ -15,3 +15,4 @@ export { TourOverlay } from './TourOverlay';
 
 // Re-export Auth for backward compatibility
 export { LoginModal } from '../../features/auth';
+export { ErrorBoundary } from './ErrorBoundary';

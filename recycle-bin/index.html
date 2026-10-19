@@ -8133,7 +8133,7 @@
                                                 <span>👑 {showSuperUnlockCard ? 'ซ่อนแผงปลดล็อกหัวหน้า' : 'หัวหน้าปลดล็อกให้ตรงนี้ (Supervisor Quick Unlock)'}</span>
                                             </button>
 
-                                            {showSuperUnlockCard && (
+                                            {(isCurLocked || showSuperUnlockCard) && (
                                                 <div style={{
                                                     marginTop: '12px',
                                                     padding: '16px',
@@ -8222,6 +8222,33 @@
                                                 </div>
                                             )}
                                         </div>
+
+                                        {isCurLocked && (
+                                            <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                                                <button
+                                                    type="button"
+                                                    style={{
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        color: '#a855f7',
+                                                        fontSize: '12.5px',
+                                                        fontWeight: 600,
+                                                        cursor: 'pointer',
+                                                        textDecoration: 'underline'
+                                                    }}
+                                                    onClick={() => {
+                                                        const superAcc = agents.find(a => a.role === 'SUPERVISOR' && a.isActive !== false);
+                                                        if (superAcc) {
+                                                            setSelectedLoginAgent(superAcc.name);
+                                                            setLoginPassword('');
+                                                            setLoginErrorMsg('');
+                                                        }
+                                                    }}
+                                                >
+                                                    👑 สลับไปเข้าสู่ระบบด้วยบัญชีหัวหน้า
+                                                </button>
+                                            </div>
+                                        )}
                                     </>
                                 );
                             })()}
