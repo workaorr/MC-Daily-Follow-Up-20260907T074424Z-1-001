@@ -65,19 +65,20 @@ export const Modal = ({
                             <button
                                 type="button"
                                 onClick={onClose}
+                                className="btn-close-modal"
                                 style={{
-                                    background: 'none',
                                     border: 'none',
                                     color: 'var(--text-muted)',
                                     cursor: 'pointer',
-                                    padding: '4px',
-                                    borderRadius: '6px',
+                                    padding: '6px',
+                                    borderRadius: '8px',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    justifyContent: 'center'
+                                    justifyContent: 'center',
+                                    transition: 'all 0.15s ease'
                                 }}
                             >
-                                <X size={20} />
+                                <X size={18} />
                             </button>
                         )}
                     </div>

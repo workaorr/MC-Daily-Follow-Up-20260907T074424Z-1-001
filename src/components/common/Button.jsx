@@ -30,6 +30,7 @@ export const Button = ({
     else if (variant === 'secondary') btnClass += 'btn-secondary ';
     else if (variant === 'danger') btnClass += 'btn-danger ';
     else if (variant === 'success') btnClass += 'btn-success ';
+    else if (variant === 'warning') btnClass += 'btn-warning ';
     else if (variant === 'outline') btnClass += 'btn-outline ';
     else if (variant === 'ghost') btnClass += 'btn-ghost ';
 
