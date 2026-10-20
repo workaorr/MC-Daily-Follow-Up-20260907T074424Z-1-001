@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { DaysGrid } from './DaysGrid';
 import { QUICK_REMARK_PRESETS } from '../../constants/presets';
-import { formatChannelDisplayName, isOverdue3Days } from '../../utils/customerFormatters';
+import { formatChannelDisplayName, isOverdue3Days, isDueTodayFollowUp, getFollowUpDueReason } from '../../utils/customerFormatters';
 import { getCurrentMonthStr } from '../../utils/dateFormatters';
 import { pushCustomerToCloud } from '../../services/supabase';
 import { SearchInput } from '../../components/common';
@@ -14,7 +14,8 @@ import {
   Check, 
   X, 
   Calendar, 
-  AlertCircle 
+  AlertCircle,
+  Clock
 } from 'lucide-react';
 
 export default function FollowUpView() {
@@ -48,6 +49,14 @@ export default function FollowUpView() {
   // Inline Quick Remark state
   const [quickEditCustId, setQuickEditCustId] = useState(null);
   const [quickNoteText, setQuickNoteText] = useState('');
+  const [quickNextDate, setQuickNextDate] = useState('');
+
+  const getOffsetDateStr = (daysAhead) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const todayDateStr = getOffsetDateStr(0);
 
   const effectiveFollowUpAgent = isSupervisor ? supervisorFollowUpFilter : activeAgentName;
   const isDepositedAsOfDate = (c) => Boolean(c.hasDeposited);
@@ -100,6 +109,7 @@ export default function FollowUpView() {
   }, [agentCusts, pastMonthSpecificFilter, targetMonth]);
 
   const cScopeAll = scopeCusts.length;
+  const cScopeDueToday = scopeCusts.filter(c => isDueTodayFollowUp(c, selectedMonth)).length;
   const cScopeUnconv = scopeCusts.filter(c => !isDepositedAsOfDate(c)).length;
   const cScopeNotReg = scopeCusts.filter(c => !c.username || c.username.trim() === '').length;
   const cScopeReg = scopeCusts.filter(c => c.username && c.username.trim() !== '').length;
@@ -112,6 +122,7 @@ export default function FollowUpView() {
   }, [scopeCusts]);
 
   const cNotDepTotal = notDepScopeCusts.length;
+  const cNotDepDueToday = notDepScopeCusts.filter(c => isDueTodayFollowUp(c, selectedMonth)).length;
   const cNotDepHasLine = notDepScopeCusts.filter(c => getLineLekStatus(c.lineLek) === 'HAS').length;
   const cNotDepWaiting = notDepScopeCusts.filter(c => getLineLekStatus(c.lineLek) === 'WAITING').length;
   const cNotDepOverdue = notDepScopeCusts.filter(c => isOverdue3Days(c, selectedMonth)).length;
@@ -124,6 +135,7 @@ export default function FollowUpView() {
       const isDep = isDepositedAsOfDate(c);
 
       // Status Filters
+      if (statusFilter === 'DUE_TODAY' && !isDueTodayFollowUp(c, selectedMonth)) return false;
       if (['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) && isDep) return false;
       if (['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) && hasUser) return false;
       if (statusFilter === 'REGISTERED' && !hasUser) return false;
@@ -133,6 +145,7 @@ export default function FollowUpView() {
       // Sub-filter for สมัครแต่ไม่ฝาก
       if (['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) && quickNotDepSubFilter !== 'ALL') {
         const lineSt = getLineLekStatus(c.lineLek);
+        if (quickNotDepSubFilter === 'DUE_TODAY' && !isDueTodayFollowUp(c, selectedMonth)) return false;
         if (quickNotDepSubFilter === 'HAS_LINE' && lineSt !== 'HAS') return false;
         if (quickNotDepSubFilter === 'WAITING_LINE' && lineSt !== 'WAITING') return false;
         if (quickNotDepSubFilter === 'OVERDUE_3D' && !isOverdue3Days(c, selectedMonth)) return false;
@@ -231,13 +244,14 @@ export default function FollowUpView() {
   };
 
   // Quick note save
-  const handleQuickNoteSave = (customerId, newNote) => {
+  const handleQuickNoteSave = (customerId, newNote, newNextDate) => {
     const trimmed = (newNote || '').trim();
     const updated = customers.map(c => {
       if (c.id !== customerId) return c;
       const updatedCust = {
         ...c,
         notes: trimmed,
+        nextFollowUpDate: newNextDate !== undefined ? (newNextDate || null) : (c.nextFollowUpDate || null),
         updatedBy: activeAgentName || 'MC Agent',
         updatedAt: new Date().toISOString()
       };
@@ -246,13 +260,14 @@ export default function FollowUpView() {
         pushCustomerToCloud(supabaseClient, updatedCust);
       }
 
-      writeLog('CUSTOMER_UPDATE', `บันทึกโน้ตด่วน [${c.username || c.fullName}]: "${trimmed}"`, 'info', activeAgentName);
+      writeLog('CUSTOMER_UPDATE', `บันทึกโน้ตด่วน [${c.username || c.fullName}]: "${trimmed}"` + (newNextDate ? ` (นัดติดตาม: ${newNextDate})` : ''), 'info', activeAgentName);
       return updatedCust;
     });
 
     setCustomers(updated);
     setQuickEditCustId(null);
     setQuickNoteText('');
+    setQuickNextDate('');
   };
 
   const copyToClipboard = (text, label) => {
@@ -358,9 +373,21 @@ export default function FollowUpView() {
                 <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>📌 {lang === 'TH' ? 'สถานะ:' : 'Status:'}</span>
                 <button 
                   className={`filter-status-pill ${statusFilter === 'ALL' ? 'active' : ''}`} 
-                  onClick={() => setStatusFilter('ALL')}
+                  onClick={() => { setStatusFilter('ALL'); setQuickNotDepSubFilter('ALL'); }}
                 >
                   {lang === 'TH' ? 'ทั้งหมด' : 'All'} ({cScopeAll})
+                </button>
+                <button 
+                  className={`filter-status-pill ${statusFilter === 'DUE_TODAY' ? 'active' : ''}`} 
+                  onClick={() => { setStatusFilter(statusFilter === 'DUE_TODAY' ? 'ALL' : 'DUE_TODAY'); setQuickNotDepSubFilter('ALL'); }}
+                  style={{
+                    border: statusFilter === 'DUE_TODAY' ? '1px solid #ef4444' : '1px solid rgba(239, 68, 68, 0.4)',
+                    background: statusFilter === 'DUE_TODAY' ? '#ef4444' : 'rgba(239, 68, 68, 0.1)',
+                    color: statusFilter === 'DUE_TODAY' ? '#ffffff' : '#ef4444',
+                    fontWeight: 700
+                  }}
+                >
+                  {lang === 'TH' ? `⏰ ต้องติดตามวันนี้ (${cScopeDueToday})` : `⏰ Due Today (${cScopeDueToday})`}
                 </button>
                 <button 
                   className={`filter-status-pill ${['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) ? 'active' : ''}`} 
@@ -428,6 +455,22 @@ export default function FollowUpView() {
                   style={{ padding: '3px 9px', fontSize: '11px' }}
                 >
                   🔴 {lang === 'TH' ? 'ทั้งหมด' : 'All'} ({cNotDepTotal})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setQuickNotDepSubFilter(quickNotDepSubFilter === 'DUE_TODAY' ? 'ALL' : 'DUE_TODAY')}
+                  className={`btn ${quickNotDepSubFilter === 'DUE_TODAY' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{
+                    padding: '3px 9px',
+                    fontSize: '11px',
+                    color: quickNotDepSubFilter === 'DUE_TODAY' ? '#fff' : '#ef4444',
+                    borderColor: quickNotDepSubFilter === 'DUE_TODAY' ? '#ef4444' : 'rgba(239, 68, 68, 0.4)',
+                    background: quickNotDepSubFilter === 'DUE_TODAY' ? '#ef4444' : 'rgba(239, 68, 68, 0.08)',
+                    fontWeight: 700
+                  }}
+                >
+                  ⏰ {lang === 'TH' ? 'ต้องติดตามวันนี้' : 'Due Today'} ({cNotDepDueToday})
                 </button>
 
                 <button
@@ -706,6 +749,8 @@ export default function FollowUpView() {
               ) : (
                 displayList.map((cust, custIdx) => {
                   const overdue = isOverdue3Days(cust, selectedMonth);
+                  const isDueToday = isDueTodayFollowUp(cust, selectedMonth);
+                  const dueReason = isDueToday ? getFollowUpDueReason(cust, selectedMonth) : null;
                   return (
                     <tr key={cust.id}>
                       <td id={custIdx === 0 ? 'tour-customer-info' : undefined}>
@@ -723,6 +768,28 @@ export default function FollowUpView() {
                               >
                                 <span className="overdue-pulse-dot"></span>
                                 <span>{lang === 'TH' ? '⚠️ ค้างตาม 3 วัน+' : '⚠️ Overdue 3d+'}</span>
+                              </span>
+                            )}
+                            {isDueToday && (
+                              <span 
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  fontSize: '10.5px',
+                                  fontWeight: 700,
+                                  padding: '1px 6px',
+                                  borderRadius: '999px',
+                                  background: dueReason === 'APPOINTMENT' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                  color: dueReason === 'APPOINTMENT' ? '#ef4444' : '#f59e0b',
+                                  border: dueReason === 'APPOINTMENT' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)'
+                                }}
+                                title={dueReason === 'APPOINTMENT' 
+                                  ? (lang === 'TH' ? `⏰ ถึงกำหนดนัดติดตามวันนี้ (${cust.nextFollowUpDate})` : `⏰ Follow-up appointment due today (${cust.nextFollowUpDate})`)
+                                  : (lang === 'TH' ? '⏳ ยังไม่ได้รับการติดตามเกิน 24 ชม.' : '⏳ No follow-up in > 24 hours')}
+                              >
+                                <Clock style={{ width: '10px', height: '10px' }} />
+                                <span>{dueReason === 'APPOINTMENT' ? (lang === 'TH' ? 'ถึงเวลานัด' : 'Due Appt') : (lang === 'TH' ? 'ค้างตาม >24ชม.' : '>24h Stale')}</span>
                               </span>
                             )}
                           </div>
@@ -870,7 +937,7 @@ export default function FollowUpView() {
                                 value={quickNoteText}
                                 onChange={(e) => setQuickNoteText(e.target.value)}
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleQuickNoteSave(cust.id, quickNoteText);
+                                  if (e.key === 'Enter') handleQuickNoteSave(cust.id, quickNoteText, quickNextDate);
                                   else if (e.key === 'Escape') setQuickEditCustId(null);
                                 }}
                                 placeholder={lang === 'TH' ? 'พิมพ์โน้ตแล้วกด Enter...' : 'Type note & press Enter...'}
@@ -887,7 +954,7 @@ export default function FollowUpView() {
                               />
                               <button
                                 type="button"
-                                onClick={() => handleQuickNoteSave(cust.id, quickNoteText)}
+                                onClick={() => handleQuickNoteSave(cust.id, quickNoteText, quickNextDate)}
                                 style={{
                                   padding: '4px 8px',
                                   fontSize: '10.5px',
@@ -918,6 +985,90 @@ export default function FollowUpView() {
                               </button>
                             </div>
 
+                            {/* Quick Next Follow Up Date Presets & Picker */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '9.5px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '2px', marginRight: '2px' }}>
+                                <Clock style={{ width: '9px', height: '9px' }} /> {lang === 'TH' ? 'นัด:' : 'Appt:'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setQuickNextDate(getOffsetDateStr(1))}
+                                style={{
+                                  padding: '1px 5px',
+                                  fontSize: '9px',
+                                  borderRadius: '5px',
+                                  border: quickNextDate === getOffsetDateStr(1) ? '1px solid #3b82f6' : '1px solid rgba(148, 163, 184, 0.3)',
+                                  background: quickNextDate === getOffsetDateStr(1) ? '#3b82f6' : 'transparent',
+                                  color: quickNextDate === getOffsetDateStr(1) ? '#fff' : 'inherit',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {lang === 'TH' ? 'พรุ่งนี้' : 'Tmrw'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setQuickNextDate(getOffsetDateStr(2))}
+                                style={{
+                                  padding: '1px 5px',
+                                  fontSize: '9px',
+                                  borderRadius: '5px',
+                                  border: quickNextDate === getOffsetDateStr(2) ? '1px solid #3b82f6' : '1px solid rgba(148, 163, 184, 0.3)',
+                                  background: quickNextDate === getOffsetDateStr(2) ? '#3b82f6' : 'transparent',
+                                  color: quickNextDate === getOffsetDateStr(2) ? '#fff' : 'inherit',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                +2 วัน
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setQuickNextDate(getOffsetDateStr(3))}
+                                style={{
+                                  padding: '1px 5px',
+                                  fontSize: '9px',
+                                  borderRadius: '5px',
+                                  border: quickNextDate === getOffsetDateStr(3) ? '1px solid #3b82f6' : '1px solid rgba(148, 163, 184, 0.3)',
+                                  background: quickNextDate === getOffsetDateStr(3) ? '#3b82f6' : 'transparent',
+                                  color: quickNextDate === getOffsetDateStr(3) ? '#fff' : 'inherit',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                +3 วัน
+                              </button>
+                              <input
+                                type="date"
+                                value={quickNextDate || ''}
+                                onChange={(e) => setQuickNextDate(e.target.value)}
+                                style={{
+                                  padding: '1px 3px',
+                                  fontSize: '9px',
+                                  borderRadius: '4px',
+                                  border: '1px solid rgba(148, 163, 184, 0.4)',
+                                  background: theme === 'light' ? '#fff' : '#0b1325',
+                                  color: theme === 'light' ? '#0f172a' : '#fff',
+                                  outline: 'none'
+                                }}
+                              />
+                              {quickNextDate && (
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickNextDate('')}
+                                  title={lang === 'TH' ? 'ล้างวันนัด' : 'Clear appointment date'}
+                                  style={{
+                                    padding: '1px 4px',
+                                    fontSize: '9px',
+                                    borderRadius: '4px',
+                                    border: 'none',
+                                    background: 'rgba(239, 68, 68, 0.15)',
+                                    color: '#ef4444',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+
                             {/* 1-Click Quick Preset Chips */}
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
                               {QUICK_REMARK_PRESETS.map((preset, pIdx) => {
@@ -926,7 +1077,7 @@ export default function FollowUpView() {
                                   <button
                                     key={pIdx}
                                     type="button"
-                                    onClick={() => handleQuickNoteSave(cust.id, textVal)}
+                                    onClick={() => handleQuickNoteSave(cust.id, textVal, quickNextDate)}
                                     style={{
                                       padding: '2px 6px',
                                       fontSize: '9.5px',
@@ -951,6 +1102,7 @@ export default function FollowUpView() {
                               onClick={() => {
                                 setQuickEditCustId(cust.id);
                                 setQuickNoteText(cust.notes || '');
+                                setQuickNextDate(cust.nextFollowUpDate || '');
                               }}
                               style={{
                                 flex: 1,
@@ -972,6 +1124,28 @@ export default function FollowUpView() {
                             >
                               {cust.notes ? cust.notes : (lang === 'TH' ? '⚡ + คลิกจดโน้ตด่วน' : '⚡ + Quick Remark')}
                             </div>
+                            {cust.nextFollowUpDate && (
+                              <div
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                  fontSize: '9.5px',
+                                  fontWeight: 700,
+                                  color: cust.nextFollowUpDate <= todayDateStr ? '#ef4444' : '#3b82f6',
+                                  background: cust.nextFollowUpDate <= todayDateStr ? 'rgba(239, 68, 68, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                                  border: cust.nextFollowUpDate <= todayDateStr ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)',
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0
+                                }}
+                                title={lang === 'TH' ? `วันนัดติดตาม: ${cust.nextFollowUpDate}` : `Follow-up date: ${cust.nextFollowUpDate}`}
+                              >
+                                <Clock style={{ width: '9px', height: '9px' }} />
+                                <span>{cust.nextFollowUpDate.substring(5)}</span>
+                              </div>
+                            )}
                             <button 
                               id={custIdx === 0 ? 'tour-notes-btn' : undefined}
                               className="btn btn-secondary" 

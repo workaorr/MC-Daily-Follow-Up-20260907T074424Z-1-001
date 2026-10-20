@@ -35,6 +35,14 @@ export const supabase = createSupabaseInstance(initialCreds.url, initialCreds.ke
 export const pushCustomerToCloud = async (supabaseClient, cust) => {
     if (!supabaseClient || !cust) return;
     try {
+        const followUpByMonth = typeof cust.followUpByMonth === 'object' && cust.followUpByMonth !== null ? { ...cust.followUpByMonth } : {};
+        if (cust.nextFollowUpDate !== undefined) {
+            followUpByMonth._meta = {
+                ...(followUpByMonth._meta || {}),
+                nextFollowUpDate: cust.nextFollowUpDate || null
+            };
+        }
+
         const payload = {
             id: cust.id,
             created_at: cust.createdAt || new Date().toISOString(),
@@ -48,13 +56,14 @@ export const pushCustomerToCloud = async (supabaseClient, cust) => {
             created_by: cust.createdBy || 'ระบบกลาง',
             campaign_month: cust.campaignMonth,
             follow_up: cust.followUp || {},
-            follow_up_by_month: cust.followUpByMonth || {},
+            follow_up_by_month: followUpByMonth,
             notes: cust.notes || '',
             has_deposited: cust.hasDeposited || false,
             returned_deposit_amount: cust.returnedDepositAmount || 0,
             referrer: cust.referrer || ''
         };
 
+        if (cust.nextFollowUpDate) payload.next_follow_up_date = cust.nextFollowUpDate;
         if (cust.updatedBy) payload.updated_by = cust.updatedBy;
         if (cust.updatedAt) payload.updated_at = cust.updatedAt;
 
@@ -62,7 +71,8 @@ export const pushCustomerToCloud = async (supabaseClient, cust) => {
             .from('mc_customers')
             .upsert(payload, { onConflict: 'id' });
 
-        if (error && (error.message.includes('line_oa') || error.message.includes('line_lek') || error.message.includes('referrer') || error.message.includes('updated_by') || error.message.includes('updated_at'))) {
+        if (error && (error.message.includes('next_follow_up_date') || error.message.includes('line_oa') || error.message.includes('line_lek') || error.message.includes('referrer') || error.message.includes('updated_by') || error.message.includes('updated_at'))) {
+            delete payload.next_follow_up_date;
             delete payload.line_oa;
             delete payload.line_lek;
             delete payload.referrer;

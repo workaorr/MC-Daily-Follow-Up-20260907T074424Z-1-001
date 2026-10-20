@@ -306,6 +306,11 @@ export const AppProvider = ({ children }) => {
                     const archiveMeta = (c.follow_up_by_month && c.follow_up_by_month._archived) || 
                                         (c.follow_up && c.follow_up._archived) || {};
 
+                    const nextFollowUpDate = c.next_follow_up_date || 
+                                             (c.follow_up_by_month && c.follow_up_by_month._meta && c.follow_up_by_month._meta.nextFollowUpDate) ||
+                                             (c.follow_up && c.follow_up._meta && c.follow_up._meta.nextFollowUpDate) || 
+                                             c.nextFollowUpDate || null;
+
                     const mappedCust = {
                         id: c.id,
                         createdAt: c.created_at || new Date().toISOString(),
@@ -324,6 +329,7 @@ export const AppProvider = ({ children }) => {
                         followUp: typeof c.follow_up === 'object' && c.follow_up !== null ? c.follow_up : {},
                         followUpByMonth: typeof c.follow_up_by_month === 'object' && c.follow_up_by_month !== null ? c.follow_up_by_month : {},
                         notes: c.notes || '',
+                        nextFollowUpDate: nextFollowUpDate,
                         hasDeposited: c.has_deposited || false,
                         returnedDepositAmount: parseFloat(c.returned_deposit_amount || 0),
                         deletedAt: archiveMeta.archivedAt || c.deleted_at || null,

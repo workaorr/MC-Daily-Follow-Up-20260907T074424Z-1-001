@@ -85,3 +85,67 @@ export const isOverdue3Days = (c, monthKey) => {
 
     return !dToday && !d1 && !d2;
 };
+
+export const isDueTodayFollowUp = (c, monthKey = null) => {
+    if (c.hasDeposited) return false;
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayDayNum = String(now.getDate());
+    const currentMonthStr = todayStr.substring(0, 7);
+    const targetMonth = (!monthKey || monthKey === 'ALL') ? currentMonthStr : monthKey;
+    const fMap = (c.followUpByMonth && c.followUpByMonth[targetMonth]) || c.followUp || {};
+    const isTickedToday = Boolean(fMap[todayDayNum]);
+
+    // 1. นัดหมายติดตามถึงกำหนดวันนี้ (หรือเลยกำหนดนัด) และวันนี้ยังไม่ได้ติ๊กติดตาม
+    if (c.nextFollowUpDate) {
+        if (c.nextFollowUpDate <= todayStr) {
+            return !isTickedToday;
+        }
+        // ถ้านัดหมายไว้ในอนาคต (วันข้างหน้า) ยังไม่ถึงรอบตามวันนี้
+        return false;
+    }
+
+    // 2. ค้างติดตามเกิน 24 ชั่วโมง (สมัครเข้ามาเกิน 24 ชม. แล้ว และวันนี้ยังไม่ได้ติ๊กติดตาม)
+    if (c.createdAt) {
+        const createdDate = new Date(c.createdAt);
+        if (!isNaN(createdDate.getTime())) {
+            const diffHours = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
+            if (diffHours >= 24) {
+                return !isTickedToday;
+            }
+        }
+    }
+
+    return false;
+};
+
+export const getFollowUpDueReason = (c, monthKey = null) => {
+    if (c.hasDeposited) return null;
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayDayNum = String(now.getDate());
+    const currentMonthStr = todayStr.substring(0, 7);
+    const targetMonth = (!monthKey || monthKey === 'ALL') ? currentMonthStr : monthKey;
+    const fMap = (c.followUpByMonth && c.followUpByMonth[targetMonth]) || c.followUp || {};
+    const isTickedToday = Boolean(fMap[todayDayNum]);
+
+    if (c.nextFollowUpDate) {
+        if (c.nextFollowUpDate <= todayStr) {
+            return isTickedToday ? null : 'APPOINTMENT';
+        }
+        return 'APPOINTMENT_FUTURE';
+    }
+
+    if (c.createdAt) {
+        const createdDate = new Date(c.createdAt);
+        if (!isNaN(createdDate.getTime())) {
+            const diffHours = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
+            if (diffHours >= 24 && !isTickedToday) {
+                return 'STALE_24H';
+            }
+        }
+    }
+
+    return null;
+};
+
