@@ -2874,47 +2874,66 @@
                 );
             };
 
-            const handleQuickNoteSave = (custId, noteToSave, nextDateToSave) => {
+            const handleQuickNoteSave = (custId, noteToSave) => {
                 const target = customers.find(c => c.id === custId);
                 if (!target) return;
                 const cleanNote = (noteToSave !== undefined ? noteToSave : quickNoteText || '').trim();
-                const cleanNextDate = nextDateToSave !== undefined ? (nextDateToSave || null) : (target.nextFollowUpDate || null);
-                const oldNote = target.notes || '';
-                const oldNextDate = target.nextFollowUpDate || null;
+                const now = new Date();
+                const todayDayNum = String(now.getDate());
+                const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                const activeMonth = target.campaignMonth || currentMonthStr;
+
+                const existingFollowUp = target.followUp || {};
+                const existingFollowUpByMonth = target.followUpByMonth || {};
+                const activeMonthMap = { ...(existingFollowUpByMonth[activeMonth] || existingFollowUp) };
+
+                if (cleanNote) {
+                    activeMonthMap[todayDayNum] = true;
+                }
+
+                const updatedFollowUpByMonth = {
+                    ...existingFollowUpByMonth,
+                    [activeMonth]: activeMonthMap
+                };
+                const updatedFollowUp = cleanNote
+                    ? { ...existingFollowUp, [todayDayNum]: true }
+                    : existingFollowUp;
 
                 const updateTime = new Date().toISOString();
-                setCustomers(prev => prev.map(c => c.id === custId ? { ...c, notes: cleanNote, nextFollowUpDate: cleanNextDate, updatedBy: activeAgentName, updatedAt: updateTime } : c));
+                setCustomers(prev => prev.map(c => c.id === custId ? {
+                    ...c,
+                    notes: cleanNote,
+                    followUp: updatedFollowUp,
+                    followUpByMonth: updatedFollowUpByMonth,
+                    updatedBy: activeAgentName,
+                    updatedAt: updateTime
+                } : c));
                 setQuickEditCustId(null);
                 setQuickNoteText('');
-                setQuickNextDate('');
 
-                if (oldNote !== cleanNote || oldNextDate !== cleanNextDate) {
-                    if (supabaseClient) {
-                        const updatePayload = {
-                            notes: cleanNote,
-                            next_follow_up_date: cleanNextDate,
-                            updated_by: activeAgentName,
-                            updated_at: updateTime
-                        };
-                        supabaseClient
-                            .from('mc_customers')
-                            .update(updatePayload)
-                            .eq('id', custId)
-                            .then(({ error }) => {
-                                if (error) {
-                                    delete updatePayload.next_follow_up_date;
-                                    supabaseClient.from('mc_customers').update(updatePayload).eq('id', custId);
-                                }
-                            });
-                    }
-
-                    writeLog(
-                        'EDIT_CUSTOMER',
-                        `⚡ บันทึกโน้ตด่วน [${target.username || target.fullName || custId}]: 📝 "${cleanNote || 'ลบโน้ต'}"` + (cleanNextDate ? ` (นัดติดตาม: ${cleanNextDate})` : ''),
-                        'info',
-                        activeAgentName
-                    );
+                if (supabaseClient) {
+                    const updatePayload = {
+                        notes: cleanNote,
+                        follow_up: updatedFollowUp,
+                        follow_up_by_month: updatedFollowUpByMonth,
+                        updated_by: activeAgentName,
+                        updated_at: updateTime
+                    };
+                    supabaseClient
+                        .from('mc_customers')
+                        .update(updatePayload)
+                        .eq('id', custId)
+                        .then(({ error }) => {
+                            if (error) console.error('Supabase quick note update error:', error);
+                        });
                 }
+
+                writeLog(
+                    'EDIT_CUSTOMER',
+                    `⚡ บันทึกโน้ตด่วน [${target.username || target.fullName || custId}]: 📝 "${cleanNote || 'ลบโน้ต'}" (พร้อมติ๊กติดตามวันที่ ${todayDayNum})`,
+                    'info',
+                    activeAgentName
+                );
             };
 
             const TOUR_STEPS = [
@@ -3485,63 +3504,22 @@
             };
 
             const isDueTodayFollowUp = (c, monthKey = null) => {
-                if (c.hasDeposited) return false;
+                if (!c || c.hasDeposited) return false;
                 const now = new Date();
                 const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
                 const todayDayNum = String(now.getDate());
                 const currentMonthStr = todayStr.substring(0, 7);
                 const targetMonth = (!monthKey || monthKey === 'ALL') ? currentMonthStr : monthKey;
-                const fMap = (c.followUpByMonth && c.followUpByMonth[targetMonth]) || c.followUp || {};
-                const isTickedToday = Boolean(fMap[todayDayNum]);
+                const fMap = (c.followUpByMonth && (c.followUpByMonth[targetMonth] || c.followUpByMonth[c.campaignMonth])) || c.followUp || {};
+                const isTickedToday = Boolean(fMap[todayDayNum] || (c.followUp && c.followUp[todayDayNum]));
 
-                if (c.nextFollowUpDate) {
-                    if (c.nextFollowUpDate <= todayStr) {
-                        return !isTickedToday;
-                    }
-                    return false;
-                }
-
-                if (c.createdAt) {
-                    const createdDate = new Date(c.createdAt);
-                    if (!isNaN(createdDate.getTime())) {
-                        const diffHours = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
-                        if (diffHours >= 24) {
-                            return !isTickedToday;
-                        }
-                    }
-                }
-
-                return false;
+                // ระบบเคลียร์คิวงานประจำวัน: ลูกค้าที่ยังไม่ได้ฝากเงินทุกคน ต้องทักแชทติดตามทุกวัน หากวันนี้ยังไม่ได้ติ๊ก = อยู่ในคิวต้องติดตามวันนี้
+                return !isTickedToday;
             };
 
             const getFollowUpDueReason = (c, monthKey = null) => {
-                if (c.hasDeposited) return null;
-                const now = new Date();
-                const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                const todayDayNum = String(now.getDate());
-                const currentMonthStr = todayStr.substring(0, 7);
-                const targetMonth = (!monthKey || monthKey === 'ALL') ? currentMonthStr : monthKey;
-                const fMap = (c.followUpByMonth && c.followUpByMonth[targetMonth]) || c.followUp || {};
-                const isTickedToday = Boolean(fMap[todayDayNum]);
-
-                if (c.nextFollowUpDate) {
-                    if (c.nextFollowUpDate <= todayStr) {
-                        return isTickedToday ? null : 'APPOINTMENT';
-                    }
-                    return null;
-                }
-
-                if (c.createdAt) {
-                    const createdDate = new Date(c.createdAt);
-                    if (!isNaN(createdDate.getTime())) {
-                        const diffHours = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
-                        if (diffHours >= 24 && !isTickedToday) {
-                            return 'STALE_24H';
-                        }
-                    }
-                }
-
-                return null;
+                if (!c || c.hasDeposited) return null;
+                return isDueTodayFollowUp(c, monthKey) ? 'PENDING_TODAY' : null;
             };
 
             const MonthlyHeatmap = ({ customer, targetMonthOverride }) => {
@@ -11694,7 +11672,7 @@
                                                                 color: statusFilter === 'DUE_TODAY' ? '#ffffff' : '#ef4444',
                                                                 fontWeight: 700
                                                             }}
-                                                            title={lang === 'TH' ? 'ลูกค้าที่ถึงกำหนดนัดติดตามวันนี้ หรือยังไม่ได้รับการติดตามเกิน 24 ชม.' : 'Customers due for follow-up today or stale > 24 hours'}
+                                                            title={lang === 'TH' ? 'เคลียร์คิวงานประจำวัน: ลูกค้าที่ยังไม่ได้ฝากเงิน และวันนี้ยังไม่ได้ติ๊กทักแชทติดตาม' : 'Daily Queue: Unconverted customers not yet followed up today'}
                                                         >
                                                             {lang === 'TH' ? `⏰ ต้องติดตามวันนี้ (${cScopeDueToday})` : `⏰ Due Today (${cScopeDueToday})`}
                                                         </button>
@@ -11796,9 +11774,9 @@
                                                                 cursor: 'pointer',
                                                                 transition: 'all 0.15s ease'
                                                             }}
-                                                            title={lang === 'TH' ? 'ลูกค้าสมัครไม่ฝากที่ต้องติดตามวันนี้' : 'Customers due for follow-up today'}
+                                                            title={lang === 'TH' ? 'ลูกค้าสมัครไม่ฝากที่วันนี้ยังไม่ได้ติ๊กทักแชทติดตาม' : 'Pending deposit leads not yet contacted today'}
                                                         >
-                                                            ⏰ {lang === 'TH' ? 'ต้องติดตามวันนี้' : 'Due Today'} ({cNotDepDueToday})
+                                                            ⏰ {lang === 'TH' ? 'ต้องติดตามวันนี้ (ยังไม่ได้ทัก)' : 'Due Today (Pending)'} ({cNotDepDueToday})
                                                         </button>
 
                                                         {/* Sub-pill 2: มีไลน์ พร้อมทักทันที */}
@@ -12199,27 +12177,45 @@
                                                                                               <span>{lang === 'TH' ? '⚠️ ค้างตาม 3 วัน+' : '⚠️ Overdue 3d+'}</span>
                                                                                           </span>
                                                                                       )}
-                                                                                      {isDueToday && (
-                                                                                          <span 
-                                                                                              style={{
-                                                                                                  display: 'inline-flex',
-                                                                                                  alignItems: 'center',
-                                                                                                  gap: '3px',
-                                                                                                  fontSize: '10.5px',
-                                                                                                  fontWeight: 700,
-                                                                                                  padding: '1px 6px',
-                                                                                                  borderRadius: '999px',
-                                                                                                  background: dueReason === 'APPOINTMENT' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                                                                                                  color: dueReason === 'APPOINTMENT' ? '#ef4444' : '#f59e0b',
-                                                                                                  border: dueReason === 'APPOINTMENT' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)'
-                                                                                              }}
-                                                                                              title={dueReason === 'APPOINTMENT' 
-                                                                                                  ? (lang === 'TH' ? `⏰ ถึงกำหนดนัดติดตามวันนี้ (${cust.nextFollowUpDate})` : `⏰ Follow-up appointment due today (${cust.nextFollowUpDate})`)
-                                                                                                  : (lang === 'TH' ? '⏳ ยังไม่ได้รับการติดตามเกิน 24 ชม.' : '⏳ No follow-up in > 24 hours')}
-                                                                                          >
-                                                                                              <i data-lucide="clock" style={{ width: '10px', height: '10px' }}></i>
-                                                                                              <span>{dueReason === 'APPOINTMENT' ? (lang === 'TH' ? 'ถึงเวลานัด' : 'Due Appt') : (lang === 'TH' ? 'ค้างตาม >24ชม.' : '>24h Stale')}</span>
-                                                                                          </span>
+                                                                                      {!cust.hasDeposited && (
+                                                                                          isDueToday ? (
+                                                                                              <span 
+                                                                                                  style={{
+                                                                                                      display: 'inline-flex',
+                                                                                                      alignItems: 'center',
+                                                                                                      gap: '3px',
+                                                                                                      fontSize: '10.5px',
+                                                                                                      fontWeight: 700,
+                                                                                                      padding: '1px 6px',
+                                                                                                      borderRadius: '999px',
+                                                                                                      background: 'rgba(245, 158, 11, 0.15)',
+                                                                                                      color: '#f59e0b',
+                                                                                                      border: '1px solid rgba(245, 158, 11, 0.4)'
+                                                                                                  }}
+                                                                                                  title={lang === 'TH' ? '⏳ ลูกค้ารายนี้ยังไม่ได้ฝากเงิน และวันนี้ยังไม่ได้ติ๊กทักแชทติดตาม' : '⏳ Pending deposit & not yet followed up today'}
+                                                                                              >
+                                                                                                  <i data-lucide="clock" style={{ width: '10px', height: '10px' }}></i>
+                                                                                                  <span>{lang === 'TH' ? 'วันนี้ยังไม่ได้ทัก' : 'Pending Today'}</span>
+                                                                                              </span>
+                                                                                          ) : (
+                                                                                              <span 
+                                                                                                  style={{
+                                                                                                      display: 'inline-flex',
+                                                                                                      alignItems: 'center',
+                                                                                                      gap: '3px',
+                                                                                                      fontSize: '10px',
+                                                                                                      fontWeight: 700,
+                                                                                                      padding: '1px 6px',
+                                                                                                      borderRadius: '999px',
+                                                                                                      background: 'rgba(16, 185, 129, 0.14)',
+                                                                                                      color: '#10b981',
+                                                                                                      border: '1px solid rgba(16, 185, 129, 0.35)'
+                                                                                                  }}
+                                                                                                  title={lang === 'TH' ? '✅ วันนี้ได้ทักแชทติดตามลูกค้ารายนี้เรียบร้อยแล้ว' : '✅ Followed up via chat today'}
+                                                                                              >
+                                                                                                  <span>{lang === 'TH' ? '✓ ทักวันนี้แล้ว' : '✓ Contacted Today'}</span>
+                                                                                              </span>
+                                                                                          )
                                                                                       )}
                                                                                   </div>
                                                                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
@@ -12413,7 +12409,7 @@
                                                                                 value={quickNoteText}
                                                                                 onChange={(e) => setQuickNoteText(e.target.value)}
                                                                                 onKeyDown={(e) => {
-                                                                                    if (e.key === 'Enter') handleQuickNoteSave(cust.id, quickNoteText, quickNextDate);
+                                                                                    if (e.key === 'Enter') handleQuickNoteSave(cust.id, quickNoteText);
                                                                                     else if (e.key === 'Escape') setQuickEditCustId(null);
                                                                                 }}
                                                                                 placeholder={lang === 'TH' ? 'พิมพ์โน้ตแล้วกด Enter...' : 'Type note & press Enter...'}
@@ -12430,7 +12426,7 @@
                                                                             />
                                                                             <button
                                                                                 type="button"
-                                                                                onClick={() => handleQuickNoteSave(cust.id, quickNoteText, quickNextDate)}
+                                                                                onClick={() => handleQuickNoteSave(cust.id, quickNoteText)}
                                                                                 style={{
                                                                                     padding: '4px 8px',
                                                                                     fontSize: '10.5px',
@@ -12463,91 +12459,7 @@
                                                                             </button>
                                                                         </div>
 
-                                                                        {/* Quick Next Follow Up Date Presets & Picker */}
-                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
-                                                                            <span style={{ fontSize: '9.5px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '2px', marginRight: '2px' }}>
-                                                                                <i data-lucide="clock" style={{ width: '9px', height: '9px' }}></i> {lang === 'TH' ? 'นัด:' : 'Appt:'}
-                                                                            </span>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => setQuickNextDate(getOffsetDateStr(1))}
-                                                                                style={{
-                                                                                    padding: '1px 5px',
-                                                                                    fontSize: '9px',
-                                                                                    borderRadius: '5px',
-                                                                                    border: quickNextDate === getOffsetDateStr(1) ? '1px solid #3b82f6' : '1px solid rgba(148, 163, 184, 0.3)',
-                                                                                    background: quickNextDate === getOffsetDateStr(1) ? '#3b82f6' : 'transparent',
-                                                                                    color: quickNextDate === getOffsetDateStr(1) ? '#fff' : 'inherit',
-                                                                                    cursor: 'pointer'
-                                                                                }}
-                                                                            >
-                                                                                {lang === 'TH' ? 'พรุ่งนี้' : 'Tmrw'}
-                                                                            </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => setQuickNextDate(getOffsetDateStr(2))}
-                                                                                style={{
-                                                                                    padding: '1px 5px',
-                                                                                    fontSize: '9px',
-                                                                                    borderRadius: '5px',
-                                                                                    border: quickNextDate === getOffsetDateStr(2) ? '1px solid #3b82f6' : '1px solid rgba(148, 163, 184, 0.3)',
-                                                                                    background: quickNextDate === getOffsetDateStr(2) ? '#3b82f6' : 'transparent',
-                                                                                    color: quickNextDate === getOffsetDateStr(2) ? '#fff' : 'inherit',
-                                                                                    cursor: 'pointer'
-                                                                                }}
-                                                                            >
-                                                                                +2 วัน
-                                                                            </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => setQuickNextDate(getOffsetDateStr(3))}
-                                                                                style={{
-                                                                                    padding: '1px 5px',
-                                                                                    fontSize: '9px',
-                                                                                    borderRadius: '5px',
-                                                                                    border: quickNextDate === getOffsetDateStr(3) ? '1px solid #3b82f6' : '1px solid rgba(148, 163, 184, 0.3)',
-                                                                                    background: quickNextDate === getOffsetDateStr(3) ? '#3b82f6' : 'transparent',
-                                                                                    color: quickNextDate === getOffsetDateStr(3) ? '#fff' : 'inherit',
-                                                                                    cursor: 'pointer'
-                                                                                }}
-                                                                            >
-                                                                                +3 วัน
-                                                                            </button>
-                                                                            <input
-                                                                                type="date"
-                                                                                value={quickNextDate || ''}
-                                                                                onChange={(e) => setQuickNextDate(e.target.value)}
-                                                                                style={{
-                                                                                    padding: '1px 3px',
-                                                                                    fontSize: '9px',
-                                                                                    borderRadius: '4px',
-                                                                                    border: '1px solid rgba(148, 163, 184, 0.4)',
-                                                                                    background: theme === 'light' ? '#fff' : '#0b1325',
-                                                                                    color: theme === 'light' ? '#0f172a' : '#fff',
-                                                                                    outline: 'none'
-                                                                                }}
-                                                                            />
-                                                                            {quickNextDate && (
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => setQuickNextDate('')}
-                                                                                    title={lang === 'TH' ? 'ล้างวันนัด' : 'Clear appointment date'}
-                                                                                    style={{
-                                                                                        padding: '1px 4px',
-                                                                                        fontSize: '9px',
-                                                                                        borderRadius: '4px',
-                                                                                        border: 'none',
-                                                                                        background: 'rgba(239, 68, 68, 0.15)',
-                                                                                        color: '#ef4444',
-                                                                                        cursor: 'pointer'
-                                                                                    }}
-                                                                                >
-                                                                                    ✕
-                                                                                </button>
-                                                                            )}
-                                                                        </div>
-
-                                                                        {/* 1-Click Quick Preset Chips */}
+                                                                        {/* 1-Click Quick Preset Chips (คลิกปุ๊บบันทึกโน้ตพร้อมติ๊กติดตามวันนี้ทันที) */}
                                                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
                                                                             {QUICK_REMARK_PRESETS.map((preset, pIdx) => {
                                                                                 const textVal = lang === 'TH' ? preset.th : preset.en;
@@ -12555,7 +12467,7 @@
                                                                                     <button
                                                                                         key={pIdx}
                                                                                         type="button"
-                                                                                        onClick={() => handleQuickNoteSave(cust.id, textVal, quickNextDate)}
+                                                                                        onClick={() => handleQuickNoteSave(cust.id, textVal)}
                                                                                         style={{
                                                                                             padding: '2px 6px',
                                                                                             fontSize: '9.5px',
@@ -12567,7 +12479,7 @@
                                                                                             cursor: 'pointer',
                                                                                             whiteSpace: 'nowrap'
                                                                                         }}
-                                                                                        title={lang === 'TH' ? `คลิกเพื่อบันทึก "${textVal}" ทันที` : `Click to save "${textVal}"`}
+                                                                                        title={lang === 'TH' ? `คลิกเพื่อบันทึก "${textVal}" และติ๊กติดตามวันนี้ทันที` : `Click to save "${textVal}" and mark followed up today`}
                                                                                     >
                                                                                         {textVal}
                                                                                     </button>
@@ -12581,7 +12493,6 @@
                                                                             onClick={() => {
                                                                                 setQuickEditCustId(cust.id);
                                                                                 setQuickNoteText(cust.notes || '');
-                                                                                setQuickNextDate(cust.nextFollowUpDate || '');
                                                                             }}
                                                                             style={{
                                                                                 flex: 1,
@@ -12593,7 +12504,7 @@
                                                                                 background: cust.notes ? (theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.04)') : 'transparent',
                                                                                 border: '1px dashed rgba(148, 163, 184, 0.25)',
                                                                                 cursor: 'pointer',
-                                                                                maxWidth: '155px',
+                                                                                maxWidth: '175px',
                                                                                 overflow: 'hidden',
                                                                                 textOverflow: 'ellipsis',
                                                                                 whiteSpace: 'nowrap',
@@ -12603,28 +12514,6 @@
                                                                         >
                                                                             {cust.notes ? cust.notes : (lang === 'TH' ? '⚡ + คลิกจดโน้ตด่วน' : '⚡ + Quick Remark')}
                                                                         </div>
-                                                                        {cust.nextFollowUpDate && (
-                                                                            <div
-                                                                                style={{
-                                                                                    display: 'inline-flex',
-                                                                                    alignItems: 'center',
-                                                                                    gap: '2px',
-                                                                                    fontSize: '9.5px',
-                                                                                    fontWeight: 700,
-                                                                                    color: cust.nextFollowUpDate <= todayDateStr ? '#ef4444' : '#3b82f6',
-                                                                                    background: cust.nextFollowUpDate <= todayDateStr ? 'rgba(239, 68, 68, 0.12)' : 'rgba(59, 130, 246, 0.12)',
-                                                                                    border: cust.nextFollowUpDate <= todayDateStr ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)',
-                                                                                    padding: '1px 5px',
-                                                                                    borderRadius: '4px',
-                                                                                    whiteSpace: 'nowrap',
-                                                                                    flexShrink: 0
-                                                                                }}
-                                                                                title={lang === 'TH' ? `วันนัดติดตาม: ${cust.nextFollowUpDate}` : `Follow-up date: ${cust.nextFollowUpDate}`}
-                                                                            >
-                                                                                <i data-lucide="clock" style={{ width: '9px', height: '9px' }}></i>
-                                                                                <span>{cust.nextFollowUpDate.substring(5)}</span>
-                                                                            </div>
-                                                                        )}
                                                                         <button 
                                                                             id={custIdx === 0 ? "tour-notes-btn" : undefined}
                                                                             className="btn btn-secondary" 
