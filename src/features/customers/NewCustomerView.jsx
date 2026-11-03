@@ -25,7 +25,8 @@ export default function NewCustomerView() {
     selectedMonth,
     lang,
     theme,
-    setAddConfirmModalData
+    setAddConfirmModalData,
+    addSuccessModalData
   } = useApp();
 
   // Form states
@@ -39,6 +40,25 @@ export default function NewCustomerView() {
   const [formSource, setFormSource] = useState('facebook');
   const [formReferrer, setFormReferrer] = useState('');
   const [formNotes, setFormNotes] = useState('');
+
+  // Reset form fields
+  const resetForm = () => {
+    setFormFullName('');
+    setFormUsername('');
+    setFormPhone('');
+    setFormLineOA('');
+    setFormLineLek('รอแอด');
+    setFormSource('facebook');
+    setFormReferrer('');
+    setFormNotes('');
+  };
+
+  // Auto-reset form fields as soon as customer is saved / confirmed
+  React.useEffect(() => {
+    if (addSuccessModalData) {
+      resetForm();
+    }
+  }, [addSuccessModalData]);
 
   // History table filters
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -478,30 +498,48 @@ export default function NewCustomerView() {
           </div>
 
           <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <button 
-              type="submit" 
-              disabled={isAddCustomerDisabled}
-              className={`btn ${isAddCustomerDisabled ? 'disabled' : ''}`} 
-              style={{ 
-                padding: '13px 20px', 
-                fontSize: '14px', 
-                fontWeight: 600,
-                justifyContent: 'center',
-                opacity: isAddCustomerDisabled ? 0.45 : 1,
-                cursor: isAddCustomerDisabled ? 'not-allowed' : 'pointer',
-                backgroundColor: isAddCustomerDisabled ? (theme === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.08)') : 'var(--primary)',
-                color: isAddCustomerDisabled ? (theme === 'light' ? '#64748b' : '#94a3b8') : '#ffffff',
-                border: isAddCustomerDisabled ? (theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)') : 'none',
-                boxShadow: isAddCustomerDisabled ? 'none' : '0 4px 14px rgba(124, 58, 237, 0.35)',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              {isAddCustomerDisabled ? <Lock style={{ width: '16px', height: '16px' }} /> : <UserPlus style={{ width: '16px', height: '16px' }} />}
-              <span>{isAddCustomerDisabled ? (lang === 'TH' ? 'กรุณากรอกข้อมูลและยูสเซอร์ให้ครบถ้วนเพื่อบันทึก' : 'Please fill all required fields') : (lang === 'TH' ? 'บันทึกลูกค้าเข้าพอร์ตงาน' : 'Save Customer to Portfolio')}</span>
-            </button>
+            <div style={{ display: 'grid', gridTemplateColumns: (formFullName || formUsername || formPhone || formLineOA || formNotes || formReferrer) ? '1fr auto' : '1fr', gap: '10px' }}>
+              <button 
+                type="submit" 
+                disabled={isAddCustomerDisabled}
+                className={`btn ${isAddCustomerDisabled ? 'disabled' : ''}`} 
+                style={{ 
+                  padding: '13px 20px', 
+                  fontSize: '14px', 
+                  fontWeight: 600,
+                  justifyContent: 'center',
+                  opacity: isAddCustomerDisabled ? 0.45 : 1,
+                  cursor: isAddCustomerDisabled ? 'not-allowed' : 'pointer',
+                  backgroundColor: isAddCustomerDisabled ? (theme === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.08)') : 'var(--primary)',
+                  color: isAddCustomerDisabled ? (theme === 'light' ? '#64748b' : '#94a3b8') : '#ffffff',
+                  border: isAddCustomerDisabled ? (theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)') : 'none',
+                  boxShadow: isAddCustomerDisabled ? 'none' : '0 4px 14px rgba(124, 58, 237, 0.35)',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {isAddCustomerDisabled ? <Lock style={{ width: '16px', height: '16px' }} /> : <UserPlus style={{ width: '16px', height: '16px' }} />}
+                <span>{isAddCustomerDisabled ? (lang === 'TH' ? 'กรุณากรอกข้อมูลและยูสเซอร์ให้ครบถ้วนเพื่อบันทึก' : 'Please fill all required fields') : (lang === 'TH' ? 'บันทึกลูกค้าเข้าพอร์ตงาน' : 'Save Customer to Portfolio')}</span>
+              </button>
+              {(formFullName || formUsername || formPhone || formLineOA || formNotes || formReferrer) && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '13px 18px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap'
+                  }}
+                  title={lang === 'TH' ? 'ล้างข้อมูลที่กรอกทั้งหมดออก' : 'Clear form fields'}
+                >
+                  🔄 {lang === 'TH' ? 'ล้างฟอร์ม' : 'Clear Form'}
+                </button>
+              )}
+            </div>
 
             {isAddCustomerDisabled && (
               <div style={{

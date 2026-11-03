@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { DaysGrid } from './DaysGrid';
 import { QUICK_REMARK_PRESETS } from '../../constants/presets';
-import { formatChannelDisplayName, isOverdue3Days, isDueTodayFollowUp, getFollowUpDueReason } from '../../utils/customerFormatters';
+import { formatChannelDisplayName, isOverdue3Days, isDueTodayFollowUp, getFollowUpDueReason, getStagnantDepositInfo } from '../../utils/customerFormatters';
 import { getCurrentMonthStr } from '../../utils/dateFormatters';
 import { pushCustomerToCloud } from '../../services/supabase';
 import { SearchInput } from '../../components/common';
@@ -50,6 +50,21 @@ export default function FollowUpView() {
   const [quickEditCustId, setQuickEditCustId] = useState(null);
   const [quickNoteText, setQuickNoteText] = useState('');
   const [quickNextDate, setQuickNextDate] = useState('');
+
+  // Daily Summary (LINE) Modal State
+  const [dailySummaryModalOpen, setDailySummaryModalOpen] = useState(false);
+  const [summaryStats, setSummaryStats] = useState({
+    followedUpCount: 0,
+    queueTotalCount: 0,
+    clearedPct: 0,
+    repliedCount: 0,
+    closedDepositCount: 0,
+    closedDepositAmount: 0,
+    reporterName: '',
+    dateStr: ''
+  });
+  const [summaryText, setSummaryText] = useState('');
+  const [summaryCopied, setSummaryCopied] = useState(false);
 
   const getOffsetDateStr = (daysAhead) => {
     const d = new Date();
@@ -294,6 +309,111 @@ export default function FollowUpView() {
   const copyToClipboard = (text, label) => {
     navigator.clipboard.writeText(text);
     alert(lang === 'TH' ? `คัดลอก ${label}: ${text} สำเร็จ!` : `Copied ${label}: ${text}!`);
+  };
+
+  const buildSummaryTemplate = (stats) => {
+    return `📊 สรุปผลงานติดตามลูกค้าประจำวัน
+📅 วันที่: ${stats.dateStr}
+👤 ผู้รายงาน: ${stats.reporterName} (MC Agent)
+━━━━━━━━━━━━━━━━━━
+🎯 ผลงานประจำวัน:
+• ทักติดตามวันนี้: ${stats.followedUpCount} คน${stats.queueTotalCount > 0 ? ` (เคลียร์คิว ${stats.clearedPct}%)` : ''}
+• ลูกค้าตอบกลับ/กำลังคุย: ${stats.repliedCount} คน
+• ปิดการฝากได้สำเร็จ: ${stats.closedDepositCount} คน
+
+💰 ยอดเงินฝากรวมวันนี้: ฿${Number(stats.closedDepositAmount || 0).toLocaleString()}
+━━━━━━━━━━━━━━━━━━
+#MCDailyFollowUp #รายงานประจำวัน`;
+  };
+
+  const handleOpenDailySummary = () => {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const dateStr = `${day}/${month}/${year}`;
+    const todayDayNum = String(now.getDate());
+    const curMonthStr = `${year}-${month}`;
+    const todayIsoDate = `${year}-${month}-${day}`;
+
+    const reporter = effectiveFollowUpAgent !== 'ทั้งหมด' ? effectiveFollowUpAgent : (activeAgentName || 'MC Agent');
+    const targetCusts = agentCusts;
+
+    // Followed up today count:
+    const followedUpCusts = targetCusts.filter(c => {
+      const fMap = (c.followUpByMonth && (c.followUpByMonth[curMonthStr] || c.followUpByMonth[c.campaignMonth])) || c.followUp || {};
+      return Boolean(fMap[todayDayNum] || (c.followUp && c.followUp[todayDayNum]));
+    });
+    const followedUpCount = followedUpCusts.length;
+
+    // Unconverted queue total
+    const unconvertedCusts = targetCusts.filter(c => !c.hasDeposited);
+    const queueTotalCount = unconvertedCusts.length;
+    const clearedPct = queueTotalCount > 0 ? Math.min(100, Math.round((followedUpCount / queueTotalCount) * 100)) : 100;
+
+    // Replied / in conversation:
+    const repliedCusts = followedUpCusts.filter(c => Boolean(c.notes && c.notes.trim()));
+    const repliedCount = repliedCusts.length;
+
+    // Closed deposits today:
+    const depositedTodayCusts = targetCusts.filter(c => {
+      if (!c.hasDeposited && !(Number(c.totalDeposit) > 0)) return false;
+      if (c.depositDate && c.depositDate.startsWith(todayIsoDate)) return true;
+      if (c.updatedAt && c.updatedAt.startsWith(todayIsoDate) && Number(c.totalDeposit) > 0) return true;
+      return false;
+    });
+    const closedDepositCount = depositedTodayCusts.length;
+    const closedDepositAmount = depositedTodayCusts.reduce((sum, c) => {
+      const amt = parseFloat(c.returnedDepositAmount || 0) > 0 ? parseFloat(c.returnedDepositAmount) : parseFloat(c.totalDeposit || 0);
+      return sum + amt;
+    }, 0);
+
+    const stats = {
+      followedUpCount,
+      queueTotalCount,
+      clearedPct,
+      repliedCount,
+      closedDepositCount,
+      closedDepositAmount,
+      reporterName: reporter,
+      dateStr
+    };
+
+    setSummaryStats(stats);
+    setSummaryText(buildSummaryTemplate(stats));
+    setSummaryCopied(false);
+    setDailySummaryModalOpen(true);
+  };
+
+  const updateSummaryStat = (field, delta) => {
+    setSummaryStats(prev => {
+      const nextVal = Math.max(0, (Number(prev[field]) || 0) + delta);
+      const nextStats = { ...prev, [field]: nextVal };
+      if (field === 'followedUpCount' && nextStats.queueTotalCount > 0) {
+        nextStats.clearedPct = Math.min(100, Math.round((nextVal / nextStats.queueTotalCount) * 100));
+      }
+      setSummaryText(buildSummaryTemplate(nextStats));
+      return nextStats;
+    });
+  };
+
+  const handleCopySummaryText = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(summaryText);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = summaryText;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setSummaryCopied(true);
+      setTimeout(() => setSummaryCopied(false), 3000);
+    } catch (err) {
+      console.error('Copy summary error:', err);
+    }
   };
 
   return (
@@ -676,6 +796,32 @@ export default function FollowUpView() {
                   ฿{displayTotalCheckedDeposit.toLocaleString()}
                 </span>
               </div>
+              <button
+                type="button"
+                onClick={handleOpenDailySummary}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 13px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                title={lang === 'TH' ? 'คลิกเพื่อคำนวณและคัดลอกสรุปผลงานประจำวันส่งลงกลุ่ม LINE' : 'Click to calculate and copy daily summary for LINE'}
+              >
+                <span>📋</span>
+                <span>{lang === 'TH' ? 'คัดลอกสรุปผลงานวันนี้ (LINE)' : 'Daily Summary (LINE)'}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -774,6 +920,7 @@ export default function FollowUpView() {
                   const overdue = isOverdue3Days(cust, selectedMonth);
                   const isDueToday = isDueTodayFollowUp(cust, selectedMonth);
                   const dueReason = isDueToday ? getFollowUpDueReason(cust, selectedMonth) : null;
+                  const stagnantInfo = getStagnantDepositInfo(cust, lang);
                   return (
                     <tr key={cust.id}>
                       <td id={custIdx === 0 ? 'tour-customer-info' : undefined}>
@@ -842,6 +989,27 @@ export default function FollowUpView() {
                             ) : (
                               <span style={{ fontSize: '11px', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.15)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
                                 {lang === 'TH' ? '🟠 ทักไม่สมัคร' : '🟠 Inquired (Not Reg)'}
+                              </span>
+                            )}
+                            {/* Stagnant Pending Deposit Badge (แบบที่ 2) */}
+                            {stagnantInfo && (
+                              <span 
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  background: stagnantInfo.level === 'CRITICAL' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                  color: stagnantInfo.level === 'CRITICAL' ? '#ef4444' : '#d97706',
+                                  border: stagnantInfo.level === 'CRITICAL' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
+                                  cursor: 'default'
+                                }}
+                                title={stagnantInfo.tooltip}
+                              >
+                                {stagnantInfo.badgeText}
                               </span>
                             )}
                             {cust.campaignMonth && (selectedMonth === 'ALL' || cust.campaignMonth < targetMonth) && (
@@ -1141,6 +1309,208 @@ export default function FollowUpView() {
           </table>
         </div>
       </div>
+
+      {/* Daily Summary LINE Report Modal */}
+      {dailySummaryModalOpen && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '16px'
+        }}>
+          <div style={{
+            background: theme === 'light' ? '#ffffff' : '#0f172a',
+            color: theme === 'light' ? '#0f172a' : '#f8fafc',
+            borderRadius: '16px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.35)',
+            border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+            width: '100%',
+            maxWidth: '520px',
+            overflow: 'hidden'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 20px',
+              borderBottom: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
+              background: theme === 'light' ? '#f8fafc' : '#1e293b'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>📋</span>
+                <span style={{ fontWeight: 800, fontSize: '15px' }}>
+                  {lang === 'TH' ? 'สรุปผลงานติดตามลูกค้าประจำวัน (LINE Format)' : 'Daily Follow-up Report for LINE'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDailySummaryModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Quick Stat Pill Adjusters */}
+            <div style={{ padding: '16px 20px 8px 20px' }}>
+              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: '10px', fontWeight: 600 }}>
+                {lang === 'TH' ? '⚡ ปรับแก้ตัวเลขแบบเร็ว (ระบบคำนวณให้อัตโนมัติ ปรับเพิ่ม/ลดได้ตามจริง):' : '⚡ Quick Adjust Stats:'}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '12px' }}>
+                {/* Followed up */}
+                <div style={{
+                  padding: '8px 10px',
+                  borderRadius: '10px',
+                  background: theme === 'light' ? '#f0fdf4' : 'rgba(16, 185, 129, 0.1)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontWeight: 600 }}>🎯 ทักติดตาม</div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#10b981', margin: '2px 0' }}>{summaryStats.followedUpCount} คน</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
+                    <button type="button" onClick={() => updateSummaryStat('followedUpCount', -1)} style={{ padding: '1px 8px', fontSize: '11px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', background: 'transparent' }}>-</button>
+                    <button type="button" onClick={() => updateSummaryStat('followedUpCount', 1)} style={{ padding: '1px 8px', fontSize: '11px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', background: 'transparent' }}>+</button>
+                  </div>
+                </div>
+
+                {/* Replied */}
+                <div style={{
+                  padding: '8px 10px',
+                  borderRadius: '10px',
+                  background: theme === 'light' ? '#eff6ff' : 'rgba(59, 130, 246, 0.1)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontWeight: 600 }}>💬 ตอบกลับ/คุย</div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#3b82f6', margin: '2px 0' }}>{summaryStats.repliedCount} คน</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
+                    <button type="button" onClick={() => updateSummaryStat('repliedCount', -1)} style={{ padding: '1px 8px', fontSize: '11px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', background: 'transparent' }}>-</button>
+                    <button type="button" onClick={() => updateSummaryStat('repliedCount', 1)} style={{ padding: '1px 8px', fontSize: '11px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', background: 'transparent' }}>+</button>
+                  </div>
+                </div>
+
+                {/* Closed Deposit */}
+                <div style={{
+                  padding: '8px 10px',
+                  borderRadius: '10px',
+                  background: theme === 'light' ? '#fef3c7' : 'rgba(245, 158, 11, 0.1)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontWeight: 600 }}>🟢 ปิดฝากสำเร็จ</div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#d97706', margin: '2px 0' }}>{summaryStats.closedDepositCount} คน</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
+                    <button type="button" onClick={() => updateSummaryStat('closedDepositCount', -1)} style={{ padding: '1px 8px', fontSize: '11px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', background: 'transparent' }}>-</button>
+                    <button type="button" onClick={() => updateSummaryStat('closedDepositCount', 1)} style={{ padding: '1px 8px', fontSize: '11px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', background: 'transparent' }}>+</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Textarea Preview & Edit */}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: 600 }}>
+                  📝 ข้อความที่จะส่งลงกลุ่ม LINE (สามารถคลิกพิมพ์แก้ไขข้อความในกล่องนี้ได้โดยตรง):
+                </div>
+                <textarea
+                  value={summaryText}
+                  onChange={(e) => setSummaryText(e.target.value)}
+                  rows={10}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '10px',
+                    fontFamily: 'inherit',
+                    fontSize: '13px',
+                    lineHeight: '1.6',
+                    background: theme === 'light' ? '#f8fafc' : '#020617',
+                    color: theme === 'light' ? '#0f172a' : '#f8fafc',
+                    border: theme === 'light' ? '1.5px solid #cbd5e1' : '1.5px solid rgba(255,255,255,0.15)',
+                    resize: 'vertical',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Copy Notification Toast */}
+              {summaryCopied && (
+                <div style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  background: '#10b981',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '12.5px',
+                  textAlign: 'center',
+                  marginBottom: '12px',
+                  animation: 'fadeIn 0.2s ease'
+                }}>
+                  ✅ คัดลอกข้อความสำเร็จเรียบร้อย! สามารถกดวาง (Ctrl+V) ลงใน LINE ได้ทันที
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '10px',
+              padding: '12px 20px 16px 20px',
+              borderTop: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)'
+            }}>
+              <button
+                type="button"
+                onClick={() => setDailySummaryModalOpen(false)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  background: 'transparent',
+                  border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)',
+                  color: 'var(--text-muted)',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                ปิด
+              </button>
+              <button
+                type="button"
+                onClick={handleCopySummaryText}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 20px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '13.5px',
+                  fontWeight: 800,
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.4)',
+                  cursor: 'pointer'
+                }}
+              >
+                <span>📋</span>
+                <span>คัดลอกข้อความ (Copy to LINE)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

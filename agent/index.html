@@ -3522,6 +3522,39 @@
                 return isDueTodayFollowUp(c, monthKey) ? 'PENDING_TODAY' : null;
             };
 
+            const getStagnantDepositInfo = (c, currentLang = 'TH') => {
+                if (!c || c.hasDeposited) return null;
+                if (!c.createdAt) return null;
+                const createdDate = new Date(c.createdAt);
+                if (isNaN(createdDate.getTime())) return null;
+                const now = new Date();
+                const diffMs = now.getTime() - createdDate.getTime();
+                if (diffMs < 0) return null;
+                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+                if (diffDays >= 5) {
+                    return {
+                        level: 'CRITICAL',
+                        days: diffDays,
+                        badgeText: currentLang === 'TH' ? `🔥 นิ่ง ${diffDays} วัน+ (ยังไม่ฝาก)` : `🔥 Stagnant ${diffDays}d+ (No Deposit)`,
+                        tooltip: currentLang === 'TH' 
+                            ? `🚨 ลูกค้ารายนี้สมัครมาแล้ว ${diffDays} วัน ยังไม่มียอดฝากเงิน (เกิน 5 วัน) กรุณาเสนอโปรโมชั่นเร่งด่วน`
+                            : `🚨 Registered ${diffDays} days ago with no deposit (5+ days overdue). Immediate follow-up required.`
+                    };
+                }
+                if (diffDays >= 3) {
+                    return {
+                        level: 'WARNING',
+                        days: diffDays,
+                        badgeText: currentLang === 'TH' ? `⏳ นิ่ง ${diffDays} วัน (รอฝาก)` : `⏳ Stagnant ${diffDays}d (Pending)`,
+                        tooltip: currentLang === 'TH'
+                            ? `⏳ ลูกค้ารายนี้สมัครมาแล้ว ${diffDays} วัน ยังไม่มียอดฝากเงิน เฝ้าระวังและติดตามกระตุ้นยอด`
+                            : `⏳ Registered ${diffDays} days ago with no deposit. Follow up recommended.`
+                    };
+                }
+                return null;
+            };
+
             const MonthlyHeatmap = ({ customer, targetMonthOverride }) => {
                 const today = new Date();
                 const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -12158,6 +12191,7 @@
                                                                 const overdue = isOverdue3Days(cust, selectedMonth);
                                                                 const isDueToday = isDueTodayFollowUp(cust, selectedMonth);
                                                                 const dueReason = isDueToday ? getFollowUpDueReason(cust, selectedMonth) : null;
+                                                                const stagnantInfo = getStagnantDepositInfo(cust, lang);
                                                                 return (
                                                                     <tr key={cust.id}>
                                                                         <td id={custIdx === 0 ? "tour-customer-info" : undefined}>
@@ -12226,6 +12260,27 @@
                                                                                       ) : (
                                                                                           <span style={{ fontSize: '11px', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.15)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
                                                                                               {lang === 'TH' ? '🟠 ทักไม่สมัคร' : '🟠 Inquired (Not Reg)'}
+                                                                                          </span>
+                                                                                      )}
+                                                                                      {/* Stagnant Pending Deposit Badge (แบบที่ 2) */}
+                                                                                      {stagnantInfo && (
+                                                                                          <span 
+                                                                                              style={{
+                                                                                                  display: 'inline-flex',
+                                                                                                  alignItems: 'center',
+                                                                                                  gap: '3px',
+                                                                                                  fontSize: '10px',
+                                                                                                  fontWeight: 700,
+                                                                                                  padding: '1px 6px',
+                                                                                                  borderRadius: '4px',
+                                                                                                  background: stagnantInfo.level === 'CRITICAL' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                                                                                  color: stagnantInfo.level === 'CRITICAL' ? '#ef4444' : '#d97706',
+                                                                                                  border: stagnantInfo.level === 'CRITICAL' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
+                                                                                                  cursor: 'default'
+                                                                                              }}
+                                                                                              title={stagnantInfo.tooltip}
+                                                                                          >
+                                                                                              {stagnantInfo.badgeText}
                                                                                           </span>
                                                                                       )}
                                                                                       {!cust.fullName && overdue && (

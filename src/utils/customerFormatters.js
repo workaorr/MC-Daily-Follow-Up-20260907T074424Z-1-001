@@ -105,3 +105,36 @@ export const getFollowUpDueReason = (c, monthKey = null) => {
     return isDueTodayFollowUp(c, monthKey) ? 'PENDING_TODAY' : null;
 };
 
+export const getStagnantDepositInfo = (c, lang = 'TH') => {
+    if (!c || c.hasDeposited) return null;
+    if (!c.createdAt) return null;
+    const createdDate = new Date(c.createdAt);
+    if (isNaN(createdDate.getTime())) return null;
+    const now = new Date();
+    const diffMs = now.getTime() - createdDate.getTime();
+    if (diffMs < 0) return null;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays >= 5) {
+        return {
+            level: 'CRITICAL',
+            days: diffDays,
+            badgeText: lang === 'TH' ? `🔥 นิ่ง ${diffDays} วัน+ (ยังไม่ฝาก)` : `🔥 Stagnant ${diffDays}d+ (No Deposit)`,
+            tooltip: lang === 'TH' 
+                ? `🚨 ลูกค้ารายนี้สมัครมาแล้ว ${diffDays} วัน ยังไม่มียอดฝากเงิน (เกิน 5 วัน) กรุณาเสนอโปรโมชั่นเร่งด่วน`
+                : `🚨 Registered ${diffDays} days ago with no deposit (5+ days overdue). Immediate follow-up required.`
+        };
+    }
+    if (diffDays >= 3) {
+        return {
+            level: 'WARNING',
+            days: diffDays,
+            badgeText: lang === 'TH' ? `⏳ นิ่ง ${diffDays} วัน (รอฝาก)` : `⏳ Stagnant ${diffDays}d (Pending)`,
+            tooltip: lang === 'TH'
+                ? `⏳ ลูกค้ารายนี้สมัครมาแล้ว ${diffDays} วัน ยังไม่มียอดฝากเงิน เฝ้าระวังและติดตามกระตุ้นยอด`
+                : `⏳ Registered ${diffDays} days ago with no deposit. Follow up recommended.`
+        };
+    }
+    return null;
+};
+
