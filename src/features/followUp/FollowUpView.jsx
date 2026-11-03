@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { DaysGrid } from './DaysGrid';
 import { QUICK_REMARK_PRESETS } from '../../constants/presets';
@@ -1311,7 +1312,7 @@ export default function FollowUpView() {
       </div>
 
       {/* Daily Summary LINE Report Modal */}
-      {dailySummaryModalOpen && (
+      {dailySummaryModalOpen && typeof document !== 'undefined' && createPortal(
         <div style={{
           position: 'fixed',
           inset: 0,
@@ -1509,7 +1510,8 @@ export default function FollowUpView() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
