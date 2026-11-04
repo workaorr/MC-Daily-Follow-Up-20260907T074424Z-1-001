@@ -5410,26 +5410,35 @@
 
             // SUPABASE PUSH SINGLE CUSTOMER
             const pushCustomerToSupabase = async (cust) => {
-                if (!supabaseClient) return;
+                if (!supabaseClient || !cust) return;
                 try {
+                    const cleanFollowUp = {
+                        ...(typeof cust.followUp === 'object' && cust.followUp !== null ? cust.followUp : {}),
+                        ...(typeof cust.followUpByMonth === 'object' && cust.followUpByMonth !== null ? cust.followUpByMonth : {})
+                    };
+                    if (cust.nextFollowUpDate) {
+                        cleanFollowUp._meta = {
+                            ...(cleanFollowUp._meta || {}),
+                            nextFollowUpDate: cust.nextFollowUpDate
+                        };
+                    }
+
                     const payload = {
                         id: cust.id,
                         created_at: cust.createdAt || new Date().toISOString(),
-                        username: cust.username && cust.username.trim() ? cust.username.trim() : null,
-                        full_name: cust.fullName || '',
+                        username: cust.username && String(cust.username).trim() ? String(cust.username).trim() : null,
+                        full_name: cust.fullName ? String(cust.fullName).trim() : '',
                         phone: cust.phone || '',
                         line_oa: cust.lineOA || '',
                         line_lek: cust.lineLek || 'รอแอด',
                         source_channel: cust.sourceChannel || 'facebook',
-                        total_deposit: cust.totalDeposit || 0,
+                        total_deposit: parseFloat(cust.totalDeposit || 0) || 0,
                         created_by: cust.createdBy || 'ระบบกลาง',
                         campaign_month: cust.campaignMonth || currentMonthStr,
-                        follow_up: cust.followUp || {},
-                        follow_up_by_month: cust.followUpByMonth || {},
-                        next_follow_up_date: cust.nextFollowUpDate || null,
+                        follow_up: cleanFollowUp,
                         notes: cust.notes || '',
-                        has_deposited: cust.hasDeposited || false,
-                        returned_deposit_amount: cust.returnedDepositAmount || 0,
+                        has_deposited: Boolean(cust.hasDeposited),
+                        returned_deposit_amount: parseFloat(cust.returnedDepositAmount || 0) || 0,
                         referrer: cust.referrer || ''
                     };
 
@@ -5437,11 +5446,15 @@
                         .from('mc_customers')
                         .upsert(payload, { onConflict: 'id' });
 
-                    if (error && (error.message.includes('line_oa') || error.message.includes('line_lek') || error.message.includes('referrer') || error.message.includes('next_follow_up_date') || error.message.includes('follow_up_by_month'))) {
+                    if (error) {
+                        delete payload.referrer;
                         delete payload.line_oa;
                         delete payload.line_lek;
-                        delete payload.referrer;
+                        delete payload.returned_deposit_amount;
+                        delete payload.follow_up_by_month;
                         delete payload.next_follow_up_date;
+                        delete payload.updated_by;
+                        delete payload.updated_at;
                         const res = await supabaseClient
                             .from('mc_customers')
                             .upsert(payload, { onConflict: 'id' });

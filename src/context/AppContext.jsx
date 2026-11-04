@@ -344,6 +344,19 @@ export const AppProvider = ({ children }) => {
                     }
                 });
 
+                // Auto-preserve and push any unsynced local customers
+                try {
+                    const savedLocal = JSON.parse(localStorage.getItem('mc_customers') || '[]');
+                    const cloudIdSet = new Set(dbCusts.map(dc => String(dc.id)));
+                    const unsynced = savedLocal.filter(lc => lc && lc.id && !cloudIdSet.has(String(lc.id)) && !lc.deletedAt);
+                    if (unsynced.length > 0) {
+                        unsynced.forEach(uc => {
+                            activeList.unshift(uc);
+                            pushCustomerToCloud(client, uc);
+                        });
+                    }
+                } catch (e) {}
+
                 setCustomers(activeList);
                 try { localStorage.setItem('mc_customers', JSON.stringify(activeList)); } catch (e) {}
 

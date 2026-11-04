@@ -33,58 +33,63 @@ const initialCreds = getStoredSupabaseCredentials();
 export const supabase = createSupabaseInstance(initialCreds.url, initialCreds.key);
 
 export const pushCustomerToCloud = async (supabaseClient, cust) => {
-    if (!supabaseClient || !cust) return;
+    if (!supabaseClient || !cust) return { success: false };
     try {
-        const followUpByMonth = typeof cust.followUpByMonth === 'object' && cust.followUpByMonth !== null ? { ...cust.followUpByMonth } : {};
-        if (cust.nextFollowUpDate !== undefined) {
-            followUpByMonth._meta = {
-                ...(followUpByMonth._meta || {}),
-                nextFollowUpDate: cust.nextFollowUpDate || null
+        const cleanFollowUp = {
+            ...(typeof cust.followUp === 'object' && cust.followUp !== null ? cust.followUp : {}),
+            ...(typeof cust.followUpByMonth === 'object' && cust.followUpByMonth !== null ? cust.followUpByMonth : {})
+        };
+        if (cust.nextFollowUpDate) {
+            cleanFollowUp._meta = {
+                ...(cleanFollowUp._meta || {}),
+                nextFollowUpDate: cust.nextFollowUpDate
             };
         }
 
         const payload = {
             id: cust.id,
             created_at: cust.createdAt || new Date().toISOString(),
-            username: cust.username && cust.username.trim() ? cust.username.trim() : null,
-            full_name: cust.fullName || '',
+            username: cust.username && String(cust.username).trim() ? String(cust.username).trim() : null,
+            full_name: cust.fullName ? String(cust.fullName).trim() : '',
             phone: cust.phone || '',
             line_oa: cust.lineOA || '',
             line_lek: cust.lineLek || 'รอแอด',
             source_channel: cust.sourceChannel || 'Facebook',
-            total_deposit: cust.totalDeposit || 0,
+            total_deposit: parseFloat(cust.totalDeposit || 0) || 0,
             created_by: cust.createdBy || 'ระบบกลาง',
-            campaign_month: cust.campaignMonth,
-            follow_up: cust.followUp || {},
-            follow_up_by_month: followUpByMonth,
+            campaign_month: cust.campaignMonth || new Date().toISOString().substring(0, 7),
+            follow_up: cleanFollowUp,
             notes: cust.notes || '',
-            has_deposited: cust.hasDeposited || false,
-            returned_deposit_amount: cust.returnedDepositAmount || 0,
+            has_deposited: Boolean(cust.hasDeposited),
+            returned_deposit_amount: parseFloat(cust.returnedDepositAmount || 0) || 0,
             referrer: cust.referrer || ''
         };
-
-        if (cust.nextFollowUpDate) payload.next_follow_up_date = cust.nextFollowUpDate;
-        if (cust.updatedBy) payload.updated_by = cust.updatedBy;
-        if (cust.updatedAt) payload.updated_at = cust.updatedAt;
 
         let { error } = await supabaseClient
             .from('mc_customers')
             .upsert(payload, { onConflict: 'id' });
 
-        if (error && (error.message.includes('next_follow_up_date') || error.message.includes('line_oa') || error.message.includes('line_lek') || error.message.includes('referrer') || error.message.includes('updated_by') || error.message.includes('updated_at'))) {
-            delete payload.next_follow_up_date;
+        if (error) {
+            console.warn('Primary upsert notice, retrying with core columns:', error.message);
+            delete payload.referrer;
             delete payload.line_oa;
             delete payload.line_lek;
-            delete payload.referrer;
+            delete payload.returned_deposit_amount;
+            delete payload.follow_up_by_month;
+            delete payload.next_follow_up_date;
             delete payload.updated_by;
             delete payload.updated_at;
+
             const res = await supabaseClient
                 .from('mc_customers')
                 .upsert(payload, { onConflict: 'id' });
             error = res.error;
         }
 
-        if (error) throw error;
+        if (error) {
+            console.error('Final pushCustomerToCloud failed:', error);
+            throw error;
+        }
         return { success: true };
     } catch (err) {
         console.warn('pushCustomerToCloud error:', err);
