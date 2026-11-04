@@ -67,6 +67,23 @@ export default function FollowUpView() {
   const [summaryText, setSummaryText] = useState('');
   const [summaryCopied, setSummaryCopied] = useState(false);
 
+  // Supervisor Bulk Customer Reassignment State
+  const [isBulkReassignMode, setIsBulkReassignMode] = useState(false);
+  const [selectedCustIdsForReassign, setSelectedCustIdsForReassign] = useState([]);
+  const [targetReassignAgent, setTargetReassignAgent] = useState('');
+  const [reassignRemark, setReassignRemark] = useState('');
+  const [isReassignConfirmModalOpen, setIsReassignConfirmModalOpen] = useState(false);
+  const [isReassigning, setIsReassigning] = useState(false);
+
+  const handleToggleSelectCust = (custId) => {
+    setSelectedCustIdsForReassign(prev => {
+      if (prev.includes(custId)) {
+        return prev.filter(id => id !== custId);
+      }
+      return [...prev, custId];
+    });
+  };
+
   const getOffsetDateStr = (daysAhead) => {
     const d = new Date();
     d.setDate(d.getDate() + daysAhead);
@@ -417,6 +434,46 @@ export default function FollowUpView() {
     }
   };
 
+  const handleExecuteBulkReassign = async () => {
+    if (!targetReassignAgent || selectedCustIdsForReassign.length === 0) return;
+    setIsReassigning(true);
+
+    try {
+      const nowIso = new Date().toISOString();
+      const count = selectedCustIdsForReassign.length;
+      const targetIdsSet = new Set(selectedCustIdsForReassign);
+
+      const updatedCustomers = customers.map(c => {
+        if (!targetIdsSet.has(c.id)) return c;
+        const updatedCust = {
+          ...c,
+          createdBy: targetReassignAgent,
+          updatedBy: activeAgentName || 'Supervisor',
+          updatedAt: nowIso
+        };
+        if (supabaseClient) {
+          pushCustomerToCloud(supabaseClient, updatedCust);
+        }
+        return updatedCust;
+      });
+
+      setCustomers(updatedCustomers);
+
+      const logMsg = `👑 หัวหน้า [${activeAgentName || 'Supervisor'}] ได้โอนย้ายเคสลูกค้าหมู่ (${count} คน) ให้กับ [${targetReassignAgent}] ${reassignRemark.trim() ? `(หมายเหตุ: "${reassignRemark.trim()}")` : ''}`;
+      writeLog('CUSTOMER_REASSIGN', logMsg, 'warning', activeAgentName || 'Supervisor');
+
+      setIsReassigning(false);
+      setIsReassignConfirmModalOpen(false);
+      setSelectedCustIdsForReassign([]);
+      setReassignRemark('');
+      alert(lang === 'TH' ? `✅ โอนย้ายเคสลูกค้า ${count} คน ให้กับ "${targetReassignAgent}" สำเร็จเรียบร้อยแล้ว!` : `✅ Successfully reassigned ${count} customers to "${targetReassignAgent}"!`);
+    } catch (err) {
+      console.error('Bulk reassign error:', err);
+      setIsReassigning(false);
+      alert(lang === 'TH' ? `เกิดข้อผิดพลาดในการโอนย้าย: ${err.message}` : `Reassignment error: ${err.message}`);
+    }
+  };
+
   return (
     <div className="panel" style={{ padding: 0 }}>
       {/* Sticky Top Controls & Filter Section */}
@@ -442,6 +499,36 @@ export default function FollowUpView() {
                     </option>
                   ))}
                 </select>
+
+                {/* Supervisor Bulk Reassign Mode Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsBulkReassignMode(!isBulkReassignMode);
+                    setSelectedCustIdsForReassign([]);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 13px',
+                    borderRadius: '8px',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    border: isBulkReassignMode ? '1.5px solid #a855f7' : (theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)'),
+                    background: isBulkReassignMode 
+                      ? 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)' 
+                      : (theme === 'light' ? '#f8fafc' : 'rgba(255,255,255,0.06)'),
+                    color: isBulkReassignMode ? '#ffffff' : (theme === 'light' ? '#334155' : '#cbd5e1'),
+                    boxShadow: isBulkReassignMode ? '0 2px 8px rgba(168, 85, 247, 0.4)' : 'none'
+                  }}
+                  title={lang === 'TH' ? 'คลิกเพื่อเปิดโหมดติ๊กเลือกเคสลูกค้าหลายคนพร้อมกัน เพื่อโอนย้ายไปยังพนักงานคนใหม่' : 'Bulk Customer Reassignment Mode'}
+                >
+                  <span>🔁</span>
+                  <span>{lang === 'TH' ? (isBulkReassignMode ? '✓ โหมดโอนเคสหมู่ (เปิดอยู่)' : 'โอนย้ายเคสหมู่') : 'Bulk Reassign'}</span>
+                </button>
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -834,6 +921,23 @@ export default function FollowUpView() {
           <table style={{ minWidth: '1050px', width: '100%' }}>
             <thead>
               <tr>
+                {isSupervisor && isBulkReassignMode && (
+                  <th style={{ width: '48px', minWidth: '48px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    <input
+                      type="checkbox"
+                      checked={displayList.length > 0 && selectedCustIdsForReassign.length === displayList.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedCustIdsForReassign(displayList.map(c => c.id));
+                        } else {
+                          setSelectedCustIdsForReassign([]);
+                        }
+                      }}
+                      style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#7c3aed' }}
+                      title={lang === 'TH' ? 'เลือกทั้งหมดในรายการนี้' : 'Select All Filtered'}
+                    />
+                  </th>
+                )}
                 <th style={{ width: '160px', minWidth: '150px', whiteSpace: 'nowrap' }}>{lang === 'TH' ? 'ชื่อลูกค้า / ยูสเซอร์เนม' : 'Customer / Username'}</th>
                 <th style={{ width: '140px', minWidth: '130px', whiteSpace: 'nowrap' }}>{lang === 'TH' ? 'ข้อมูลการติดต่อ' : 'Contact Info'}</th>
                 <th style={{ width: '90px', minWidth: '85px', textAlign: 'center', whiteSpace: 'nowrap' }}>{lang === 'TH' ? 'ช่องทางสมัคร' : 'Source Channel'}</th>
@@ -847,7 +951,7 @@ export default function FollowUpView() {
                 background: theme === 'light' ? '#f8fafc' : '#080d19',
                 borderBottom: theme === 'light' ? '2px solid #cbd5e1' : '2px solid rgba(255, 255, 255, 0.08)'
               }}>
-                <th colSpan="3" style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                <th colSpan={isSupervisor && isBulkReassignMode ? 4 : 3} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, fontSize: '11.5px', color: 'var(--text-muted)' }}>
                   <span>📊 {lang === 'TH' ? 'ยอดรวมตามตัวกรอง' : 'Filtered Totals'}: </span>
                   <strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>{displayList.length} {lang === 'TH' ? 'คน' : 'leads'}</strong>
                   {effectiveFollowUpAgent !== 'ทั้งหมด' && (
@@ -912,7 +1016,7 @@ export default function FollowUpView() {
             <tbody>
               {displayList.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                  <td colSpan={isSupervisor && isBulkReassignMode ? 8 : 7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
                     {lang === 'TH' ? 'ไม่มีรายชื่อลูกค้าตามเงื่อนไขการกรองนี้' : 'No customer records matching this filter'}
                   </td>
                 </tr>
@@ -922,8 +1026,24 @@ export default function FollowUpView() {
                   const isDueToday = isDueTodayFollowUp(cust, selectedMonth);
                   const dueReason = isDueToday ? getFollowUpDueReason(cust, selectedMonth) : null;
                   const stagnantInfo = getStagnantDepositInfo(cust, lang);
+                  const isCustSelected = selectedCustIdsForReassign.includes(cust.id);
                   return (
-                    <tr key={cust.id}>
+                    <tr 
+                      key={cust.id}
+                      style={isSupervisor && isBulkReassignMode && isCustSelected ? {
+                        background: theme === 'light' ? '#f5f3ff' : 'rgba(124, 58, 237, 0.12)'
+                      } : undefined}
+                    >
+                      {isSupervisor && isBulkReassignMode && (
+                        <td style={{ textAlign: 'center', padding: '8px 4px', width: '48px' }}>
+                          <input
+                            type="checkbox"
+                            checked={isCustSelected}
+                            onChange={() => handleToggleSelectCust(cust.id)}
+                            style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#7c3aed' }}
+                          />
+                        </td>
+                      )}
                       <td id={custIdx === 0 ? 'tour-customer-info' : undefined}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
@@ -1275,7 +1395,7 @@ export default function FollowUpView() {
                   fontWeight: 700,
                   fontSize: '12.5px'
                 }}>
-                  <td colSpan="3" style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--text-muted)' }}>
+                  <td colSpan={isSupervisor && isBulkReassignMode ? 4 : 3} style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--text-muted)' }}>
                     <span>{lang === 'TH' ? 'ยอดรวมทุกแถวตามตัวกรอง:' : 'Total of Filtered Rows:'}</span>
                     <strong style={{ marginLeft: '6px', color: theme === 'light' ? '#0f172a' : '#ffffff' }}>
                       {displayList.length} {lang === 'TH' ? 'คน' : 'leads'}
@@ -1315,14 +1435,20 @@ export default function FollowUpView() {
       {dailySummaryModalOpen && typeof document !== 'undefined' && createPortal(
         <div style={{
           position: 'fixed',
-          inset: 0,
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100vw',
+          height: '100vh',
           backgroundColor: 'rgba(0, 0, 0, 0.65)',
           backdropFilter: 'blur(4px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 9999,
-          padding: '16px'
+          zIndex: 999999,
+          padding: '16px',
+          boxSizing: 'border-box'
         }}>
           <div style={{
             background: theme === 'light' ? '#ffffff' : '#0f172a',
@@ -1508,6 +1634,276 @@ export default function FollowUpView() {
                 <span>📋</span>
                 <span>คัดลอกข้อความ (Copy to LINE)</span>
               </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Floating Bottom Bulk Reassign Action Bar */}
+      {isSupervisor && isBulkReassignMode && typeof document !== 'undefined' && createPortal(
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 99990,
+          background: theme === 'light' ? '#ffffff' : '#0f172a',
+          color: theme === 'light' ? '#0f172a' : '#f8fafc',
+          padding: '12px 22px',
+          borderRadius: '16px',
+          boxShadow: '0 12px 36px rgba(0, 0, 0, 0.35)',
+          border: theme === 'light' ? '1.5px solid #c084fc' : '1.5px solid rgba(168, 85, 247, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px',
+          flexWrap: 'wrap',
+          animation: 'fadeIn 0.2s ease-out',
+          maxWidth: '92vw'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '18px' }}>🔁</span>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#7c3aed' }}>
+              {lang === 'TH' ? 'โหมดโอนย้ายเคสหมู่:' : 'Bulk Reassignment:'}
+            </span>
+            <span style={{
+              fontSize: '12px',
+              fontWeight: 800,
+              padding: '3px 10px',
+              borderRadius: '20px',
+              background: selectedCustIdsForReassign.length > 0 ? '#7c3aed' : (theme === 'light' ? '#e2e8f0' : 'rgba(255,255,255,0.1)'),
+              color: selectedCustIdsForReassign.length > 0 ? '#ffffff' : 'var(--text-muted)'
+            }}>
+              {lang === 'TH' ? `เลือกอยู่ ${selectedCustIdsForReassign.length} คน` : `Selected ${selectedCustIdsForReassign.length}`}
+            </span>
+          </div>
+
+          <div style={{ width: '1px', height: '24px', background: theme === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.12)' }}></div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-muted)' }}>
+              {lang === 'TH' ? 'โอนให้เจ้าหน้าที่:' : 'Reassign To:'}
+            </span>
+            <select
+              className="select-input"
+              value={targetReassignAgent}
+              onChange={(e) => setTargetReassignAgent(e.target.value)}
+              style={{
+                height: '34px',
+                padding: '4px 10px',
+                fontSize: '12.5px',
+                fontWeight: 700,
+                borderRadius: '8px',
+                minWidth: '170px',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="">{lang === 'TH' ? '-- เลือกผู้รับผิดชอบใหม่ --' : '-- Select New Agent --'}</option>
+              {agents.filter(a => a.isActive !== false).map(a => (
+                <option key={a.id} value={a.name}>
+                  {a.name} ({a.role || 'AGENT'})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            disabled={selectedCustIdsForReassign.length === 0 || !targetReassignAgent}
+            onClick={() => setIsReassignConfirmModalOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 16px',
+              borderRadius: '8px',
+              fontSize: '12.5px',
+              fontWeight: 800,
+              cursor: (selectedCustIdsForReassign.length === 0 || !targetReassignAgent) ? 'not-allowed' : 'pointer',
+              opacity: (selectedCustIdsForReassign.length === 0 || !targetReassignAgent) ? 0.5 : 1,
+              background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+              color: '#ffffff',
+              border: 'none',
+              boxShadow: (selectedCustIdsForReassign.length > 0 && targetReassignAgent) ? '0 2px 10px rgba(124, 58, 237, 0.4)' : 'none',
+              transition: 'all 0.15s'
+            }}
+          >
+            <span>🚀</span>
+            <span>{lang === 'TH' ? `ดำเนินการโอนย้าย (${selectedCustIdsForReassign.length})` : `Reassign (${selectedCustIdsForReassign.length})`}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsBulkReassignMode(false);
+              setSelectedCustIdsForReassign([]);
+            }}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: 600,
+              background: 'transparent',
+              border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)',
+              color: 'var(--text-muted)',
+              cursor: 'pointer'
+            }}
+          >
+            {lang === 'TH' ? '✕ ปิดโหมด' : '✕ Close'}
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* Bulk Reassign Confirmation Modal */}
+      {isReassignConfirmModalOpen && typeof document !== 'undefined' && createPortal(
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 999999,
+          padding: '16px',
+          boxSizing: 'border-box'
+        }}>
+          <div style={{
+            background: theme === 'light' ? '#ffffff' : '#0f172a',
+            color: theme === 'light' ? '#0f172a' : '#f8fafc',
+            borderRadius: '16px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.35)',
+            border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+            width: '100%',
+            maxWidth: '480px',
+            overflow: 'hidden',
+            animation: 'fadeIn 0.15s ease-out'
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 20px',
+              borderBottom: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
+              background: theme === 'light' ? '#f5f3ff' : '#1e1b4b'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>🔁</span>
+                <span style={{ fontWeight: 800, fontSize: '15px', color: '#7c3aed' }}>
+                  {lang === 'TH' ? 'ยืนยันการโอนย้ายเคสลูกค้าหมู่ (Supervisor)' : 'Confirm Bulk Customer Reassignment'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReassignConfirmModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '20px' }}>
+              <div style={{
+                padding: '14px 16px',
+                borderRadius: '12px',
+                background: theme === 'light' ? '#f8fafc' : 'rgba(255,255,255,0.04)',
+                border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
+                marginBottom: '16px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{lang === 'TH' ? '📊 จำนวนเคสที่เลือก:' : 'Selected Leads:'}</span>
+                  <strong style={{ color: '#7c3aed', fontSize: '15px' }}>{selectedCustIdsForReassign.length} {lang === 'TH' ? 'คน' : 'leads'}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', marginBottom: '8px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{lang === 'TH' ? '🎯 ผู้รับผิดชอบคนใหม่:' : 'New Assignee:'}</span>
+                  <span className="badge badge-owner" style={{ fontSize: '12.5px', padding: '4px 10px' }}>
+                    👤 {targetReassignAgent}
+                  </span>
+                </div>
+                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', borderTop: theme === 'light' ? '1px dashed #cbd5e1' : '1px dashed rgba(255,255,255,0.1)', paddingTop: '8px', marginTop: '8px' }}>
+                  ℹ️ {lang === 'TH' ? 'ระบบจะเปลี่ยนเจ้าหน้าที่ผู้ดูแล (Owner) เป็นคนใหม่ โดยประวัติการติดตาม, การติ๊กวัน และโน้ตเดิมทั้งหมดจะถูกเก็บรักษาไว้อย่างสมบูรณ์ 100%' : 'All follow-up history, ticked dates, and remarks will be preserved intact.'}
+                </div>
+              </div>
+
+              {/* Optional Remark */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                  {lang === 'TH' ? '📝 หมายเหตุการโอนย้าย (บันทึกลงใน Audit Log):' : 'Reassignment Reason (Audit Log):'}
+                </label>
+                <input
+                  type="text"
+                  value={reassignRemark}
+                  onChange={(e) => setReassignRemark(e.target.value)}
+                  placeholder={lang === 'TH' ? 'เช่น ย้ายพอร์ตงานเนื่องจากพนักงานเดิมพักงาน/ลาออก...' : 'e.g. Portfolio reassignment due to staff departure...'}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    fontSize: '12.5px',
+                    background: theme === 'light' ? '#f8fafc' : '#020617',
+                    color: theme === 'light' ? '#0f172a' : '#f8fafc',
+                    border: theme === 'light' ? '1.5px solid #cbd5e1' : '1.5px solid rgba(255,255,255,0.15)',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  disabled={isReassigning}
+                  onClick={() => setIsReassignConfirmModalOpen(false)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    background: 'transparent',
+                    border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)',
+                    color: 'var(--text-muted)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {lang === 'TH' ? 'ยกเลิก' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isReassigning}
+                  onClick={handleExecuteBulkReassign}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 20px',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '13.5px',
+                    fontWeight: 800,
+                    boxShadow: '0 2px 10px rgba(124, 58, 237, 0.4)',
+                    cursor: isReassigning ? 'wait' : 'pointer'
+                  }}
+                >
+                  <span>🚀</span>
+                  <span>{isReassigning ? (lang === 'TH' ? 'กำลังโอนย้าย...' : 'Reassigning...') : (lang === 'TH' ? 'ยืนยันโอนย้ายเคส' : 'Confirm Reassign')}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>,
