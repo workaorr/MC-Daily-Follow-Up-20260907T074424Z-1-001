@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { useApp } from '../../context/AppContext';
 import { getTodayLocalDateStr, formatKeyedDateTime } from '../../utils/dateFormatters';
 import { formatChannelDisplayName } from '../../utils/customerFormatters';
+import { pushCustomerToCloud } from '../../services/supabase';
 import { 
   UserPlus, 
   UserCheck, 
@@ -11,12 +13,28 @@ import {
   Lock, 
   AlertCircle, 
   CheckCircle2, 
-  User 
+  User,
+  FileSpreadsheet,
+  UploadCloud,
+  Download,
+  AlertTriangle,
+  XCircle,
+  Users,
+  RefreshCw,
+  FileCheck2,
+  Trash2,
+  Filter,
+  Info,
+  CheckCircle,
+  ArrowRight,
+  ShieldCheck,
+  X
 } from 'lucide-react';
 
 export default function NewCustomerView() {
   const {
     customers,
+    setCustomers,
     agents,
     activeAgent,
     activeAgentName,
@@ -25,6 +43,8 @@ export default function NewCustomerView() {
     selectedMonth,
     lang,
     theme,
+    supabaseClient,
+    writeLog,
     setAddConfirmModalData,
     addSuccessModalData
   } = useApp();
@@ -67,6 +87,386 @@ export default function NewCustomerView() {
   const nonDeletedCustomers = useMemo(() => {
     return customers.filter(c => !c.deletedAt);
   }, [customers]);
+
+  // Mode Switch: 'single' (กรอกทีละคน) | 'bulk' (นำเข้าไฟล์ Excel/CSV)
+  const [activeTab, setActiveTab] = useState('single');
+
+  // Bulk Lead Import States
+  const [bulkFileName, setBulkFileName] = useState('');
+  const [bulkFileSize, setBulkFileSize] = useState('');
+  const [bulkPreviewRows, setBulkPreviewRows] = useState(null);
+  const [bulkRegistrationDate, setBulkRegistrationDate] = useState(getTodayLocalDateStr());
+  const [bulkAssignMode, setBulkAssignMode] = useState('single'); // 'single' | 'round_robin'
+  const [bulkTargetAgent, setBulkTargetAgent] = useState(activeAgentName || '');
+  const [bulkFilter, setBulkFilter] = useState('ALL'); // 'ALL' | 'VALID' | 'ISSUES'
+  const [skipIssues, setSkipIssues] = useState(true);
+  const [isImportingBulk, setIsImportingBulk] = useState(false);
+  const [bulkImportSuccess, setBulkImportSuccess] = useState(null);
+  const bulkFileInputRef = useRef(null);
+
+  // Download Sample Lead Template
+  const downloadLeadTemplate = (format = 'xlsx') => {
+    const today = getTodayLocalDateStr();
+    const sampleRows = [
+      {
+        'ชื่อ-นามสกุล': 'คุณสมชาย ใจดี',
+        'ยูสเซอร์เนม': 'mc88001',
+        'เบอร์โทรศัพท์': '0891234567',
+        'LINE OA': '@somchai88',
+        'สถานะไลน์เล็ก': 'รอแอด',
+        'ช่องทางสมัคร': 'facebook',
+        'หมายเหตุ': 'ลูกค้าทักจากเพจหลัก สนใจโปรโมชั่น 100%'
+      },
+      {
+        'ชื่อ-นามสกุล': 'คุณสมหญิง มีโชค',
+        'ยูสเซอร์เนม': 'mc88002',
+        'เบอร์โทรศัพท์': '0819876543',
+        'LINE OA': 'somying_oa',
+        'สถานะไลน์เล็ก': 'มี',
+        'ช่องทางสมัคร': 'tiktok',
+        'หมายเหตุ': 'แอดไลน์เล็กเรียบร้อยแล้ว'
+      },
+      {
+        'ชื่อ-นามสกุล': 'ลูกค้า สอบถามแต่ยังไม่เปิดยูส',
+        'ยูสเซอร์เนม': '',
+        'เบอร์โทรศัพท์': '0925556677',
+        'LINE OA': '-',
+        'สถานะไลน์เล็ก': 'รอแอด',
+        'ช่องทางสมัคร': 'line',
+        'หมายเหตุ': 'ทักสอบถามโปร รอตัดสินใจ'
+      }
+    ];
+
+    if (format === 'csv') {
+      const headers = ['ชื่อ-นามสกุล', 'ยูสเซอร์เนม', 'เบอร์โทรศัพท์', 'LINE OA', 'สถานะไลน์เล็ก', 'ช่องทางสมัคร', 'หมายเหตุ'];
+      const csvRows = [
+        headers.join(','),
+        ...sampleRows.map(row => [
+          `"${row['ชื่อ-นามสกุล']}"`,
+          `"${row['ยูสเซอร์เนม']}"`,
+          `"${row['เบอร์โทรศัพท์']}"`,
+          `"${row['LINE OA']}"`,
+          `"${row['สถานะไลน์เล็ก']}"`,
+          `"${row['ช่องทางสมัคร']}"`,
+          `"${row['หมายเหตุ']}"`
+        ].join(','))
+      ];
+      const csvContent = '\uFEFF' + csvRows.join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `MC_Customer_Template_${today}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const ws = XLSX.utils.json_to_sheet(sampleRows);
+      ws['!cols'] = [
+        { wch: 25 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 18 },
+        { wch: 15 },
+        { wch: 16 },
+        { wch: 35 }
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Template_Leads');
+      XLSX.writeFile(wb, `MC_Customer_Template_${today}.xlsx`);
+    }
+  };
+
+  // Handle Bulk Lead File Upload & Validation
+  const handleBulkFileUpload = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' });
+
+        if (!Array.isArray(jsonData) || jsonData.length === 0) {
+          alert(lang === 'TH' ? '⚠️ ไม่พบข้อมูลในไฟล์ที่เลือก กรุณาตรวจสอบไฟล์อีกครั้ง' : '⚠️ No data found in the selected file.');
+          return;
+        }
+
+        const normalizeKey = (key) => {
+          return String(key || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s\-_]+/g, '');
+        };
+
+        const seenFilePhones = new Set();
+        const seenFileUsernames = new Set();
+
+        const validatedList = jsonData.map((row, index) => {
+          const getVal = (possibleKeys) => {
+            for (const [k, v] of Object.entries(row)) {
+              const normK = normalizeKey(k);
+              if (possibleKeys.some(pk => normK === normalizeKey(pk) || normK.includes(normalizeKey(pk)))) {
+                return v !== undefined && v !== null ? String(v).trim() : '';
+              }
+            }
+            return '';
+          };
+
+          const rawFullName = getVal(['ชื่อ-นามสกุล', 'ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อลูกค้า', 'ชื่อ', 'fullname', 'full_name', 'name', 'customer_name']);
+          const rawUsername = getVal(['ยูสเซอร์เนม', 'ยูสเซอร์', 'ยูส', 'username', 'user', 'userid', 'account']);
+          const rawPhone = getVal(['เบอร์โทรศัพท์', 'เบอร์โทร', 'เบอร์', 'โทร', 'phone', 'tel', 'mobile', 'telephone']);
+          const rawLineOA = getVal(['line_oa', 'lineoa', 'line_id', 'lineid', 'line', 'ไลน์', 'ไอดีไลน์']);
+          const rawLineLek = getVal(['สถานะไลน์เล็ก', 'ไลน์เล็ก', 'line_lek', 'linelek']);
+          const rawSource = getVal(['ช่องทางสมัคร', 'ช่องทาง', 'ที่มา', 'source_channel', 'source', 'channel']);
+          const rawNotes = getVal(['หมายเหตุ', 'โน้ต', 'รายละเอียด', 'notes', 'note', 'remark']);
+          const rawAgent = getVal(['ผู้รับผิดชอบ', 'พนักงาน', 'เจ้าหน้าที่', 'assigned_to', 'agent', 'created_by']);
+
+          const cleanPhone = rawPhone.replace(/\D/g, '');
+          const cleanUsername = rawUsername.trim().toLowerCase();
+          const cleanFullName = rawFullName.trim();
+
+          let lineLek = 'รอแอด';
+          if (rawLineLek.includes('มี') || rawLineLek.toLowerCase() === 'has' || rawLineLek.toLowerCase() === 'yes') {
+            lineLek = 'มี';
+          } else if (rawLineLek.includes('ไม่มี') || rawLineLek.toLowerCase() === 'none' || rawLineLek.toLowerCase() === 'no') {
+            lineLek = 'ไม่มี';
+          }
+
+          let sourceChannel = 'facebook';
+          if (rawSource) {
+            const sLower = rawSource.toLowerCase();
+            const matchedCh = sourceChannels.find(ch => sLower.includes(ch.toLowerCase()) || ch.toLowerCase().includes(sLower));
+            sourceChannel = matchedCh || rawSource;
+          }
+
+          const issues = [];
+          let status = 'VALID'; // 'VALID' | 'WARNING' | 'ERROR'
+
+          // 1. Full Name check
+          if (!cleanFullName) {
+            issues.push({ type: 'MISSING_NAME', label: lang === 'TH' ? 'ไม่มีชื่อ-นามสกุล' : 'Missing Name', severity: 'error' });
+            status = 'ERROR';
+          }
+
+          // 2. Phone check
+          if (!cleanPhone) {
+            issues.push({ type: 'MISSING_PHONE', label: lang === 'TH' ? 'ไม่มีเบอร์โทร' : 'Missing Phone', severity: 'error' });
+            status = 'ERROR';
+          } else if (cleanPhone.length < 9 || cleanPhone.length > 10) {
+            issues.push({ type: 'INVALID_PHONE', label: lang === 'TH' ? `เบอร์ไม่ครบ 9-10 หลัก (${cleanPhone})` : `Invalid Phone (${cleanPhone})`, severity: 'error' });
+            status = 'ERROR';
+          } else {
+            // Duplicate in file
+            if (seenFilePhones.has(cleanPhone)) {
+              issues.push({ type: 'DUP_FILE_PHONE', label: lang === 'TH' ? 'เบอร์ซ้ำกันเองในไฟล์นี้' : 'Duplicate phone in file', severity: 'warning' });
+              if (status !== 'ERROR') status = 'WARNING';
+            } else {
+              seenFilePhones.add(cleanPhone);
+            }
+
+            // Duplicate in system
+            const sysDupPhone = nonDeletedCustomers.find(c => {
+              const p = (c.phone || '').replace(/\D/g, '');
+              return p.length >= 8 && p === cleanPhone;
+            });
+            if (sysDupPhone) {
+              issues.push({
+                type: 'DUP_SYS_PHONE',
+                label: lang === 'TH' 
+                  ? `เบอร์ซ้ำในระบบ (${sysDupPhone.fullName || sysDupPhone.username || 'ลูกค้าเดิม'}${sysDupPhone.createdBy ? ` / ดูแลโดย ${sysDupPhone.createdBy}` : ''})` 
+                  : `Phone duplicate with existing customer`,
+                severity: 'warning'
+              });
+              if (status !== 'ERROR') status = 'WARNING';
+            }
+          }
+
+          // 3. Username check
+          if (cleanUsername) {
+            if (/\s/.test(rawUsername)) {
+              issues.push({ type: 'USER_SPACE', label: lang === 'TH' ? 'ยูสเซอร์มีช่องว่าง' : 'Username has spaces', severity: 'warning' });
+              if (status !== 'ERROR') status = 'WARNING';
+            }
+            if (seenFileUsernames.has(cleanUsername)) {
+              issues.push({ type: 'DUP_FILE_USER', label: lang === 'TH' ? 'ยูสเซอร์ซ้ำกันเองในไฟล์' : 'Duplicate username in file', severity: 'warning' });
+              if (status !== 'ERROR') status = 'WARNING';
+            } else {
+              seenFileUsernames.add(cleanUsername);
+            }
+
+            const sysDupUser = nonDeletedCustomers.find(c => c.username && c.username.trim().toLowerCase() === cleanUsername);
+            if (sysDupUser) {
+              issues.push({
+                type: 'DUP_SYS_USER',
+                label: lang === 'TH' 
+                  ? `ยูสเซอร์ "${cleanUsername}" ซ้ำในระบบ (${sysDupUser.fullName || 'มีอยู่แล้ว'})` 
+                  : `Username already exists in system`,
+                severity: 'warning'
+              });
+              if (status !== 'ERROR') status = 'WARNING';
+            }
+          }
+
+          // 4. LINE OA check
+          const cleanLineOA = rawLineOA.trim().toLowerCase();
+          const isLineIgnored = !cleanLineOA || ['-', '--', '---', 'ไม่มี', 'ไม่มีไลน์', 'none', 'no'].includes(cleanLineOA);
+          if (!isLineIgnored && cleanLineOA.length >= 2) {
+            const sysDupLine = nonDeletedCustomers.find(c => {
+              const l = (c.lineOA || '').trim().toLowerCase();
+              if (!l || ['-', '--', '---', 'ไม่มี', 'ไม่มีไลน์', 'none', 'no'].includes(l)) return false;
+              return l === cleanLineOA;
+            });
+            if (sysDupLine) {
+              issues.push({
+                type: 'DUP_SYS_LINE',
+                label: lang === 'TH' ? `ไลน์ซ้ำในระบบ (${sysDupLine.fullName || sysDupLine.username})` : `LINE OA duplicate`,
+                severity: 'warning'
+              });
+              if (status !== 'ERROR') status = 'WARNING';
+            }
+          }
+
+          return {
+            rowIndex: index + 1,
+            fullName: cleanFullName,
+            username: cleanUsername,
+            phone: rawPhone.trim(),
+            cleanPhone,
+            lineOA: rawLineOA.trim() || '-',
+            lineLek,
+            sourceChannel,
+            notes: rawNotes.trim(),
+            agentInRow: rawAgent.trim(),
+            status,
+            issues,
+            isValid: status === 'VALID',
+            hasWarning: status === 'WARNING',
+            hasError: status === 'ERROR'
+          };
+        });
+
+        setBulkPreviewRows(validatedList);
+        setBulkFileName(file.name);
+        setBulkFileSize((file.size / 1024).toFixed(1) + ' KB');
+        setBulkImportSuccess(null);
+        setBulkFilter('ALL');
+
+        writeLog('IMPORT_SCAN', `สแกนไฟล์ [${file.name}] สำเร็จ (${validatedList.length} รายการ: พร้อมนำเข้า ${validatedList.filter(r => r.isValid).length} คน)`, 'info');
+
+      } catch (err) {
+        console.error('File parse error:', err);
+        alert(lang === 'TH' ? `เกิดข้อผิดพลาดในการอ่านไฟล์: ${err.message}` : `Cannot parse file: ${err.message}`);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // Execute Bulk Lead Import
+  const handleExecuteBulkImport = async () => {
+    if (!bulkPreviewRows || bulkPreviewRows.length === 0 || isImportingBulk) return;
+
+    const rowsToImport = bulkPreviewRows.filter(r => skipIssues ? r.isValid : !r.hasError);
+
+    if (rowsToImport.length === 0) {
+      alert(lang === 'TH' ? '⚠️ ไม่มีรายการที่พร้อมนำเข้า กรุณาตรวจสอบข้อมูลอีกครั้ง' : '⚠️ No valid records to import.');
+      return;
+    }
+
+    const confirmMsg = lang === 'TH' 
+      ? `ยืนยันการนำเข้ารายชื่อลูกค้าจำนวน ${rowsToImport.length} คน เข้าสู่พอร์ตงานใช่หรือไม่?` 
+      : `Confirm importing ${rowsToImport.length} customer records to portfolio?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsImportingBulk(true);
+
+    try {
+      const now = new Date();
+      let createdIso;
+      if (bulkRegistrationDate) {
+        const [y, m, d] = bulkRegistrationDate.split('-').map(Number);
+        const dateWithTime = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+        createdIso = dateWithTime.toISOString();
+      } else {
+        createdIso = now.toISOString();
+      }
+
+      const activeAgentsList = agents.filter(a => a.isActive !== false && !a.isArchived);
+      const campaignMonth = bulkRegistrationDate ? bulkRegistrationDate.substring(0, 7) : selectedMonth;
+
+      const newCustomers = rowsToImport.map((row, idx) => {
+        let assigned = (isSupervisor && bulkTargetAgent) ? bulkTargetAgent : (activeAgentName || 'Agent');
+
+        if (bulkAssignMode === 'round_robin' && activeAgentsList.length > 0) {
+          assigned = activeAgentsList[idx % activeAgentsList.length].name;
+        }
+
+        if (row.agentInRow && agents.some(a => a.name === row.agentInRow)) {
+          assigned = row.agentInRow;
+        }
+
+        return {
+          id: Math.floor(Date.now() % 1000000000) + Math.floor(Math.random() * 99999) + idx,
+          createdAt: createdIso,
+          username: row.username,
+          fullName: row.fullName,
+          phone: row.phone,
+          lineOA: row.lineOA || '-',
+          lineLek: row.lineLek || 'รอแอด',
+          sourceChannel: row.sourceChannel || 'facebook',
+          referrer: '',
+          totalDeposit: 0,
+          createdBy: assigned,
+          campaignMonth: campaignMonth,
+          followUp: {},
+          followUpByMonth: {},
+          notes: row.notes || '',
+          hasDeposited: false,
+          returnedDepositAmount: 0
+        };
+      });
+
+      // 1. Update React state & localStorage
+      const updated = [...newCustomers, ...customers];
+      setCustomers(updated);
+      try {
+        localStorage.setItem('mc_customers', JSON.stringify(updated));
+      } catch (e) {}
+
+      // 2. Push to Supabase Cloud
+      if (supabaseClient) {
+        for (const nc of newCustomers) {
+          pushCustomerToCloud(supabaseClient, nc).catch(e => console.warn('Sync lead error:', e));
+        }
+      }
+
+      // 3. Log Audit Trail
+      const assignDesc = bulkAssignMode === 'round_robin'
+        ? `กระจายเฉลี่ย (Round-Robin) ให้ ${activeAgentsList.length} คน`
+        : `มอบหมายให้ [${bulkTargetAgent || activeAgentName}]`;
+      writeLog('IMPORT', `📥 นำเข้ารายชื่อลูกค้าใหม่จากไฟล์ "${bulkFileName}" สำเร็จ: ${newCustomers.length} คน (${assignDesc}) โดย ${activeAgentName || 'คุณอ้อ (หัวหน้า)'}`, 'success');
+
+      // 4. Success summary banner
+      setBulkImportSuccess({
+        count: newCustomers.length,
+        fileName: bulkFileName,
+        assignSummary: assignDesc
+      });
+
+      // 5. Reset preview & file
+      setBulkPreviewRows(null);
+      setBulkFileName('');
+
+    } catch (err) {
+      console.error('Bulk import error:', err);
+      alert(lang === 'TH' ? `เกิดข้อผิดพลาดในการนำเข้า: ${err.message}` : `Import failed: ${err.message}`);
+    } finally {
+      setIsImportingBulk(false);
+    }
+  };
 
   // Validation: Username
   const cleanedAddUsername = formUsername.trim().toLowerCase();
@@ -211,17 +611,143 @@ export default function NewCustomerView() {
     });
   }, [nonDeletedCustomers, selectedMonth, statusFilter, lineLekFilter]);
 
+  // Bulk import computed stats
+  const bulkStats = useMemo(() => {
+    if (!bulkPreviewRows) return { total: 0, valid: 0, warning: 0, error: 0 };
+    let valid = 0, warning = 0, error = 0;
+    bulkPreviewRows.forEach(r => {
+      if (r.hasError) error++;
+      else if (r.hasWarning) warning++;
+      else valid++;
+    });
+    return {
+      total: bulkPreviewRows.length,
+      valid,
+      warning,
+      error
+    };
+  }, [bulkPreviewRows]);
+
+  const filteredBulkRows = useMemo(() => {
+    if (!bulkPreviewRows) return [];
+    if (bulkFilter === 'VALID') return bulkPreviewRows.filter(r => r.isValid);
+    if (bulkFilter === 'ISSUES') return bulkPreviewRows.filter(r => r.hasWarning || r.hasError);
+    return bulkPreviewRows;
+  }, [bulkPreviewRows, bulkFilter]);
+
+  const activeAgentsList = useMemo(() => {
+    return agents.filter(a => a.isActive !== false && !a.isArchived);
+  }, [agents]);
+
+  const readyToImportCount = useMemo(() => {
+    if (!bulkPreviewRows) return 0;
+    return bulkPreviewRows.filter(r => skipIssues ? r.isValid : !r.hasError).length;
+  }, [bulkPreviewRows, skipIssues]);
+
   return (
     <div>
-      <div id="tour-newcust-panel" className="panel" style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-        <div className="panel-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px' }}>
-          <h3 className="panel-title" style={{ fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <UserPlus style={{ color: 'var(--primary)' }} /> {lang === 'TH' ? 'เพิ่มลูกค้าใหม่รายคน' : 'Add New Customer'}
-          </h3>
+      {/* Top Tab Switcher */}
+      <div style={{ maxWidth: activeTab === 'bulk' && bulkPreviewRows ? '1280px' : '860px', margin: '0 auto 16px auto', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab('single')}
+          className={`btn ${activeTab === 'single' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{
+            padding: '10px 18px',
+            fontSize: '13.5px',
+            fontWeight: 700,
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: activeTab === 'single' ? '0 4px 14px rgba(124, 58, 237, 0.3)' : 'none',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <UserPlus size={16} />
+          <span>{lang === 'TH' ? '👤 คีย์ทีละคน (Single Entry)' : '👤 Single Entry'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('bulk')}
+          className={`btn ${activeTab === 'bulk' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{
+            padding: '10px 18px',
+            fontSize: '13.5px',
+            fontWeight: 700,
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: activeTab === 'bulk' ? '0 4px 14px rgba(16, 185, 129, 0.3)' : 'none',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <FileSpreadsheet size={16} style={{ color: activeTab === 'bulk' ? '#ffffff' : '#34d399' }} />
+          <span>{lang === 'TH' ? '📂 นำเข้าไฟล์ Excel / CSV (Bulk Import)' : '📂 Bulk Import (Excel/CSV)'}</span>
+          {bulkPreviewRows && (
+            <span style={{
+              background: '#10b981',
+              color: '#fff',
+              fontSize: '11px',
+              padding: '1px 7px',
+              borderRadius: '10px',
+              marginLeft: '4px'
+            }}>
+              {bulkPreviewRows.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Success Notification Banner for Bulk Import */}
+      {bulkImportSuccess && (
+        <div style={{
+          maxWidth: activeTab === 'bulk' && bulkPreviewRows ? '1280px' : '860px',
+          margin: '0 auto 16px auto',
+          background: 'rgba(16, 185, 129, 0.12)',
+          border: '1px solid rgba(16, 185, 129, 0.35)',
+          borderRadius: '12px',
+          padding: '14px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <CheckCircle size={22} style={{ color: '#34d399', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 700, color: '#34d399', fontSize: '14px' }}>
+                {lang === 'TH' ? `🎉 นำเข้าลูกค้าสำเร็จจำนวน ${bulkImportSuccess.count} คน!` : `🎉 Successfully imported ${bulkImportSuccess.count} leads!`}
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                {lang === 'TH' ? `ไฟล์: ${bulkImportSuccess.fileName} • ${bulkImportSuccess.assignSummary} • บันทึกสู่ฐานข้อมูล & คลาวด์เรียบร้อยแล้ว` : `File: ${bulkImportSuccess.fileName} • Synced to Cloud`}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBulkImportSuccess(null)}
+            className="btn btn-secondary"
+            style={{ padding: '4px 8px', fontSize: '11px' }}
+          >
+            <X size={14} />
+          </button>
         </div>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '-8px' }}>
-          {lang === 'TH' ? 'คีย์ข้อมูลลูกค้ารายแรกเข้าพอร์ตงานทันที รองรับทั้งลูกค้าสมัครเปิดยูสเซอร์เนมแล้ว และลูกค้าทักแต่ยังไม่สมัคร' : 'Register new leads into portfolio immediately. Supports both registered usernames and uncompleted inquiries.'}
-        </p>
+      )}
+
+      {/* TAB 1: Single Entry Form */}
+      {activeTab === 'single' && (
+        <div id="tour-newcust-panel" className="panel" style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+          <div className="panel-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px' }}>
+            <h3 className="panel-title" style={{ fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <UserPlus style={{ color: 'var(--primary)' }} /> {lang === 'TH' ? 'เพิ่มลูกค้าใหม่รายคน' : 'Add New Customer'}
+            </h3>
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '-8px' }}>
+            {lang === 'TH' ? 'คีย์ข้อมูลลูกค้ารายแรกเข้าพอร์ตงานทันที รองรับทั้งลูกค้าสมัครเปิดยูสเซอร์เนมแล้ว และลูกค้าทักแต่ยังไม่สมัคร' : 'Register new leads into portfolio immediately. Supports both registered usernames and uncompleted inquiries.'}
+          </p>
 
         <form onSubmit={handleAddCustomerSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '12px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -578,6 +1104,464 @@ export default function NewCustomerView() {
           </div>
         </form>
       </div>
+      )}
+
+      {/* TAB 2: Bulk Import (Excel / CSV) */}
+      {activeTab === 'bulk' && (
+        <div className="panel" style={{ maxWidth: bulkPreviewRows ? '1280px' : '860px', margin: '0 auto', width: '100%' }}>
+          <div className="panel-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <h3 className="panel-title" style={{ fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <FileSpreadsheet style={{ color: '#10b981' }} /> {lang === 'TH' ? 'นำเข้ารายชื่อลูกค้าใหม่จากไฟล์ Excel / CSV' : 'Bulk Lead Import (Excel / CSV)'}
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                {lang === 'TH' ? 'อัปโหลดไฟล์นำเข้ารายชื่อลูกค้าใหม่เข้าพอร์ตพร้อมกัน ตรวจจับเบอร์ซ้ำและกระจายเคสให้อัตโนมัติ' : 'Import bulk leads from Excel/CSV with auto duplicate detection & lead distribution.'}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => downloadLeadTemplate('xlsx')}
+                className="btn btn-secondary"
+                style={{ padding: '7px 13px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                title={lang === 'TH' ? 'ดาวน์โหลดไฟล์ตัวอย่าง Excel (.xlsx)' : 'Download Excel Template'}
+              >
+                <Download size={14} style={{ color: '#34d399' }} />
+                <span>{lang === 'TH' ? 'โหลดตัวอย่าง (.xlsx)' : 'Template (.xlsx)'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => downloadLeadTemplate('csv')}
+                className="btn btn-secondary"
+                style={{ padding: '7px 13px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                title={lang === 'TH' ? 'ดาวน์โหลดไฟล์ตัวอย่าง CSV' : 'Download CSV Template'}
+              >
+                <Download size={14} style={{ color: '#38bdf8' }} />
+                <span>{lang === 'TH' ? 'โหลดตัวอย่าง (.csv)' : 'Template (.csv)'}</span>
+              </button>
+            </div>
+          </div>
+
+          <input
+            ref={bulkFileInputRef}
+            type="file"
+            accept=".xlsx, .xls, .csv"
+            onChange={handleBulkFileUpload}
+            style={{ display: 'none' }}
+          />
+
+          {!bulkPreviewRows ? (
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Drag & Drop Upload Zone */}
+              <div
+                onClick={() => bulkFileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleBulkFileUpload({ target: { files: e.dataTransfer.files } });
+                  }
+                }}
+                style={{
+                  border: '2px dashed rgba(16, 185, 129, 0.45)',
+                  borderRadius: '16px',
+                  padding: '44px 20px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  background: theme === 'light' ? '#f0fdf4' : 'rgba(16, 185, 129, 0.03)',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}
+              >
+                <div style={{
+                  width: '68px',
+                  height: '68px',
+                  borderRadius: '50%',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  color: '#34d399',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 24px rgba(16, 185, 129, 0.25)'
+                }}>
+                  <UploadCloud size={34} />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '16.5px', fontWeight: 700, margin: 0, color: theme === 'light' ? '#0f172a' : '#ffffff' }}>
+                    {lang === 'TH' ? 'คลิกเลือกไฟล์ หรือลากไฟล์ Excel / CSV มาวางที่นี่' : 'Click to upload or drag & drop Excel / CSV here'}
+                  </h4>
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '6px', marginBottom: 0 }}>
+                    {lang === 'TH' ? 'รองรับไฟล์นามสกุล .xlsx, .xls และ .csv (ระบบจะตรวจสอบความถูกต้องและพรีวิวก่อนบันทึก)' : 'Supports .xlsx, .xls, .csv files. Automatic validation & preview before saving.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Guidelines Box */}
+              <div style={{
+                background: theme === 'light' ? '#f8fafc' : 'rgba(255,255,255,0.02)',
+                border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '12px',
+                padding: '16px',
+                fontSize: '12.5px'
+              }}>
+                <div style={{ fontWeight: 700, color: theme === 'light' ? '#0f172a' : '#ffffff', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                  <Info size={16} style={{ color: '#38bdf8' }} />
+                  <span>{lang === 'TH' ? 'คำแนะนำคอลัมน์ในไฟล์ที่ระบบตรวจจับอัตโนมัติ (ทั้งภาษาไทย & อังกฤษ):' : 'Supported Columns Guide:'}</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '8px', color: 'var(--text-muted)' }}>
+                  <div>• <strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>ชื่อ-นามสกุล (full_name)</strong> <span style={{ color: '#ef4444' }}>*จำเป็น</span></div>
+                  <div>• <strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>เบอร์โทรศัพท์ (phone)</strong> <span style={{ color: '#ef4444' }}>*จำเป็น (9-10 หลัก)</span></div>
+                  <div>• <strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>ยูสเซอร์เนม (username)</strong> (ไม่บังคับ ลูกค้ายังไม่สมัครเว้นว่างได้)</div>
+                  <div>• <strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>LINE OA (line_oa)</strong> (ไม่บังคับ หรือใส่ -)</div>
+                  <div>• <strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>สถานะไลน์เล็ก (line_lek)</strong> ('มี' / 'รอแอด' / 'ไม่มี')</div>
+                  <div>• <strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>ช่องทางสมัคร (source_channel)</strong> (facebook / line / tiktok ฯลฯ)</div>
+                  <div>• <strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>หมายเหตุ (notes)</strong> (โน้ตเริ่มต้น)</div>
+                  <div>• <strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>ผู้รับผิดชอบ (created_by)</strong> (ระบุชื่อพนักงานเฉพาะเจาะจงได้)</div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* File Info Bar */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '10px',
+                padding: '12px 16px',
+                borderRadius: '10px',
+                background: theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.03)',
+                border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.08)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ padding: '8px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
+                    <FileSpreadsheet size={22} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '14px', color: theme === 'light' ? '#0f172a' : '#ffffff' }}>
+                      {bulkFileName}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                      {lang === 'TH' ? `ขนาดไฟล์ ${bulkFileSize} • ทั้งหมด ${bulkPreviewRows.length} รายการ` : `Size: ${bulkFileSize} • Total: ${bulkPreviewRows.length} rows`}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => bulkFileInputRef.current?.click()}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <RefreshCw size={14} />
+                  <span>{lang === 'TH' ? 'เปลี่ยนไฟล์ใหม่' : 'Change File'}</span>
+                </button>
+              </div>
+
+              {/* Assignment & Date Settings */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                gap: '16px',
+                padding: '16px',
+                borderRadius: '12px',
+                background: theme === 'light' ? '#ffffff' : 'rgba(255,255,255,0.02)',
+                border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.06)'
+              }}>
+                {/* Registration Date */}
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>{lang === 'TH' ? '📅 วันที่คีย์งาน (Registration Date)' : 'Registration Date'}</label>
+                  <input
+                    type="date"
+                    value={bulkRegistrationDate}
+                    onChange={(e) => setBulkRegistrationDate(e.target.value)}
+                  />
+                </div>
+
+                {/* Assignment Mode */}
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>{lang === 'TH' ? '👥 การมอบหมายเจ้าหน้าที่ดูแลเคส' : 'Lead Assignment Mode'}</label>
+                  {isSupervisor ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setBulkAssignMode('single')}
+                          className={`btn ${bulkAssignMode === 'single' ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{ padding: '6px 10px', fontSize: '11.5px', flex: 1 }}
+                        >
+                          👤 {lang === 'TH' ? 'มอบหมายคนเดียว' : 'Single Agent'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBulkAssignMode('round_robin')}
+                          className={`btn ${bulkAssignMode === 'round_robin' ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{ padding: '6px 10px', fontSize: '11.5px', flex: 1, color: '#38bdf8' }}
+                        >
+                          🔄 {lang === 'TH' ? 'กระจายเฉลี่ย (Round-Robin)' : 'Round-Robin'}
+                        </button>
+                      </div>
+
+                      {bulkAssignMode === 'single' ? (
+                        <select
+                          value={bulkTargetAgent || activeAgentName}
+                          onChange={(e) => setBulkTargetAgent(e.target.value)}
+                          className="select-input"
+                          style={{ width: '100%' }}
+                        >
+                          {agents.filter(a => a.isActive !== false).map(a => (
+                            <option key={a.id} value={a.name}>{a.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div style={{ fontSize: '11.5px', color: '#38bdf8', padding: '6px 10px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+                          ✨ {lang === 'TH' ? `กระจายหมุนเวียนเฉลี่ยอัตโนมัติให้พนักงาน ${activeAgentsList.length} คน` : `Auto distributed evenly across ${activeAgentsList.length} agents`}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      background: theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.05)',
+                      border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <UserCheck size={15} style={{ color: '#38bdf8' }} />
+                      <span>{activeAgentName || 'Agent'} ({lang === 'TH' ? 'เข้าพอร์ตของคุณ' : 'Your Portfolio'})</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Statistics Badges */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                <div style={{ padding: '10px 14px', borderRadius: '10px', background: theme === 'light' ? '#f8fafc' : 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{lang === 'TH' ? 'รายการทั้งหมด' : 'Total Rows'}</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: theme === 'light' ? '#0f172a' : '#ffffff' }}>{bulkStats.total}</div>
+                </div>
+                <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                  <div style={{ fontSize: '11px', color: '#34d399' }}>{lang === 'TH' ? '🟢 พร้อมนำเข้า' : '🟢 Ready'}</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#34d399' }}>{bulkStats.valid}</div>
+                </div>
+                <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                  <div style={{ fontSize: '11px', color: '#fbbf24' }}>{lang === 'TH' ? '🟡 พบข้อมูลซ้ำ' : '🟡 Duplicates'}</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#fbbf24' }}>{bulkStats.warning}</div>
+                </div>
+                <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                  <div style={{ fontSize: '11px', color: '#f87171' }}>{lang === 'TH' ? '🔴 ข้อมูลไม่ครบ' : '🔴 Invalid'}</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#f87171' }}>{bulkStats.error}</div>
+                </div>
+              </div>
+
+              {/* Filters & Skip Option */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginTop: '4px' }}>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>{lang === 'TH' ? 'ตัวกรองตาราง:' : 'Filter:'}</span>
+                  <button
+                    type="button"
+                    onClick={() => setBulkFilter('ALL')}
+                    className={`btn ${bulkFilter === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ padding: '4px 8px', fontSize: '11px' }}
+                  >
+                    {lang === 'TH' ? `ทั้งหมด (${bulkStats.total})` : `All (${bulkStats.total})`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkFilter('VALID')}
+                    className={`btn ${bulkFilter === 'VALID' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ padding: '4px 8px', fontSize: '11px', color: '#34d399' }}
+                  >
+                    {lang === 'TH' ? `เฉพาะที่พร้อมนำเข้า (${bulkStats.valid})` : `Valid (${bulkStats.valid})`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkFilter('ISSUES')}
+                    className={`btn ${bulkFilter === 'ISSUES' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ padding: '4px 8px', fontSize: '11px', color: '#fbbf24' }}
+                  >
+                    {lang === 'TH' ? `เฉพาะที่มีข้อสังเกต (${bulkStats.warning + bulkStats.error})` : `Issues (${bulkStats.warning + bulkStats.error})`}
+                  </button>
+                </div>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer', margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={skipIssues}
+                    onChange={(e) => setSkipIssues(e.target.checked)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span>{lang === 'TH' ? 'ข้ามแถวที่ซ้ำหรือมีปัญหาโดยอัตโนมัติ (นำเข้าเฉพาะแถวที่ผ่านเกณฑ์)' : 'Auto-skip duplicates and invalid rows'}</span>
+                </label>
+              </div>
+
+              {/* Preview Table */}
+              <div className="table-wrapper" style={{ maxHeight: '420px', overflowY: 'auto' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px' }}>#</th>
+                      <th>{lang === 'TH' ? 'สถานะ' : 'Status'}</th>
+                      <th>{lang === 'TH' ? 'ชื่อ-นามสกุล' : 'Full Name'}</th>
+                      <th>{lang === 'TH' ? 'ยูสเซอร์' : 'Username'}</th>
+                      <th>{lang === 'TH' ? 'เบอร์ติดต่อ' : 'Phone'}</th>
+                      <th>{lang === 'TH' ? 'LINE OA' : 'LINE OA'}</th>
+                      <th>{lang === 'TH' ? 'ไลน์เล็ก' : 'LINE Lek'}</th>
+                      <th>{lang === 'TH' ? 'ช่องทาง' : 'Source'}</th>
+                      <th>{lang === 'TH' ? 'ผู้รับผิดชอบ' : 'Assigned Agent'}</th>
+                      <th>{lang === 'TH' ? 'รายละเอียด / ข้อสังเกต' : 'Issues / Notes'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredBulkRows.length === 0 ? (
+                      <tr>
+                        <td colSpan="10" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>
+                          {lang === 'TH' ? 'ไม่พบข้อมูลตามตัวกรองที่เลือก' : 'No rows match filter.'}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredBulkRows.map((row, idx) => {
+                        let willBeAssigned = (isSupervisor && bulkTargetAgent) ? bulkTargetAgent : (activeAgentName || 'Agent');
+                        if (bulkAssignMode === 'round_robin' && activeAgentsList.length > 0) {
+                          willBeAssigned = activeAgentsList[idx % activeAgentsList.length].name;
+                        }
+                        if (row.agentInRow && agents.some(a => a.name === row.agentInRow)) {
+                          willBeAssigned = row.agentInRow;
+                        }
+
+                        return (
+                          <tr key={idx} style={{ background: row.hasError ? 'rgba(239, 68, 68, 0.05)' : (row.hasWarning ? 'rgba(245, 158, 11, 0.03)' : undefined) }}>
+                            <td style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{row.rowIndex}</td>
+                            <td>
+                              {row.isValid ? (
+                                <span className="badge badge-saved" style={{ fontSize: '11px' }}>🟢 {lang === 'TH' ? 'พร้อมนำเข้า' : 'Ready'}</span>
+                              ) : row.hasError ? (
+                                <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', fontSize: '11px' }}>🔴 {lang === 'TH' ? 'ไม่ครบถ้วน' : 'Invalid'}</span>
+                              ) : (
+                                <span className="badge badge-pending" style={{ fontSize: '11px' }}>🟡 {lang === 'TH' ? 'พบข้อมูลซ้ำ' : 'Duplicate'}</span>
+                              )}
+                            </td>
+                            <td><strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>{row.fullName || '-'}</strong></td>
+                            <td>
+                              {row.username ? (
+                                <span style={{ color: '#38bdf8', fontWeight: 600 }}>{row.username}</span>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{lang === 'TH' ? '(ยังไม่สมัคร)' : '(Not Reg)'}</span>
+                              )}
+                            </td>
+                            <td>
+                              <span style={{ fontWeight: 600, color: row.cleanPhone.length >= 9 ? undefined : '#ef4444' }}>
+                                {row.phone || '-'}
+                              </span>
+                            </td>
+                            <td><span style={{ color: '#34d399' }}>{row.lineOA}</span></td>
+                            <td>
+                              {row.lineLek === 'มี' ? (
+                                <span className="badge badge-saved">🟢 มี</span>
+                              ) : row.lineLek === 'ไม่มี' ? (
+                                <span className="badge">⚪ ไม่มี</span>
+                              ) : (
+                                <span className="badge badge-pending">🟡 รอแอด</span>
+                              )}
+                            </td>
+                            <td>
+                              <span className="badge" style={{ background: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.3)', fontSize: '11px' }}>
+                                {formatChannelDisplayName(row.sourceChannel, lang)}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="badge badge-owner" style={{ fontSize: '11px' }}>
+                                <User size={12} />
+                                <span>{willBeAssigned}</span>
+                              </span>
+                            </td>
+                            <td>
+                              {row.issues.length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  {row.issues.map((iss, i) => (
+                                    <span key={i} style={{ fontSize: '11px', color: iss.severity === 'error' ? '#ef4444' : '#f59e0b', fontWeight: 500 }}>
+                                      {iss.severity === 'error' ? '❌' : '⚠️'} {iss.label}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{row.notes || '-'}</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Execution Actions Bar */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBulkPreviewRows(null);
+                    setBulkFileName('');
+                  }}
+                  className="btn btn-secondary"
+                  style={{ padding: '10px 16px', fontSize: '13px' }}
+                >
+                  <Trash2 size={15} />
+                  <span>{lang === 'TH' ? 'ยกเลิก / ล้างไฟล์' : 'Cancel / Clear'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExecuteBulkImport}
+                  disabled={readyToImportCount === 0 || isImportingBulk}
+                  className={`btn ${readyToImportCount === 0 || isImportingBulk ? 'disabled' : 'btn-primary'}`}
+                  style={{
+                    padding: '12px 24px',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    borderRadius: '10px',
+                    boxShadow: readyToImportCount > 0 ? '0 4px 16px rgba(16, 185, 129, 0.4)' : 'none',
+                    background: readyToImportCount > 0 ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : undefined,
+                    color: '#ffffff',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: readyToImportCount === 0 || isImportingBulk ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {isImportingBulk ? (
+                    <>
+                      <RefreshCw size={16} className="spin-slow" />
+                      <span>{lang === 'TH' ? 'กำลังบันทึกลงระบบ...' : 'Importing leads...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={18} />
+                      <span>
+                        {lang === 'TH' 
+                          ? `ยืนยันนำเข้ารายชื่อลูกค้า (${readyToImportCount} คน) เข้าสู่ระบบ` 
+                          : `Confirm Import (${readyToImportCount} Leads)`}
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Recently Added Log */}
       <div className="panel" style={{ marginTop: '24px' }}>

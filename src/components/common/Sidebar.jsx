@@ -76,7 +76,7 @@ export const Sidebar = ({ onStartTour }) => {
                         onClick={() => setViewMode('new-customer')}
                     >
                         <UserPlus size={17} />
-                        <span>{lang === 'TH' ? 'เพิ่มลูกค้าใหม่รายคน' : 'Add New Customer'}</span>
+                        <span>{lang === 'TH' ? 'เพิ่มลูกค้าใหม่' : 'Add New Customer'}</span>
                     </button>
                 )}
 
