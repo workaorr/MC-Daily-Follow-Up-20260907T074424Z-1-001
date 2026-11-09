@@ -99,6 +99,7 @@ export default function NewCustomerView() {
   const [bulkRegistrationDate, setBulkRegistrationDate] = useState(getTodayLocalDateStr());
   const [bulkAssignMode, setBulkAssignMode] = useState('single'); // 'single' | 'round_robin'
   const [bulkTargetAgent, setBulkTargetAgent] = useState(activeAgentName || '');
+  const [selectedRoundRobinAgents, setSelectedRoundRobinAgents] = useState([]);
   const [bulkFilter, setBulkFilter] = useState('ALL'); // 'ALL' | 'VALID' | 'ISSUES'
   const [skipIssues, setSkipIssues] = useState(true);
   const [isImportingBulk, setIsImportingBulk] = useState(false);
@@ -470,10 +471,10 @@ export default function NewCustomerView() {
       const campaignMonth = bulkRegistrationDate ? bulkRegistrationDate.substring(0, 7) : selectedMonth;
 
       const newCustomers = rowsToImport.map((row, idx) => {
-        let assigned = (isSupervisor && bulkTargetAgent) ? bulkTargetAgent : (activeAgentName || 'Agent');
+        let assigned = bulkTargetAgent || activeAgentName || 'Agent';
 
-        if (bulkAssignMode === 'round_robin' && activeAgentsList.length > 0) {
-          assigned = activeAgentsList[idx % activeAgentsList.length].name;
+        if (bulkAssignMode === 'round_robin' && effectiveRoundRobinAgents.length > 0) {
+          assigned = effectiveRoundRobinAgents[idx % effectiveRoundRobinAgents.length];
         }
 
         if (row.agentInRow && agents.some(a => a.name === row.agentInRow)) {
@@ -517,8 +518,8 @@ export default function NewCustomerView() {
 
       // 3. Log Audit Trail
       const assignDesc = bulkAssignMode === 'round_robin'
-        ? `กระจายเฉลี่ย (Round-Robin) ให้ ${activeAgentsList.length} คน`
-        : `มอบหมายให้ [${bulkTargetAgent || activeAgentName}]`;
+        ? `กระจายเฉลี่ย (Round-Robin) ให้ ${effectiveRoundRobinAgents.length} คน (${effectiveRoundRobinAgents.join(', ')})`
+        : `มอบหมายให้พนักงานคนเดียว [${bulkTargetAgent || activeAgentName}]`;
       writeLog('IMPORT', `📥 นำเข้ารายชื่อลูกค้าใหม่จากไฟล์ "${bulkFileName}" สำเร็จ: ${newCustomers.length} คน (${assignDesc}) โดย ${activeAgentName || 'คุณอ้อ (หัวหน้า)'}`, 'success');
 
       // 4. Success summary banner
@@ -714,10 +715,31 @@ export default function NewCustomerView() {
     return agents.filter(a => a.isActive !== false && !a.isArchived);
   }, [agents]);
 
+  const effectiveRoundRobinAgents = useMemo(() => {
+    if (selectedRoundRobinAgents.length > 0) {
+      return selectedRoundRobinAgents;
+    }
+    return activeAgentsList.map(a => a.name);
+  }, [selectedRoundRobinAgents, activeAgentsList]);
+
   const readyToImportCount = useMemo(() => {
     if (!bulkPreviewRows) return 0;
     return bulkPreviewRows.filter(r => skipIssues ? r.isValid : !r.hasError).length;
   }, [bulkPreviewRows, skipIssues]);
+
+  const distributionSummary = useMemo(() => {
+    if (effectiveRoundRobinAgents.length === 0) return [];
+    const countMap = {};
+    effectiveRoundRobinAgents.forEach(name => { countMap[name] = 0; });
+    for (let i = 0; i < readyToImportCount; i++) {
+      const aName = effectiveRoundRobinAgents[i % effectiveRoundRobinAgents.length];
+      countMap[aName] = (countMap[aName] || 0) + 1;
+    }
+    return effectiveRoundRobinAgents.map(name => ({
+      name,
+      count: countMap[name] || 0
+    }));
+  }, [effectiveRoundRobinAgents, readyToImportCount]);
 
   return (
     <div>
@@ -1299,6 +1321,63 @@ export default function NewCustomerView() {
                   <div>• <strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>ผู้รับผิดชอบ (created_by)</strong> (ระบุชื่อพนักงานเฉพาะเจาะจงได้)</div>
                 </div>
               </div>
+
+              {/* Pre-upload Distribution Preference Card */}
+              <div style={{
+                background: theme === 'light' ? '#f0fdf4' : 'rgba(16, 185, 129, 0.04)',
+                border: theme === 'light' ? '1px solid #bbf7d0' : '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: '12px',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '13px', color: theme === 'light' ? '#0f172a' : '#ffffff' }}>
+                    <Users size={16} style={{ color: '#10b981' }} />
+                    <span>{lang === 'TH' ? 'ตั้งค่าการกระจายงานล่วงหน้าสำหรับไฟล์นี้:' : 'Pre-set Lead Distribution Mode:'}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setBulkAssignMode('single')}
+                      className={`btn ${bulkAssignMode === 'single' ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ padding: '6px 12px', fontSize: '11.5px', borderRadius: '8px' }}
+                    >
+                      👤 {lang === 'TH' ? 'กำหนดให้พนักงานคนเดียว' : 'Single Agent'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBulkAssignMode('round_robin')}
+                      className={`btn ${bulkAssignMode === 'round_robin' ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ padding: '6px 12px', fontSize: '11.5px', borderRadius: '8px', color: bulkAssignMode === 'round_robin' ? '#ffffff' : '#38bdf8' }}
+                    >
+                      🔄 {lang === 'TH' ? 'กระจายเฉลี่ยเท่าๆ กัน' : 'Round-Robin'}
+                    </button>
+                  </div>
+                </div>
+
+                {bulkAssignMode === 'single' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{lang === 'TH' ? 'เลือกผู้รับผิดชอบหลัก:' : 'Select Agent:'}</span>
+                    <select
+                      value={bulkTargetAgent || activeAgentName}
+                      onChange={(e) => setBulkTargetAgent(e.target.value)}
+                      className="select-input"
+                      style={{ fontSize: '12px', padding: '6px 12px', minWidth: '180px' }}
+                    >
+                      {agents.filter(a => a.isActive !== false && !a.isArchived).map(a => (
+                        <option key={a.id} value={a.name}>👤 {a.name} ({a.role || 'Agent'})</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '12px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <CheckCircle2 size={14} />
+                    <span>{lang === 'TH' ? `เปิดโหมดกระจายเฉลี่ยอัตโนมัติให้พนักงาน ${effectiveRoundRobinAgents.length} คน (สามารถเลือกพนักงานที่เข้าร่วมได้หลังเลือกไฟล์)` : `Round-robin enabled across ${effectiveRoundRobinAgents.length} agents.`}</span>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -1359,63 +1438,147 @@ export default function NewCustomerView() {
                   />
                 </div>
 
-                {/* Assignment Mode */}
+                {/* Assignment Mode: Single vs Round-Robin */}
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label style={{ fontSize: '12px', fontWeight: 600 }}>{lang === 'TH' ? '👥 การมอบหมายเจ้าหน้าที่ดูแลเคส' : 'Lead Assignment Mode'}</label>
-                  {isSupervisor ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button
-                          type="button"
-                          onClick={() => setBulkAssignMode('single')}
-                          className={`btn ${bulkAssignMode === 'single' ? 'btn-primary' : 'btn-secondary'}`}
-                          style={{ padding: '6px 10px', fontSize: '11.5px', flex: 1 }}
-                        >
-                          👤 {lang === 'TH' ? 'มอบหมายคนเดียว' : 'Single Agent'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setBulkAssignMode('round_robin')}
-                          className={`btn ${bulkAssignMode === 'round_robin' ? 'btn-primary' : 'btn-secondary'}`}
-                          style={{ padding: '6px 10px', fontSize: '11.5px', flex: 1, color: '#38bdf8' }}
-                        >
-                          🔄 {lang === 'TH' ? 'กระจายเฉลี่ย (Round-Robin)' : 'Round-Robin'}
-                        </button>
-                      </div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>{lang === 'TH' ? '👥 การกระจายงานให้พนักงาน (Lead Distribution):' : 'Lead Assignment Mode:'}</span>
+                  </label>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {/* Toggle Mode Buttons */}
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setBulkAssignMode('single')}
+                        className={`btn ${bulkAssignMode === 'single' ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ padding: '7px 10px', fontSize: '12px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                      >
+                        <User size={13} />
+                        <span>{lang === 'TH' ? 'กำหนดให้คนเดียว' : 'Single Agent'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBulkAssignMode('round_robin')}
+                        className={`btn ${bulkAssignMode === 'round_robin' ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ padding: '7px 10px', fontSize: '12px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: bulkAssignMode === 'round_robin' ? '#ffffff' : '#38bdf8' }}
+                      >
+                        <RefreshCw size={13} />
+                        <span>{lang === 'TH' ? 'กระจายเฉลี่ยเท่าๆ กัน' : 'Round-Robin'}</span>
+                      </button>
+                    </div>
 
-                      {bulkAssignMode === 'single' ? (
+                    {/* Mode 1: Single Agent Select */}
+                    {bulkAssignMode === 'single' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <select
                           value={bulkTargetAgent || activeAgentName}
                           onChange={(e) => setBulkTargetAgent(e.target.value)}
                           className="select-input"
-                          style={{ width: '100%' }}
+                          style={{ width: '100%', fontSize: '13px', padding: '8px 12px' }}
                         >
-                          {agents.filter(a => a.isActive !== false).map(a => (
-                            <option key={a.id} value={a.name}>{a.name}</option>
+                          {agents.filter(a => a.isActive !== false && !a.isArchived).map(a => (
+                            <option key={a.id} value={a.name}>
+                              👤 {a.name} ({a.role || 'Agent'})
+                            </option>
                           ))}
                         </select>
-                      ) : (
-                        <div style={{ fontSize: '11.5px', color: '#38bdf8', padding: '6px 10px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
-                          ✨ {lang === 'TH' ? `กระจายหมุนเวียนเฉลี่ยอัตโนมัติให้พนักงาน ${activeAgentsList.length} คน` : `Auto distributed evenly across ${activeAgentsList.length} agents`}
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {lang === 'TH' 
+                            ? `* มอบหมายให้คุณ [${bulkTargetAgent || activeAgentName}] ทั้งหมด (${readyToImportCount} คน)` 
+                            : `All leads will be assigned to ${bulkTargetAgent || activeAgentName}`}
+                        </span>
+                      </div>
+                    ) : (
+                      /* Mode 2: Round Robin Multi-Select & Live Breakdown */
+                      <div style={{
+                        padding: '10px 12px',
+                        background: theme === 'light' ? '#f0fdf4' : 'rgba(56, 189, 248, 0.05)',
+                        border: theme === 'light' ? '1px solid #bbf7d0' : '1px solid rgba(56, 189, 248, 0.2)',
+                        borderRadius: '10px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#38bdf8' }}>
+                            {lang === 'TH' ? `พนักงานที่เข้าร่วมกระจายเคส (${effectiveRoundRobinAgents.length} คน):` : `Participating Agents (${effectiveRoundRobinAgents.length}):`}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRoundRobinAgents(activeAgentsList.map(a => a.name))}
+                            className="btn btn-secondary"
+                            style={{ padding: '2px 8px', fontSize: '10.5px' }}
+                          >
+                            {lang === 'TH' ? '✓ เลือกทุกคน' : 'Select All'}
+                          </button>
                         </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{
-                      padding: '9px 12px',
-                      borderRadius: '8px',
-                      background: theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.05)',
-                      border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)',
-                      fontSize: '12.5px',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
-                      <UserCheck size={15} style={{ color: '#38bdf8' }} />
-                      <span>{activeAgentName || 'Agent'} ({lang === 'TH' ? 'เข้าพอร์ตของคุณ' : 'Your Portfolio'})</span>
-                    </div>
-                  )}
+
+                        {/* Agent Toggle Pills */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                          {activeAgentsList.map(a => {
+                            const isSelected = effectiveRoundRobinAgents.includes(a.name);
+                            return (
+                              <button
+                                key={a.id}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    if (effectiveRoundRobinAgents.length <= 1) {
+                                      alert(lang === 'TH' ? 'ต้องเลือกพนักงานอย่างน้อย 1 คน' : 'At least one agent must be selected');
+                                      return;
+                                    }
+                                    setSelectedRoundRobinAgents(effectiveRoundRobinAgents.filter(n => n !== a.name));
+                                  } else {
+                                    setSelectedRoundRobinAgents([...effectiveRoundRobinAgents, a.name]);
+                                  }
+                                }}
+                                style={{
+                                  padding: '3px 9px',
+                                  borderRadius: '16px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  border: isSelected ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(255,255,255,0.1)',
+                                  background: isSelected ? (theme === 'light' ? '#dcfce7' : 'rgba(16, 185, 129, 0.2)') : (theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.04)'),
+                                  color: isSelected ? (theme === 'light' ? '#15803d' : '#34d399') : 'var(--text-muted)',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                {isSelected ? '✓ ' : '+ '} {a.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Live Expected Distribution Breakdown */}
+                        {readyToImportCount > 0 && (
+                          <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '6px', marginTop: '2px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                              {lang === 'TH' ? `📊 สรุปจำนวนเคสเฉลี่ยที่แต่ละคนจะได้รับ (รวม ${readyToImportCount} คน):` : `Expected Distribution:`}
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                              {distributionSummary.map((item, idx) => (
+                                <span 
+                                  key={idx} 
+                                  style={{ 
+                                    fontSize: '10.5px', 
+                                    padding: '2px 7px', 
+                                    borderRadius: '6px', 
+                                    background: theme === 'light' ? '#ffffff' : 'rgba(255,255,255,0.06)',
+                                    border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)',
+                                    fontWeight: 600,
+                                    color: item.count > 0 ? (theme === 'light' ? '#0f172a' : '#ffffff') : 'var(--text-muted)'
+                                  }}
+                                >
+                                  {item.name}: <strong style={{ color: '#10b981' }}>{item.count} คน</strong>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1558,9 +1721,9 @@ export default function NewCustomerView() {
                       </tr>
                     ) : (
                       filteredBulkRows.map((row, idx) => {
-                        let willBeAssigned = (isSupervisor && bulkTargetAgent) ? bulkTargetAgent : (activeAgentName || 'Agent');
-                        if (bulkAssignMode === 'round_robin' && activeAgentsList.length > 0) {
-                          willBeAssigned = activeAgentsList[idx % activeAgentsList.length].name;
+                        let willBeAssigned = bulkTargetAgent || activeAgentName || 'Agent';
+                        if (bulkAssignMode === 'round_robin' && effectiveRoundRobinAgents.length > 0) {
+                          willBeAssigned = effectiveRoundRobinAgents[idx % effectiveRoundRobinAgents.length];
                         }
                         if (row.agentInRow && agents.some(a => a.name === row.agentInRow)) {
                           willBeAssigned = row.agentInRow;
