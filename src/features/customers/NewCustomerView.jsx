@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useApp } from '../../context/AppContext';
 import { getTodayLocalDateStr, formatKeyedDateTime } from '../../utils/dateFormatters';
@@ -102,6 +103,7 @@ export default function NewCustomerView() {
   const [skipIssues, setSkipIssues] = useState(true);
   const [isImportingBulk, setIsImportingBulk] = useState(false);
   const [bulkImportSuccess, setBulkImportSuccess] = useState(null);
+  const [duplicateModalData, setDuplicateModalData] = useState(null);
   const bulkFileInputRef = useRef(null);
 
   // Download Sample Lead Template
@@ -268,10 +270,13 @@ export default function NewCustomerView() {
               seenFilePhones.add(cleanPhone);
             }
 
-            // Duplicate in system
+            // Duplicate in system (phone: match exact or last 9 digits)
+            const targetPhoneKey = cleanPhone.length >= 9 ? cleanPhone.slice(-9) : cleanPhone;
             const sysDupPhone = nonDeletedCustomers.find(c => {
               const p = (c.phone || '').replace(/\D/g, '');
-              return p.length >= 8 && p === cleanPhone;
+              if (p.length < 8) return false;
+              const pKey = p.length >= 9 ? p.slice(-9) : p;
+              return pKey === targetPhoneKey;
             });
             if (sysDupPhone) {
               issues.push({
@@ -286,6 +291,7 @@ export default function NewCustomerView() {
           }
 
           // 3. Username check
+          let sysDupUser = null;
           if (cleanUsername) {
             if (/\s/.test(rawUsername)) {
               issues.push({ type: 'USER_SPACE', label: lang === 'TH' ? 'ยูสเซอร์มีช่องว่าง' : 'Username has spaces', severity: 'warning' });
@@ -298,7 +304,7 @@ export default function NewCustomerView() {
               seenFileUsernames.add(cleanUsername);
             }
 
-            const sysDupUser = nonDeletedCustomers.find(c => c.username && c.username.trim().toLowerCase() === cleanUsername);
+            sysDupUser = nonDeletedCustomers.find(c => c.username && c.username.trim().toLowerCase() === cleanUsername);
             if (sysDupUser) {
               issues.push({
                 type: 'DUP_SYS_USER',
@@ -311,14 +317,17 @@ export default function NewCustomerView() {
             }
           }
 
-          // 4. LINE OA check
+          // 4. LINE OA check (strip leading @ and match)
+          let sysDupLine = null;
           const cleanLineOA = rawLineOA.trim().toLowerCase();
           const isLineIgnored = !cleanLineOA || ['-', '--', '---', 'ไม่มี', 'ไม่มีไลน์', 'none', 'no'].includes(cleanLineOA);
           if (!isLineIgnored && cleanLineOA.length >= 2) {
-            const sysDupLine = nonDeletedCustomers.find(c => {
+            const cleanLineKey = cleanLineOA.replace(/^@/, '');
+            sysDupLine = nonDeletedCustomers.find(c => {
               const l = (c.lineOA || '').trim().toLowerCase();
               if (!l || ['-', '--', '---', 'ไม่มี', 'ไม่มีไลน์', 'none', 'no'].includes(l)) return false;
-              return l === cleanLineOA;
+              const lKey = l.replace(/^@/, '');
+              return lKey === cleanLineKey;
             });
             if (sysDupLine) {
               issues.push({
@@ -328,6 +337,57 @@ export default function NewCustomerView() {
               });
               if (status !== 'ERROR') status = 'WARNING';
             }
+          }
+
+          // Build structured system duplicate items for instant alert modal
+          const systemDuplicates = [];
+          if (sysDupPhone) {
+            systemDuplicates.push({
+              type: 'phone',
+              fieldLabel: 'เบอร์โทรศัพท์',
+              fieldIcon: '📞',
+              importValue: rawPhone.trim(),
+              matchedCustomer: {
+                id: sysDupPhone.id,
+                fullName: sysDupPhone.fullName || '-',
+                username: sysDupPhone.username || '-',
+                phone: sysDupPhone.phone || '-',
+                lineOA: sysDupPhone.lineOA || '-',
+                createdBy: sysDupPhone.createdBy || '-'
+              }
+            });
+          }
+          if (sysDupUser) {
+            systemDuplicates.push({
+              type: 'username',
+              fieldLabel: 'ยูสเซอร์เนม',
+              fieldIcon: '🆔',
+              importValue: cleanUsername,
+              matchedCustomer: {
+                id: sysDupUser.id,
+                fullName: sysDupUser.fullName || '-',
+                username: sysDupUser.username || '-',
+                phone: sysDupUser.phone || '-',
+                lineOA: sysDupUser.lineOA || '-',
+                createdBy: sysDupUser.createdBy || '-'
+              }
+            });
+          }
+          if (sysDupLine) {
+            systemDuplicates.push({
+              type: 'lineOA',
+              fieldLabel: 'LINE OA',
+              fieldIcon: '💬',
+              importValue: rawLineOA.trim(),
+              matchedCustomer: {
+                id: sysDupLine.id,
+                fullName: sysDupLine.fullName || '-',
+                username: sysDupLine.username || '-',
+                phone: sysDupLine.phone || '-',
+                lineOA: sysDupLine.lineOA || '-',
+                createdBy: sysDupLine.createdBy || '-'
+              }
+            });
           }
 
           return {
@@ -343,6 +403,8 @@ export default function NewCustomerView() {
             agentInRow: rawAgent.trim(),
             status,
             issues,
+            systemDuplicates,
+            hasSystemDuplicate: systemDuplicates.length > 0,
             isValid: status === 'VALID',
             hasWarning: status === 'WARNING',
             hasError: status === 'ERROR'
@@ -355,7 +417,17 @@ export default function NewCustomerView() {
         setBulkImportSuccess(null);
         setBulkFilter('ALL');
 
-        writeLog('IMPORT_SCAN', `สแกนไฟล์ [${file.name}] สำเร็จ (${validatedList.length} รายการ: พร้อมนำเข้า ${validatedList.filter(r => r.isValid).length} คน)`, 'info');
+        // 🔔 เด้งแจ้งเตือนทันทีเมื่อพบรายการซ้ำกับฐานข้อมูลในระบบ
+        const rowsWithSysDuplicates = validatedList.filter(r => r.hasSystemDuplicate);
+        if (rowsWithSysDuplicates.length > 0) {
+          setDuplicateModalData({
+            fileName: file.name,
+            totalRows: validatedList.length,
+            duplicates: rowsWithSysDuplicates
+          });
+        }
+
+        writeLog('IMPORT_SCAN', `สแกนไฟล์ [${file.name}] สำเร็จ (${validatedList.length} รายการ: พร้อมนำเข้า ${validatedList.filter(r => r.isValid).length} คน, ซ้ำในระบบ ${rowsWithSysDuplicates.length} คน)`, 'info');
 
       } catch (err) {
         console.error('File parse error:', err);
@@ -613,9 +685,10 @@ export default function NewCustomerView() {
 
   // Bulk import computed stats
   const bulkStats = useMemo(() => {
-    if (!bulkPreviewRows) return { total: 0, valid: 0, warning: 0, error: 0 };
-    let valid = 0, warning = 0, error = 0;
+    if (!bulkPreviewRows) return { total: 0, valid: 0, warning: 0, error: 0, sysDuplicates: 0 };
+    let valid = 0, warning = 0, error = 0, sysDuplicates = 0;
     bulkPreviewRows.forEach(r => {
+      if (r.hasSystemDuplicate) sysDuplicates++;
       if (r.hasError) error++;
       else if (r.hasWarning) warning++;
       else valid++;
@@ -624,13 +697,15 @@ export default function NewCustomerView() {
       total: bulkPreviewRows.length,
       valid,
       warning,
-      error
+      error,
+      sysDuplicates
     };
   }, [bulkPreviewRows]);
 
   const filteredBulkRows = useMemo(() => {
     if (!bulkPreviewRows) return [];
     if (bulkFilter === 'VALID') return bulkPreviewRows.filter(r => r.isValid);
+    if (bulkFilter === 'SYS_DUP') return bulkPreviewRows.filter(r => r.hasSystemDuplicate);
     if (bulkFilter === 'ISSUES') return bulkPreviewRows.filter(r => r.hasWarning || r.hasError);
     return bulkPreviewRows;
   }, [bulkPreviewRows, bulkFilter]);
@@ -1354,9 +1429,33 @@ export default function NewCustomerView() {
                   <div style={{ fontSize: '11px', color: '#34d399' }}>{lang === 'TH' ? '🟢 พร้อมนำเข้า' : '🟢 Ready'}</div>
                   <div style={{ fontSize: '18px', fontWeight: 800, color: '#34d399' }}>{bulkStats.valid}</div>
                 </div>
-                <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-                  <div style={{ fontSize: '11px', color: '#fbbf24' }}>{lang === 'TH' ? '🟡 พบข้อมูลซ้ำ' : '🟡 Duplicates'}</div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#fbbf24' }}>{bulkStats.warning}</div>
+                <div 
+                  onClick={() => {
+                    if (bulkStats.sysDuplicates > 0) {
+                      setDuplicateModalData({
+                        fileName: bulkFileName,
+                        totalRows: bulkPreviewRows.length,
+                        duplicates: bulkPreviewRows.filter(r => r.hasSystemDuplicate)
+                      });
+                    }
+                  }}
+                  style={{ 
+                    padding: '10px 14px', 
+                    borderRadius: '10px', 
+                    background: bulkStats.sysDuplicates > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.1)', 
+                    border: bulkStats.sysDuplicates > 0 ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(245, 158, 11, 0.3)',
+                    cursor: bulkStats.sysDuplicates > 0 ? 'pointer' : 'default',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title={bulkStats.sysDuplicates > 0 ? (lang === 'TH' ? 'คลิกเพื่อเปิดหน้าต่างดูรายการที่ซ้ำในระบบ' : 'Click to view system duplicates') : undefined}
+                >
+                  <div style={{ fontSize: '11px', color: bulkStats.sysDuplicates > 0 ? '#f87171' : '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>{lang === 'TH' ? (bulkStats.sysDuplicates > 0 ? '⚠️ ซ้ำในระบบ (เด้งดู)' : '🟡 พบข้อมูลซ้ำ') : 'Duplicates'}</span>
+                    {bulkStats.sysDuplicates > 0 && <span style={{ fontSize: '10px', textDecoration: 'underline' }}>{lang === 'TH' ? 'คลิกดู' : 'View'}</span>}
+                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: bulkStats.sysDuplicates > 0 ? '#f87171' : '#fbbf24' }}>
+                    {bulkStats.warning} {bulkStats.sysDuplicates > 0 ? `(${bulkStats.sysDuplicates} ซ้ำเดิม)` : ''}
+                  </div>
                 </div>
                 <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
                   <div style={{ fontSize: '11px', color: '#f87171' }}>{lang === 'TH' ? '🔴 ข้อมูลไม่ครบ' : '🔴 Invalid'}</div>
@@ -1384,6 +1483,16 @@ export default function NewCustomerView() {
                   >
                     {lang === 'TH' ? `เฉพาะที่พร้อมนำเข้า (${bulkStats.valid})` : `Valid (${bulkStats.valid})`}
                   </button>
+                  {bulkStats.sysDuplicates > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setBulkFilter('SYS_DUP')}
+                      className={`btn ${bulkFilter === 'SYS_DUP' ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ padding: '4px 8px', fontSize: '11px', color: '#f87171', borderColor: 'rgba(239,68,68,0.4)' }}
+                    >
+                      {lang === 'TH' ? `⚠️ ซ้ำในระบบ (${bulkStats.sysDuplicates})` : `Sys Dups (${bulkStats.sysDuplicates})`}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setBulkFilter('ISSUES')}
@@ -1392,6 +1501,22 @@ export default function NewCustomerView() {
                   >
                     {lang === 'TH' ? `เฉพาะที่มีข้อสังเกต (${bulkStats.warning + bulkStats.error})` : `Issues (${bulkStats.warning + bulkStats.error})`}
                   </button>
+                  {bulkStats.sysDuplicates > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setDuplicateModalData({
+                        fileName: bulkFileName,
+                        totalRows: bulkPreviewRows.length,
+                        duplicates: bulkPreviewRows.filter(r => r.hasSystemDuplicate)
+                      })}
+                      className="btn btn-secondary"
+                      style={{ padding: '4px 8px', fontSize: '11px', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      title={lang === 'TH' ? 'คลิกเพื่อเปิดหน้าต่างสรุปรายการที่ซ้ำในระบบ' : 'Open Duplicate Alert Window'}
+                    >
+                      <AlertTriangle size={13} />
+                      <span>{lang === 'TH' ? '🔔 เปิดดูแจ้งเตือนซ้ำ' : 'View Duplicate Alert'}</span>
+                    </button>
+                  )}
                 </div>
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer', margin: 0 }}>
@@ -1401,6 +1526,8 @@ export default function NewCustomerView() {
                     onChange={(e) => setSkipIssues(e.target.checked)}
                     style={{ cursor: 'pointer' }}
                   />
+                  <span>{lang === 'TH' ? 'ข้ามแถวที่ซ้ำหรือมีปัญหาโดยอัตโนมัติ (นำเข้าเฉพาะแถวที่ผ่านเกณฑ์)' : 'Auto-skip duplicates and invalid rows'}</span>
+                </label>
                   <span>{lang === 'TH' ? 'ข้ามแถวที่ซ้ำหรือมีปัญหาโดยอัตโนมัติ (นำเข้าเฉพาะแถวที่ผ่านเกณฑ์)' : 'Auto-skip duplicates and invalid rows'}</span>
                 </label>
               </div>
@@ -1440,15 +1567,17 @@ export default function NewCustomerView() {
                         }
 
                         return (
-                          <tr key={idx} style={{ background: row.hasError ? 'rgba(239, 68, 68, 0.05)' : (row.hasWarning ? 'rgba(245, 158, 11, 0.03)' : undefined) }}>
+                          <tr key={idx} style={{ background: row.hasError ? 'rgba(239, 68, 68, 0.05)' : (row.hasSystemDuplicate ? 'rgba(239, 68, 68, 0.04)' : (row.hasWarning ? 'rgba(245, 158, 11, 0.03)' : undefined)) }}>
                             <td style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{row.rowIndex}</td>
                             <td>
                               {row.isValid ? (
                                 <span className="badge badge-saved" style={{ fontSize: '11px' }}>🟢 {lang === 'TH' ? 'พร้อมนำเข้า' : 'Ready'}</span>
                               ) : row.hasError ? (
                                 <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', fontSize: '11px' }}>🔴 {lang === 'TH' ? 'ไม่ครบถ้วน' : 'Invalid'}</span>
+                              ) : row.hasSystemDuplicate ? (
+                                <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', fontSize: '11px' }}>⚠️ {lang === 'TH' ? 'ซ้ำในระบบ' : 'Sys Duplicate'}</span>
                               ) : (
-                                <span className="badge badge-pending" style={{ fontSize: '11px' }}>🟡 {lang === 'TH' ? 'พบข้อมูลซ้ำ' : 'Duplicate'}</span>
+                                <span className="badge badge-pending" style={{ fontSize: '11px' }}>🟡 {lang === 'TH' ? 'ซ้ำในไฟล์' : 'Duplicate'}</span>
                               )}
                             </td>
                             <td><strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>{row.fullName || '-'}</strong></td>
@@ -1486,17 +1615,29 @@ export default function NewCustomerView() {
                               </span>
                             </td>
                             <td>
-                              {row.issues.length > 0 ? (
+                              {row.systemDuplicates && row.systemDuplicates.length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginBottom: '4px' }}>
+                                  {row.systemDuplicates.map((dup, i) => (
+                                    <div key={i} style={{ padding: '3px 6px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.25)', fontSize: '11px', color: '#f87171' }}>
+                                      <strong>{dup.fieldIcon} {dup.fieldLabel}ซ้ำ:</strong> {dup.importValue}
+                                      <div style={{ color: 'var(--text-muted)', fontSize: '10.5px' }}>
+                                        (ตรงกับ: {dup.matchedCustomer.fullName} {dup.matchedCustomer.createdBy ? `• ผู้ดูแล: ${dup.matchedCustomer.createdBy}` : ''})
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {row.issues.filter(iss => !iss.type.startsWith('DUP_SYS_')).length > 0 ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                  {row.issues.map((iss, i) => (
+                                  {row.issues.filter(iss => !iss.type.startsWith('DUP_SYS_')).map((iss, i) => (
                                     <span key={i} style={{ fontSize: '11px', color: iss.severity === 'error' ? '#ef4444' : '#f59e0b', fontWeight: 500 }}>
                                       {iss.severity === 'error' ? '❌' : '⚠️'} {iss.label}
                                     </span>
                                   ))}
                                 </div>
-                              ) : (
+                              ) : (!row.systemDuplicates || row.systemDuplicates.length === 0) ? (
                                 <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{row.notes || '-'}</span>
-                              )}
+                              ) : null}
                             </td>
                           </tr>
                         );
@@ -1702,6 +1843,208 @@ export default function NewCustomerView() {
           </table>
         </div>
       </div>
+
+      {/* DUPLICATE DETECTION ALERT MODAL (เด้งแจ้งเตือนทันทีเมื่อพบรายการซ้ำกับฐานข้อมูล) */}
+      {duplicateModalData && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="modal-overlay" 
+          style={{ zIndex: 1400 }} 
+          onClick={() => setDuplicateModalData(null)}
+        >
+          <div 
+            className="modal-content" 
+            style={{ maxWidth: '840px', width: '92%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px' }} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  border: '2px solid rgba(245, 158, 11, 0.4)',
+                  color: '#fbbf24',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  boxShadow: '0 0 20px rgba(245, 158, 11, 0.25)'
+                }}>
+                  <AlertTriangle size={26} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: 800, color: theme === 'light' ? '#0f172a' : '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>{lang === 'TH' ? 'ตรวจพบข้อมูลซ้ำกับฐานข้อมูลเดิมในระบบ!' : 'Duplicate Records Detected in Database!'}</span>
+                    <span style={{ fontSize: '12px', background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)', padding: '2px 8px', borderRadius: '12px' }}>
+                      {duplicateModalData.duplicates.length} {lang === 'TH' ? 'รายการ' : 'records'}
+                    </span>
+                  </h3>
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                    {lang === 'TH' 
+                      ? `ระบบตรวจพบว่ามีเบอร์โทรศัพท์, ยูสเซอร์ หรือ LINE OA ในไฟล์ [${duplicateModalData.fileName}] ตรงกับลูกค้าที่มีอยู่ในระบบแล้ว รายการเหล่านี้จะไม่ถูกบันทึกซ้ำซ้อน`
+                      : `Found duplicate phone numbers, usernames, or LINE OA in file [${duplicateModalData.fileName}] matching existing customer records.`}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setDuplicateModalData(null)}
+                className="btn btn-secondary"
+                style={{ padding: '6px', borderRadius: '8px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Warning Banner */}
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.25)',
+              borderRadius: '10px',
+              padding: '10px 14px',
+              fontSize: '12px',
+              color: '#fbbf24',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <Info size={16} style={{ flexShrink: 0 }} />
+              <span>
+                {lang === 'TH' 
+                  ? '💡 ระบบได้ตั้งค่า "ข้ามรายการซ้ำอัตโนมัติ" ให้เรียบร้อยแล้ว คุณสามารถตรวจสอบรายการที่ซ้ำด้านล่าง และกดดำเนินการต่อได้ทันที'
+                  : '💡 System has auto-skipped these duplicate rows. You can review duplicates below and proceed.'}
+              </span>
+            </div>
+
+            {/* Duplicate Records Table */}
+            <div className="table-wrapper" style={{ maxHeight: '380px', overflowY: 'auto', border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}>
+              <table style={{ margin: 0 }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: theme === 'light' ? '#f1f5f9' : '#1e1e2d' }}>
+                  <tr>
+                    <th style={{ width: '45px' }}>#</th>
+                    <th>{lang === 'TH' ? 'ข้อมูลในไฟล์ที่นำเข้า' : 'File Record'}</th>
+                    <th>{lang === 'TH' ? 'จุดที่ตรวจพบซ้ำ' : 'Duplicate Type'}</th>
+                    <th>{lang === 'TH' ? 'ตรงกับลูกค้าเดิมในฐานข้อมูล' : 'Existing Customer in Database'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {duplicateModalData.duplicates.map((item, idx) => (
+                    <tr key={idx} style={{ background: 'rgba(245, 158, 11, 0.03)' }}>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '11.5px', fontWeight: 600 }}>
+                        {item.rowIndex}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff', fontSize: '13px' }}>
+                            {item.fullName || '-'}
+                          </strong>
+                          <div style={{ display: 'flex', gap: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {item.username && <span>🆔 {item.username}</span>}
+                            {item.phone && <span>📞 {item.phone}</span>}
+                            {item.lineOA && item.lineOA !== '-' && <span>💬 {item.lineOA}</span>}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {(item.systemDuplicates || []).map((dup, i) => (
+                            <span 
+                              key={i} 
+                              className="badge" 
+                              style={{ 
+                                background: 'rgba(239, 68, 68, 0.15)', 
+                                color: '#f87171', 
+                                border: '1px solid rgba(239, 68, 68, 0.3)', 
+                                fontSize: '11px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                width: 'fit-content'
+                              }}
+                            >
+                              <span>{dup.fieldIcon}</span>
+                              <strong>{dup.fieldLabel}ซ้ำ:</strong>
+                              <span>{dup.importValue}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '11.5px' }}>
+                          {(item.systemDuplicates || []).map((dup, i) => {
+                            const mc = dup.matchedCustomer;
+                            return (
+                              <div key={i} style={{ padding: '5px 8px', borderRadius: '6px', background: theme === 'light' ? '#f8fafc' : 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>{mc.fullName}</strong>
+                                  {mc.username && <span style={{ color: '#38bdf8', fontSize: '11px' }}>({mc.username})</span>}
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px', fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                  {mc.phone && <span>📞 {mc.phone}</span>}
+                                  {mc.createdBy && (
+                                    <span style={{ color: '#c084fc', fontWeight: 600 }}>
+                                      👤 ดูแลโดย: {mc.createdBy}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modal Actions */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkFilter('SYS_DUP');
+                  setDuplicateModalData(null);
+                }}
+                className="btn btn-secondary"
+                style={{ padding: '9px 16px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Filter size={15} />
+                <span>{lang === 'TH' ? 'ดูเฉพาะรายการซ้ำในตารางพรีวิว' : 'Filter Duplicate Rows in Preview'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSkipIssues(true);
+                  setDuplicateModalData(null);
+                }}
+                className="btn btn-primary"
+                style={{
+                  padding: '10px 20px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                  border: 'none',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <CheckCircle2 size={16} />
+                <span>{lang === 'TH' ? 'รับทราบ / ข้ามรายการที่ซ้ำอัตโนมัติ' : 'Acknowledge & Auto-Skip Duplicates'}</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
