@@ -1790,8 +1790,6 @@ export default function NewCustomerView() {
                   />
                   <span>{lang === 'TH' ? 'ข้ามแถวที่ซ้ำหรือมีปัญหาโดยอัตโนมัติ (นำเข้าเฉพาะแถวที่ผ่านเกณฑ์)' : 'Auto-skip duplicates and invalid rows'}</span>
                 </label>
-                  <span>{lang === 'TH' ? 'ข้ามแถวที่ซ้ำหรือมีปัญหาโดยอัตโนมัติ (นำเข้าเฉพาะแถวที่ผ่านเกณฑ์)' : 'Auto-skip duplicates and invalid rows'}</span>
-                </label>
               </div>
 
               {/* Preview Table */}
