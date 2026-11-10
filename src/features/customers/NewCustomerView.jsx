@@ -89,8 +89,15 @@ export default function NewCustomerView() {
     return customers.filter(c => !c.deletedAt);
   }, [customers]);
 
-  // Mode Switch: 'single' (กรอกทีละคน) | 'bulk' (นำเข้าไฟล์ Excel/CSV)
+  // Mode Switch: 'single' (กรอกทีละคน) | 'bulk' (นำเข้าไฟล์ Excel/CSV เฉพาะ Supervisor)
   const [activeTab, setActiveTab] = useState('single');
+
+  // Enforce Supervisor-only permission for Bulk Import
+  React.useEffect(() => {
+    if (!isSupervisor && activeTab === 'bulk') {
+      setActiveTab('single');
+    }
+  }, [isSupervisor, activeTab]);
 
   // Bulk Lead Import States
   const [bulkFileName, setBulkFileName] = useState('');
@@ -112,31 +119,94 @@ export default function NewCustomerView() {
     const today = getTodayLocalDateStr();
     const sampleRows = [
       {
-        'ชื่อ-นามสกุล': 'คุณสมชาย ใจดี',
-        'ยูสเซอร์เนม': 'mc88001',
-        'เบอร์โทรศัพท์': '0891234567',
-        'LINE OA': '@somchai88',
+        'ชื่อ-นามสกุล': 'คุณกิตติศักดิ์ รัตนวิบูลย์',
+        'ยูสเซอร์เนม': 'mc99011',
+        'เบอร์โทรศัพท์': '0812345601',
+        'LINE OA': '@kitti_line',
         'สถานะไลน์เล็ก': 'รอแอด',
         'ช่องทางสมัคร': 'facebook',
-        'หมายเหตุ': 'ลูกค้าทักจากเพจหลัก สนใจโปรโมชั่น 100%'
+        'หมายเหตุ': 'ทักจากเพจการตลาด สนใจโปรฝากแรก'
       },
       {
-        'ชื่อ-นามสกุล': 'คุณสมหญิง มีโชค',
-        'ยูสเซอร์เนม': 'mc88002',
-        'เบอร์โทรศัพท์': '0819876543',
-        'LINE OA': 'somying_oa',
+        'ชื่อ-นามสกุล': 'คุณนภัสสร อัครเดช',
+        'ยูสเซอร์เนม': 'mc99012',
+        'เบอร์โทรศัพท์': '0823456702',
+        'LINE OA': 'napas_line',
         'สถานะไลน์เล็ก': 'มี',
-        'ช่องทางสมัคร': 'tiktok',
-        'หมายเหตุ': 'แอดไลน์เล็กเรียบร้อยแล้ว'
+        'ช่องทางสมัคร': 'line',
+        'หมายเหตุ': 'แอดไลน์เล็กแล้ว แจ้งรอฝากเย็นนี้'
       },
       {
-        'ชื่อ-นามสกุล': 'ลูกค้า สอบถามแต่ยังไม่เปิดยูส',
+        'ชื่อ-นามสกุล': 'คุณธีรเทพ สุวรรณมาศ',
+        'ยูสเซอร์เนม': 'mc99013',
+        'เบอร์โทรศัพท์': '0834567803',
+        'LINE OA': '@theeratep_99',
+        'สถานะไลน์เล็ก': 'รอแอด',
+        'ช่องทางสมัคร': 'tiktok',
+        'หมายเหตุ': 'ทักจากคลิป TikTok สมัครเปิดยูสแล้ว'
+      },
+      {
+        'ชื่อ-นามสกุล': 'คุณปิยะดา เกียรติสกุล',
         'ยูสเซอร์เนม': '',
-        'เบอร์โทรศัพท์': '0925556677',
+        'เบอร์โทรศัพท์': '0845678904',
+        'LINE OA': 'piyada_k',
+        'สถานะไลน์เล็ก': 'รอแอด',
+        'ช่องทางสมัคร': 'facebook',
+        'หมายเหตุ': 'ทักสอบถามโปร ยังไม่ได้เปิดยูส'
+      },
+      {
+        'ชื่อ-นามสกุล': 'คุณวรพล ธนาพิพัฒน์',
+        'ยูสเซอร์เนม': 'mc99015',
+        'เบอร์โทรศัพท์': '0856789005',
+        'LINE OA': '-',
+        'สถานะไลน์เล็ก': 'ไม่มี',
+        'ช่องทางสมัคร': 'ค้นหาหน้า Google',
+        'หมายเหตุ': 'สมัครผ่านหน้าเว็บ ไม่มีไลน์'
+      },
+      {
+        'ชื่อ-นามสกุล': 'คุณศิรินทิพย์ ภักดีชน',
+        'ยูสเซอร์เนม': 'mc99016',
+        'เบอร์โทรศัพท์': '0867890106',
+        'LINE OA': '@sirin_vip',
+        'สถานะไลน์เล็ก': 'มี',
+        'ช่องทางสมัคร': 'facebook',
+        'หมายเหตุ': 'ลูกค้าแอดมินแนะนำมา ดึงเข้ากลุ่มแล้ว'
+      },
+      {
+        'ชื่อ-นามสกุล': 'คุณอภิสิทธิ์ วงศ์สวัสดิ์',
+        'ยูสเซอร์เนม': 'mc99017',
+        'เบอร์โทรศัพท์': '0878901207',
+        'LINE OA': 'apisit_w',
+        'สถานะไลน์เล็ก': 'รอแอด',
+        'ช่องทางสมัคร': 'tiktok',
+        'หมายเหตุ': 'สมัครเรียบร้อย แนะนำวิธีฝากแล้ว'
+      },
+      {
+        'ชื่อ-นามสกุล': 'คุณพิมลวรรณ สุขสมบัติ',
+        'ยูสเซอร์เนม': '',
+        'เบอร์โทรศัพท์': '0889012308',
         'LINE OA': '-',
         'สถานะไลน์เล็ก': 'รอแอด',
         'ช่องทางสมัคร': 'line',
-        'หมายเหตุ': 'ทักสอบถามโปร รอตัดสินใจ'
+        'หมายเหตุ': 'ทักแชทสอบถามเรทฝาก-ถอน'
+      },
+      {
+        'ชื่อ-นามสกุล': 'คุณชานนท์ มั่นคง',
+        'ยูสเซอร์เนม': 'mc99019',
+        'เบอร์โทรศัพท์': '0890123409',
+        'LINE OA': '@chanon_mc',
+        'สถานะไลน์เล็ก': 'มี',
+        'ช่องทางสมัคร': 'facebook',
+        'หมายเหตุ': 'คีย์นำเข้าจากแคมเปญวันหยุด'
+      },
+      {
+        'ชื่อ-นามสกุล': 'คุณจันทิมา ศรีสุวรรณ',
+        'ยูสเซอร์เนม': 'mc99020',
+        'เบอร์โทรศัพท์': '0891234510',
+        'LINE OA': '@jan_sri',
+        'สถานะไลน์เล็ก': 'รอแอด',
+        'ช่องทางสมัคร': 'tiktok',
+        'หมายเหตุ': 'ทักแนะนำเพื่อนมา สนใจเปิดยูส'
       }
     ];
 
@@ -159,7 +229,7 @@ export default function NewCustomerView() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `MC_Customer_Template_${today}.csv`;
+      a.download = `MC_Customer_Template_10_Leads_${today}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } else {
@@ -170,17 +240,21 @@ export default function NewCustomerView() {
         { wch: 15 },
         { wch: 18 },
         { wch: 15 },
-        { wch: 16 },
+        { wch: 18 },
         { wch: 35 }
       ];
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Template_Leads');
-      XLSX.writeFile(wb, `MC_Customer_Template_${today}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, 'Marketing_Leads');
+      XLSX.writeFile(wb, `MC_Customer_Template_10_Leads_${today}.xlsx`);
     }
   };
 
-  // Handle Bulk Lead File Upload & Validation
+  // Handle Bulk Lead File Upload & Validation (Supervisor Only)
   const handleBulkFileUpload = (e) => {
+    if (!isSupervisor) {
+      alert(lang === 'TH' ? '⚠️ สิทธิ์เฉพาะหัวหน้างาน (Supervisor) เท่านั้นที่สามารถนำเข้าไฟล์ลูกค้าได้' : '⚠️ Supervisor privilege required.');
+      return;
+    }
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     e.target.value = '';
@@ -438,8 +512,12 @@ export default function NewCustomerView() {
     reader.readAsArrayBuffer(file);
   };
 
-  // Execute Bulk Lead Import
+  // Execute Bulk Lead Import (Supervisor Only)
   const handleExecuteBulkImport = async () => {
+    if (!isSupervisor) {
+      alert(lang === 'TH' ? '⚠️ สิทธิ์เฉพาะหัวหน้างาน (Supervisor) เท่านั้นที่สามารถนำเข้าไฟล์ลูกค้าได้' : '⚠️ Supervisor privilege required.');
+      return;
+    }
     if (!bulkPreviewRows || bulkPreviewRows.length === 0 || isImportingBulk) return;
 
     const rowsToImport = bulkPreviewRows.filter(r => skipIssues ? r.isValid : !r.hasError);
@@ -743,60 +821,79 @@ export default function NewCustomerView() {
 
   return (
     <div>
-      {/* Top Tab Switcher */}
-      <div style={{ maxWidth: activeTab === 'bulk' && bulkPreviewRows ? '1280px' : '860px', margin: '0 auto 16px auto', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        <button
-          type="button"
-          onClick={() => setActiveTab('single')}
-          className={`btn ${activeTab === 'single' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{
-            padding: '10px 18px',
-            fontSize: '13.5px',
-            fontWeight: 700,
-            borderRadius: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            boxShadow: activeTab === 'single' ? '0 4px 14px rgba(124, 58, 237, 0.3)' : 'none',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <UserPlus size={16} />
-          <span>{lang === 'TH' ? '👤 คีย์ทีละคน (Single Entry)' : '👤 Single Entry'}</span>
-        </button>
+      {/* Top Tab Switcher (Supervisor Only) */}
+      {isSupervisor && (
+        <div style={{ maxWidth: activeTab === 'bulk' && bulkPreviewRows ? '1280px' : '860px', margin: '0 auto 16px auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setActiveTab('single')}
+              className={`btn ${activeTab === 'single' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{
+                padding: '10px 18px',
+                fontSize: '13.5px',
+                fontWeight: 700,
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: activeTab === 'single' ? '0 4px 14px rgba(124, 58, 237, 0.3)' : 'none',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <UserPlus size={16} />
+              <span>{lang === 'TH' ? '👤 คีย์ทีละคน (Single Entry)' : '👤 Single Entry'}</span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('bulk')}
-          className={`btn ${activeTab === 'bulk' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{
-            padding: '10px 18px',
-            fontSize: '13.5px',
-            fontWeight: 700,
-            borderRadius: '12px',
+            <button
+              type="button"
+              onClick={() => setActiveTab('bulk')}
+              className={`btn ${activeTab === 'bulk' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{
+                padding: '10px 18px',
+                fontSize: '13.5px',
+                fontWeight: 700,
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: activeTab === 'bulk' ? '0 4px 14px rgba(16, 185, 129, 0.3)' : 'none',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <FileSpreadsheet size={16} style={{ color: activeTab === 'bulk' ? '#ffffff' : '#34d399' }} />
+              <span>{lang === 'TH' ? '📂 นำเข้าไฟล์ Excel / CSV (Bulk Import)' : '📂 Bulk Import (Excel/CSV)'}</span>
+              {bulkPreviewRows && (
+                <span style={{
+                  background: '#10b981',
+                  color: '#fff',
+                  fontSize: '11px',
+                  padding: '1px 7px',
+                  borderRadius: '10px',
+                  marginLeft: '4px'
+                }}>
+                  {bulkPreviewRows.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div style={{
+            fontSize: '11.5px',
+            color: '#10b981',
+            fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            boxShadow: activeTab === 'bulk' ? '0 4px 14px rgba(16, 185, 129, 0.3)' : 'none',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <FileSpreadsheet size={16} style={{ color: activeTab === 'bulk' ? '#ffffff' : '#34d399' }} />
-          <span>{lang === 'TH' ? '📂 นำเข้าไฟล์ Excel / CSV (Bulk Import)' : '📂 Bulk Import (Excel/CSV)'}</span>
-          {bulkPreviewRows && (
-            <span style={{
-              background: '#10b981',
-              color: '#fff',
-              fontSize: '11px',
-              padding: '1px 7px',
-              borderRadius: '10px',
-              marginLeft: '4px'
-            }}>
-              {bulkPreviewRows.length}
-            </span>
-          )}
-        </button>
-      </div>
+            gap: '6px',
+            background: 'rgba(16, 185, 129, 0.1)',
+            border: '1px solid rgba(16, 185, 129, 0.25)',
+            padding: '5px 12px',
+            borderRadius: '20px'
+          }}>
+            <span>👑 สิทธิ์เฉพาะหัวหน้างาน (Supervisor Only)</span>
+          </div>
+        </div>
+      )}
 
       {/* Success Notification Banner for Bulk Import */}
       {bulkImportSuccess && (
@@ -835,7 +932,7 @@ export default function NewCustomerView() {
       )}
 
       {/* TAB 1: Single Entry Form */}
-      {activeTab === 'single' && (
+      {(!isSupervisor || activeTab === 'single') && (
         <div id="tour-newcust-panel" className="panel" style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
           <div className="panel-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px' }}>
             <h3 className="panel-title" style={{ fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1203,8 +1300,8 @@ export default function NewCustomerView() {
       </div>
       )}
 
-      {/* TAB 2: Bulk Import (Excel / CSV) */}
-      {activeTab === 'bulk' && (
+      {/* TAB 2: Bulk Import (Excel / CSV) - Supervisor Only */}
+      {isSupervisor && activeTab === 'bulk' && (
         <div className="panel" style={{ maxWidth: bulkPreviewRows ? '1280px' : '860px', margin: '0 auto', width: '100%' }}>
           <div className="panel-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
             <div>

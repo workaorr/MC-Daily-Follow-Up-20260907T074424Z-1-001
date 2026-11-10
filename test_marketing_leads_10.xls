@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#10B981" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+  <Style ss:ID="DefaultText">
+   <Alignment ss:Vertical="Center"/>
+  </Style>
+  <Style ss:ID="Phone">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <NumberFormat ss:Format="@"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="MarketingLeads">
+  <Table ss:DefaultRowHeight="20">
+   <Column ss:Width="160"/>
+   <Column ss:Width="100"/>
+   <Column ss:Width="110"/>
+   <Column ss:Width="120"/>
+   <Column ss:Width="100"/>
+   <Column ss:Width="120"/>
+   <Column ss:Width="260"/>
+   <Row ss:StyleID="Header" ss:Height="26">
+    <Cell><Data ss:Type="String">ชื่อ-นามสกุล</Data></Cell>
+    <Cell><Data ss:Type="String">ยูสเซอร์เนม</Data></Cell>
+    <Cell><Data ss:Type="String">เบอร์โทรศัพท์</Data></Cell>
+    <Cell><Data ss:Type="String">LINE OA</Data></Cell>
+    <Cell><Data ss:Type="String">สถานะไลน์เล็ก</Data></Cell>
+    <Cell><Data ss:Type="String">ช่องทางสมัคร</Data></Cell>
+    <Cell><Data ss:Type="String">หมายเหตุ</Data></Cell>
+   </Row>
+   <Row ss:StyleID="DefaultText">
+    <Cell><Data ss:Type="String">คุณกิตติศักดิ์ รัตนวิบูลย์</Data></Cell>
+    <Cell><Data ss:Type="String">mc99011</Data></Cell>
+    <Cell ss:StyleID="Phone"><Data ss:Type="String">0812345601</Data></Cell>
+    <Cell><Data ss:Type="String">@kitti_line</Data></Cell>
+    <Cell><Data ss:Type="String">รอแอด</Data></Cell>
+    <Cell><Data ss:Type="String">facebook</Data></Cell>
+    <Cell><Data ss:Type="String">ทักจากเพจการตลาด สนใจโปรฝากแรก</Data></Cell>
+   </Row>
+   <Row ss:StyleID="DefaultText">
+    <Cell><Data ss:Type="String">คุณนภัสสร อัครเดช</Data></Cell>
+    <Cell><Data ss:Type="String">mc99012</Data></Cell>
+    <Cell ss:StyleID="Phone"><Data ss:Type="String">0823456702</Data></Cell>
+    <Cell><Data ss:Type="String">napas_line</Data></Cell>
+    <Cell><Data ss:Type="String">มี</Data></Cell>
+    <Cell><Data ss:Type="String">line</Data></Cell>
+    <Cell><Data ss:Type="String">แอดไลน์เล็กแล้ว แจ้งรอฝากเย็นนี้</Data></Cell>
+   </Row>
+   <Row ss:StyleID="DefaultText">
+    <Cell><Data ss:Type="String">คุณธีรเทพ สุวรรณมาศ</Data></Cell>
+    <Cell><Data ss:Type="String">mc99013</Data></Cell>
+    <Cell ss:StyleID="Phone"><Data ss:Type="String">0834567803</Data></Cell>
+    <Cell><Data ss:Type="String">@theeratep_99</Data></Cell>
+    <Cell><Data ss:Type="String">รอแอด</Data></Cell>
+    <Cell><Data ss:Type="String">tiktok</Data></Cell>
+    <Cell><Data ss:Type="String">ทักจากคลิป TikTok สมัครเปิดยูสแล้ว</Data></Cell>
+   </Row>
+   <Row ss:StyleID="DefaultText">
+    <Cell><Data ss:Type="String">คุณปิยะดา เกียรติสกุล</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell ss:StyleID="Phone"><Data ss:Type="String">0845678904</Data></Cell>
+    <Cell><Data ss:Type="String">piyada_k</Data></Cell>
+    <Cell><Data ss:Type="String">รอแอด</Data></Cell>
+    <Cell><Data ss:Type="String">facebook</Data></Cell>
+    <Cell><Data ss:Type="String">ทักสอบถามโปร ยังไม่ได้เปิดยูส</Data></Cell>
+   </Row>
+   <Row ss:StyleID="DefaultText">
+    <Cell><Data ss:Type="String">คุณวรพล ธนาพิพัฒน์</Data></Cell>
+    <Cell><Data ss:Type="String">mc99015</Data></Cell>
+    <Cell ss:StyleID="Phone"><Data ss:Type="String">0856789005</Data></Cell>
+    <Cell><Data ss:Type="String">-</Data></Cell>
+    <Cell><Data ss:Type="String">ไม่มี</Data></Cell>
+    <Cell><Data ss:Type="String">ค้นหาหน้า Google</Data></Cell>
+    <Cell><Data ss:Type="String">สมัครผ่านหน้าเว็บ ไม่มีไลน์</Data></Cell>
+   </Row>
+   <Row ss:StyleID="DefaultText">
+    <Cell><Data ss:Type="String">คุณศิรินทิพย์ ภักดีชน</Data></Cell>
+    <Cell><Data ss:Type="String">mc99016</Data></Cell>
+    <Cell ss:StyleID="Phone"><Data ss:Type="String">0867890106</Data></Cell>
+    <Cell><Data ss:Type="String">@sirin_vip</Data></Cell>
+    <Cell><Data ss:Type="String">มี</Data></Cell>
+    <Cell><Data ss:Type="String">facebook</Data></Cell>
+    <Cell><Data ss:Type="String">ลูกค้าแอดมินแนะนำมา ดึงเข้ากลุ่มแล้ว</Data></Cell>
+   </Row>
+   <Row ss:StyleID="DefaultText">
+    <Cell><Data ss:Type="String">คุณอภิสิทธิ์ วงศ์สวัสดิ์</Data></Cell>
+    <Cell><Data ss:Type="String">mc99017</Data></Cell>
+    <Cell ss:StyleID="Phone"><Data ss:Type="String">0878901207</Data></Cell>
+    <Cell><Data ss:Type="String">apisit_w</Data></Cell>
+    <Cell><Data ss:Type="String">รอแอด</Data></Cell>
+    <Cell><Data ss:Type="String">tiktok</Data></Cell>
+    <Cell><Data ss:Type="String">สมัครเรียบร้อย แนะนำวิธีฝากแล้ว</Data></Cell>
+   </Row>
+   <Row ss:StyleID="DefaultText">
+    <Cell><Data ss:Type="String">คุณพิมลวรรณ สุขสมบัติ</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell ss:StyleID="Phone"><Data ss:Type="String">0889012308</Data></Cell>
+    <Cell><Data ss:Type="String">-</Data></Cell>
+    <Cell><Data ss:Type="String">รอแอด</Data></Cell>
+    <Cell><Data ss:Type="String">line</Data></Cell>
+    <Cell><Data ss:Type="String">ทักแชทสอบถามเรทฝาก-ถอน</Data></Cell>
+   </Row>
+   <Row ss:StyleID="DefaultText">
+    <Cell><Data ss:Type="String">คุณชานนท์ มั่นคง</Data></Cell>
+    <Cell><Data ss:Type="String">mc99019</Data></Cell>
+    <Cell ss:StyleID="Phone"><Data ss:Type="String">0890123409</Data></Cell>
+    <Cell><Data ss:Type="String">@chanon_mc</Data></Cell>
+    <Cell><Data ss:Type="String">มี</Data></Cell>
+    <Cell><Data ss:Type="String">facebook</Data></Cell>
+    <Cell><Data ss:Type="String">คีย์นำเข้าจากแคมเปญวันหยุด</Data></Cell>
+   </Row>
+   <Row ss:StyleID="DefaultText">
+    <Cell><Data ss:Type="String">คุณจันทิมา ศรีสุวรรณ</Data></Cell>
+    <Cell><Data ss:Type="String">mc99020</Data></Cell>
+    <Cell ss:StyleID="Phone"><Data ss:Type="String">0891234510</Data></Cell>
+    <Cell><Data ss:Type="String">@jan_sri</Data></Cell>
+    <Cell><Data ss:Type="String">รอแอด</Data></Cell>
+    <Cell><Data ss:Type="String">tiktok</Data></Cell>
+    <Cell><Data ss:Type="String">ทักแนะนำเพื่อนมา สนใจเปิดยูส</Data></Cell>
+   </Row>
+  </Table>
+ </Worksheet>
+</Workbook>
