@@ -4,7 +4,7 @@ import { SUPABASE_CONFIG, APP_CONFIG } from '../constants/config';
 import { DEFAULT_AGENTS, normalizeAgent } from '../constants/defaultAgents';
 import { DEFAULT_SOURCE_CHANNELS } from '../constants/channels';
 import { getCurrentMonthStr } from '../utils/dateFormatters';
-import { createSupabaseInstance, getStoredSupabaseCredentials } from '../services/supabase';
+import { createSupabaseInstance, getStoredSupabaseCredentials, pushAgentToCloud } from '../services/supabase';
 import { createLogEntry, persistLogToCloud } from '../services/auditLogger';
 
 const AppContext = createContext(null);
@@ -152,6 +152,23 @@ export const AppProvider = ({ children }) => {
     const isSupervisor = useMemo(() => {
         return activeAgent?.role === 'SUPERVISOR';
     }, [activeAgent]);
+
+    // --- MONTHLY DEPOSIT TARGETS ---
+    const [teamMonthlyTargets, setTeamMonthlyTargets] = useState(() => {
+        try {
+            const saved = localStorage.getItem('mc_team_monthly_targets');
+            const parsed = saved ? JSON.parse(saved) : {};
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (e) {
+            return {};
+        }
+    });
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('mc_team_monthly_targets', JSON.stringify(teamMonthlyTargets));
+        } catch (e) {}
+    }, [teamMonthlyTargets]);
 
     useEffect(() => {
         if (activeAgentName) {
@@ -382,6 +399,7 @@ export const AppProvider = ({ children }) => {
                 .order('name', { ascending: true });
 
             if (!agentsError && dbAgents && dbAgents.length > 0) {
+                let cloudTeamTargets = {};
                 setAgents(prev => {
                     const prevList = Array.isArray(prev) && prev.length > 0 ? prev : DEFAULT_AGENTS;
                     const prevMap = new Map(prevList.map(a => [a.name, a]));
@@ -390,7 +408,11 @@ export const AppProvider = ({ children }) => {
                         const merged = { ...existing, ...a };
                         if (a.is_active !== undefined) merged.isActive = Boolean(a.is_active);
                         if (a.last_login_at !== undefined) merged.lastLoginAt = a.last_login_at;
-                        return normalizeAgent(merged, i);
+                        const norm = normalizeAgent(merged, i);
+                        if (norm.permissions && norm.permissions.teamMonthlyTargets && typeof norm.permissions.teamMonthlyTargets === 'object') {
+                            cloudTeamTargets = { ...cloudTeamTargets, ...norm.permissions.teamMonthlyTargets };
+                        }
+                        return norm;
                     });
                     DEFAULT_AGENTS.forEach((defAgent, defIdx) => {
                         if (!normalized.some(a => a.name === defAgent.name)) {
@@ -400,6 +422,9 @@ export const AppProvider = ({ children }) => {
                     try { localStorage.setItem('mc_agents', JSON.stringify(normalized)); } catch (e) {}
                     return normalized;
                 });
+                if (Object.keys(cloudTeamTargets).length > 0) {
+                    setTeamMonthlyTargets(prev => ({ ...(prev || {}), ...cloudTeamTargets }));
+                }
                 writeLog('SUPABASE', `ดาวน์โหลดรายชื่อเจ้าหน้าที่ MC สำเร็จ: ${dbAgents.length} คน`, 'success');
             }
 
@@ -547,9 +572,99 @@ export const AppProvider = ({ children }) => {
                 console.warn('Realtime mc_customers subscription error:', e);
             }
 
+            try {
+                client.channel('realtime:mc_agents')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'mc_agents' }, (payload) => {
+                        if (!payload || !payload.new) return;
+                        const r = payload.new;
+                        if (!r.name) return;
+                        const norm = normalizeAgent(r);
+                        setAgents(prev => {
+                            const cur = Array.isArray(prev) ? prev : [];
+                            const exists = cur.some(a => a.name === norm.name);
+                            const next = exists
+                                ? cur.map(a => a.name === norm.name ? { ...a, ...norm } : a)
+                                : [...cur, norm];
+                            try { localStorage.setItem('mc_agents', JSON.stringify(next)); } catch (e) {}
+                            return next;
+                        });
+                        if (norm.permissions?.teamMonthlyTargets && typeof norm.permissions.teamMonthlyTargets === 'object') {
+                            setTeamMonthlyTargets(prev => ({ ...(prev || {}), ...norm.permissions.teamMonthlyTargets }));
+                        }
+                    })
+                    .subscribe();
+            } catch (e) {
+                console.warn('Realtime mc_agents subscription error:', e);
+            }
+
         } catch (e) {
             writeLog('SUPABASE', `ดาวน์โหลดฐานข้อมูลคลาวด์ล้มเหลว: ${e.message}`, 'danger');
         }
+    };
+
+    // --- SAVE MONTHLY TARGETS (TEAM & PER-AGENT) ---
+    const saveMonthlyTargets = async (monthStr, teamTargetVal, agentTargetsMap = {}) => {
+        if (!isSupervisor) return { success: false, error: 'Supervisor only' };
+        const cleanMonth = monthStr || currentMonthStr;
+        const parsedTeamTarget = Math.max(0, parseFloat(teamTargetVal || 0) || 0);
+
+        const nextTeamTargets = {
+            ...(teamMonthlyTargets || {}),
+            [cleanMonth]: parsedTeamTarget
+        };
+        setTeamMonthlyTargets(nextTeamTargets);
+
+        const updatedAgentsList = (agents || []).map((ag) => {
+            const hasIndividualUpdate = Object.prototype.hasOwnProperty.call(agentTargetsMap, ag.name);
+            const isTargetOwner = ag.name === activeAgentName || ag.role === 'SUPERVISOR';
+            if (!hasIndividualUpdate && !isTargetOwner) return ag;
+
+            const existingMonthlyTargets = (ag.permissions && ag.permissions.monthlyTargets) || {};
+            const nextMonthlyTargets = hasIndividualUpdate
+                ? { ...existingMonthlyTargets, [cleanMonth]: Math.max(0, parseFloat(agentTargetsMap[ag.name] || 0) || 0) }
+                : existingMonthlyTargets;
+
+            const nextPermissions = {
+                ...(ag.permissions || {}),
+                monthlyTargets: nextMonthlyTargets
+            };
+
+            if (ag.name === activeAgentName || ag.role === 'SUPERVISOR') {
+                nextPermissions.teamMonthlyTargets = nextTeamTargets;
+            }
+
+            return {
+                ...ag,
+                permissions: nextPermissions
+            };
+        });
+
+        setAgents(updatedAgentsList);
+        try { localStorage.setItem('mc_agents', JSON.stringify(updatedAgentsList)); } catch (e) {}
+
+        const client = supabaseClientRef.current || supabaseClient;
+        if (client) {
+            for (const ag of updatedAgentsList) {
+                const changed = Object.prototype.hasOwnProperty.call(agentTargetsMap, ag.name) || ag.name === activeAgentName || ag.role === 'SUPERVISOR';
+                if (changed) {
+                    await pushAgentToCloud(client, ag);
+                }
+            }
+        }
+
+        const agentSummary = Object.entries(agentTargetsMap)
+            .filter(([, v]) => parseFloat(v || 0) > 0)
+            .map(([name, v]) => `${name}: ฿${Number(v).toLocaleString()}`)
+            .join(', ');
+
+        writeLog(
+            'TARGET_UPDATE',
+            `🎯 ตั้งเป้าหมายยอดฝากเดือน ${cleanMonth} | เป้าทีม: ฿${parsedTeamTarget.toLocaleString()}${agentSummary ? ` | เป้ารายคน: [${agentSummary}]` : ''}`,
+            'success',
+            activeAgentName
+        );
+
+        return { success: true };
     };
 
     // --- INITIAL DATA FETCH & CONNECTION EFFECT ---
@@ -620,6 +735,9 @@ export const AppProvider = ({ children }) => {
         setActiveAgentName,
         activeAgent,
         isSupervisor,
+        teamMonthlyTargets,
+        setTeamMonthlyTargets,
+        saveMonthlyTargets,
 
         // Data Models
         customers,
