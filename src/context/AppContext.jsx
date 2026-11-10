@@ -9,6 +9,27 @@ import { createLogEntry, persistLogToCloud } from '../services/auditLogger';
 
 const AppContext = createContext(null);
 
+const mergeFollowUpByMonth = (rawFollowUp, rawFollowUpByMonth) => {
+    const fUp = rawFollowUp && typeof rawFollowUp === 'object' ? rawFollowUp : {};
+    const fByMonth = rawFollowUpByMonth && typeof rawFollowUpByMonth === 'object' ? { ...rawFollowUpByMonth } : {};
+    Object.keys(fUp).forEach((k) => {
+        if (/^\d{4}-\d{2}$/.test(k) && fUp[k] && typeof fUp[k] === 'object') {
+            fByMonth[k] = { ...(fByMonth[k] || {}), ...fUp[k] };
+        }
+    });
+    return fByMonth;
+};
+
+const extractNextFollowUpDate = (row) => {
+    return (
+        row.next_follow_up_date ||
+        (row.follow_up_by_month && row.follow_up_by_month._meta && row.follow_up_by_month._meta.nextFollowUpDate) ||
+        (row.follow_up && row.follow_up._meta && row.follow_up._meta.nextFollowUpDate) ||
+        row.nextFollowUpDate ||
+        null
+    );
+};
+
 export const useApp = () => {
     const ctx = useContext(AppContext);
     if (!ctx) throw new Error('useApp must be used within an AppProvider');
@@ -323,10 +344,7 @@ export const AppProvider = ({ children }) => {
                     const archiveMeta = (c.follow_up_by_month && c.follow_up_by_month._archived) || 
                                         (c.follow_up && c.follow_up._archived) || {};
 
-                    const nextFollowUpDate = c.next_follow_up_date || 
-                                             (c.follow_up_by_month && c.follow_up_by_month._meta && c.follow_up_by_month._meta.nextFollowUpDate) ||
-                                             (c.follow_up && c.follow_up._meta && c.follow_up._meta.nextFollowUpDate) || 
-                                             c.nextFollowUpDate || null;
+                    const nextFollowUpDate = extractNextFollowUpDate(c);
 
                     const mappedCust = {
                         id: c.id,
@@ -344,7 +362,7 @@ export const AppProvider = ({ children }) => {
                         updatedAt: c.updated_at || null,
                         campaignMonth: c.campaign_month || (c.created_at ? c.created_at.substring(0, 7) : currentMonthStr),
                         followUp: typeof c.follow_up === 'object' && c.follow_up !== null ? c.follow_up : {},
-                        followUpByMonth: typeof c.follow_up_by_month === 'object' && c.follow_up_by_month !== null ? c.follow_up_by_month : {},
+                        followUpByMonth: mergeFollowUpByMonth(c.follow_up, c.follow_up_by_month),
                         notes: c.notes || '',
                         nextFollowUpDate: nextFollowUpDate,
                         hasDeposited: c.has_deposited || false,
@@ -507,8 +525,9 @@ export const AppProvider = ({ children }) => {
                                 updatedAt: r.updated_at || null,
                                 campaignMonth: r.campaign_month || (r.created_at ? r.created_at.substring(0, 7) : currentMonthStr),
                                 followUp: typeof r.follow_up === 'object' && r.follow_up !== null ? r.follow_up : {},
-                                followUpByMonth: typeof r.follow_up_by_month === 'object' && r.follow_up_by_month !== null ? r.follow_up_by_month : {},
+                                followUpByMonth: mergeFollowUpByMonth(r.follow_up, r.follow_up_by_month),
                                 notes: r.notes || '',
+                                nextFollowUpDate: extractNextFollowUpDate(r),
                                 hasDeposited: r.has_deposited || false,
                                 returnedDepositAmount: parseFloat(r.returned_deposit_amount || 0)
                             };
@@ -532,7 +551,14 @@ export const AppProvider = ({ children }) => {
                             } else {
                                 setCustomers(prev => {
                                     const cur = Array.isArray(prev) ? prev : [];
-                                    const exists = cur.some(c => c.id === r.id);
+                                    const existingCust = cur.find(c => c.id === r.id);
+                                    const exists = Boolean(existingCust);
+                                    const nextFollowUpRaw = r.follow_up !== undefined
+                                        ? (typeof r.follow_up === 'object' && r.follow_up !== null ? r.follow_up : {})
+                                        : (existingCust?.followUp || {});
+                                    const nextFollowUpByMonthRaw = r.follow_up_by_month !== undefined
+                                        ? (typeof r.follow_up_by_month === 'object' && r.follow_up_by_month !== null ? r.follow_up_by_month : {})
+                                        : (existingCust?.followUpByMonth || {});
                                     const updatedCust = {
                                         id: r.id,
                                         createdAt: r.created_at || new Date().toISOString(),
@@ -545,12 +571,13 @@ export const AppProvider = ({ children }) => {
                                         referrer: r.referrer !== undefined ? (r.referrer || '') : '',
                                         totalDeposit: r.total_deposit !== undefined ? parseFloat(r.total_deposit || 0) : 0,
                                         createdBy: r.created_by !== undefined ? r.created_by : 'ระบบกลาง',
-                                        updatedBy: r.updated_by !== undefined ? r.updated_by : (cur.find(c => c.id === r.id)?.updatedBy || null),
-                                        updatedAt: r.updated_at !== undefined ? r.updated_at : (cur.find(c => c.id === r.id)?.updatedAt || null),
+                                        updatedBy: r.updated_by !== undefined ? r.updated_by : (existingCust?.updatedBy || null),
+                                        updatedAt: r.updated_at !== undefined ? r.updated_at : (existingCust?.updatedAt || null),
                                         campaignMonth: r.campaign_month !== undefined ? r.campaign_month : currentMonthStr,
-                                        followUp: r.follow_up !== undefined ? (typeof r.follow_up === 'object' && r.follow_up !== null ? r.follow_up : {}) : {},
-                                        followUpByMonth: r.follow_up_by_month !== undefined ? (typeof r.follow_up_by_month === 'object' && r.follow_up_by_month !== null ? r.follow_up_by_month : {}) : {},
+                                        followUp: nextFollowUpRaw,
+                                        followUpByMonth: mergeFollowUpByMonth(nextFollowUpRaw, nextFollowUpByMonthRaw),
                                         notes: r.notes !== undefined ? r.notes : '',
+                                        nextFollowUpDate: extractNextFollowUpDate(r) || existingCust?.nextFollowUpDate || null,
                                         hasDeposited: r.has_deposited !== undefined ? r.has_deposited : false,
                                         returnedDepositAmount: r.returned_deposit_amount !== undefined ? parseFloat(r.returned_deposit_amount || 0) : 0
                                     };

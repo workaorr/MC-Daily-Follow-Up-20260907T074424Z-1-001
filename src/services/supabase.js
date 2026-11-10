@@ -59,10 +59,13 @@ export const pushCustomerToCloud = async (supabaseClient, cust) => {
             created_by: cust.createdBy || 'ระบบกลาง',
             campaign_month: cust.campaignMonth || new Date().toISOString().substring(0, 7),
             follow_up: cleanFollowUp,
+            follow_up_by_month: cust.followUpByMonth || {},
             notes: cust.notes || '',
             has_deposited: Boolean(cust.hasDeposited),
             returned_deposit_amount: parseFloat(cust.returnedDepositAmount || 0) || 0,
-            referrer: cust.referrer || ''
+            referrer: cust.referrer || '',
+            updated_by: cust.updatedBy || null,
+            updated_at: cust.updatedAt || new Date().toISOString()
         };
 
         let { error } = await supabaseClient
@@ -71,14 +74,27 @@ export const pushCustomerToCloud = async (supabaseClient, cust) => {
 
         if (error) {
             console.warn('Primary upsert notice, retrying with core columns:', error.message);
-            delete payload.referrer;
-            delete payload.line_oa;
-            delete payload.line_lek;
-            delete payload.returned_deposit_amount;
-            delete payload.follow_up_by_month;
-            delete payload.next_follow_up_date;
-            delete payload.updated_by;
-            delete payload.updated_at;
+            const msg = String(error.message || '');
+            if (msg.includes('referrer')) delete payload.referrer;
+            if (msg.includes('line_oa')) delete payload.line_oa;
+            if (msg.includes('line_lek')) delete payload.line_lek;
+            if (msg.includes('returned_deposit_amount')) delete payload.returned_deposit_amount;
+            if (msg.includes('follow_up_by_month')) delete payload.follow_up_by_month;
+            if (msg.includes('next_follow_up_date')) delete payload.next_follow_up_date;
+            if (msg.includes('updated_by')) delete payload.updated_by;
+            if (msg.includes('updated_at')) delete payload.updated_at;
+
+            // If error wasn't a specific column match, fall back to core columns
+            if (msg === error.message && !msg.includes('column')) {
+                delete payload.referrer;
+                delete payload.line_oa;
+                delete payload.line_lek;
+                delete payload.returned_deposit_amount;
+                delete payload.follow_up_by_month;
+                delete payload.next_follow_up_date;
+                delete payload.updated_by;
+                delete payload.updated_at;
+            }
 
             const res = await supabaseClient
                 .from('mc_customers')
