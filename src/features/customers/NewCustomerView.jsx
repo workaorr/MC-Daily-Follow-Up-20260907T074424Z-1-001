@@ -92,12 +92,14 @@ export default function NewCustomerView() {
   // Mode Switch: 'single' (กรอกทีละคน) | 'bulk' (นำเข้าไฟล์ Excel/CSV เฉพาะ Supervisor)
   const [activeTab, setActiveTab] = useState('single');
 
-  // Enforce Supervisor-only permission for Bulk Import
+  // Enforce Supervisor-only permission for Bulk Import (Double Check)
+  const hasSupervisorAccess = Boolean(isSupervisor || activeAgent?.role === 'SUPERVISOR');
+
   React.useEffect(() => {
-    if (!isSupervisor && activeTab === 'bulk') {
+    if (!hasSupervisorAccess && activeTab === 'bulk') {
       setActiveTab('single');
     }
-  }, [isSupervisor, activeTab]);
+  }, [hasSupervisorAccess, activeTab]);
 
   // Bulk Lead Import States
   const [bulkFileName, setBulkFileName] = useState('');
@@ -251,7 +253,7 @@ export default function NewCustomerView() {
 
   // Handle Bulk Lead File Upload & Validation (Supervisor Only)
   const handleBulkFileUpload = (e) => {
-    if (!isSupervisor) {
+    if (!hasSupervisorAccess) {
       alert(lang === 'TH' ? '⚠️ สิทธิ์เฉพาะหัวหน้างาน (Supervisor) เท่านั้นที่สามารถนำเข้าไฟล์ลูกค้าได้' : '⚠️ Supervisor privilege required.');
       return;
     }
@@ -514,7 +516,7 @@ export default function NewCustomerView() {
 
   // Execute Bulk Lead Import (Supervisor Only)
   const handleExecuteBulkImport = async () => {
-    if (!isSupervisor) {
+    if (!hasSupervisorAccess) {
       alert(lang === 'TH' ? '⚠️ สิทธิ์เฉพาะหัวหน้างาน (Supervisor) เท่านั้นที่สามารถนำเข้าไฟล์ลูกค้าได้' : '⚠️ Supervisor privilege required.');
       return;
     }
@@ -822,7 +824,7 @@ export default function NewCustomerView() {
   return (
     <div>
       {/* Top Tab Switcher (Supervisor Only) */}
-      {isSupervisor && (
+      {hasSupervisorAccess && (
         <div style={{ maxWidth: activeTab === 'bulk' && bulkPreviewRows ? '1280px' : '860px', margin: '0 auto 16px auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button
@@ -932,7 +934,7 @@ export default function NewCustomerView() {
       )}
 
       {/* TAB 1: Single Entry Form */}
-      {(!isSupervisor || activeTab === 'single') && (
+      {(!hasSupervisorAccess || activeTab === 'single') && (
         <div id="tour-newcust-panel" className="panel" style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
           <div className="panel-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px' }}>
             <h3 className="panel-title" style={{ fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1301,7 +1303,7 @@ export default function NewCustomerView() {
       )}
 
       {/* TAB 2: Bulk Import (Excel / CSV) - Supervisor Only */}
-      {isSupervisor && activeTab === 'bulk' && (
+      {hasSupervisorAccess && activeTab === 'bulk' && (
         <div className="panel" style={{ maxWidth: bulkPreviewRows ? '1280px' : '860px', margin: '0 auto', width: '100%' }}>
           <div className="panel-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
             <div>
