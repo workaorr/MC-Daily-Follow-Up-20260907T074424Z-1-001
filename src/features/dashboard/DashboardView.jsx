@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { DailyTrendChart } from './DailyTrendChart';
+import { AgentTargetChart } from './AgentTargetChart';
 import { getTodayLocalDateStr, getCurrentMonthStr } from '../../utils/dateFormatters';
 import { exportCustomersToExcel } from '../../utils/exportExcel';
 import { getChannelIcon } from '../../constants/channels';
@@ -898,6 +899,16 @@ export const DashboardView = () => {
             <DailyTrendChart
                 dailyTrendStats={dailyTrendStats}
                 depositMetricMode={depositMetricMode}
+                lang={lang}
+                theme={theme}
+            />
+
+            {/* Agent Actual Deposit vs Individual Target Chart */}
+            <AgentTargetChart
+                agentTargetChartData={agentTargetChartData}
+                depositMetricMode={depositMetricMode}
+                hasSupervisorAccess={hasSupervisorAccess}
+                onOpenTargetModal={() => openTargetModal()}
                 lang={lang}
                 theme={theme}
             />
