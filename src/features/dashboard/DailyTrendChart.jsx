@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { TrendingUp, MessageSquare, Banknote, PhoneCall, Flame, Gem, BarChart3 } from 'lucide-react';
 import { getCurrentMonthStr } from '../../utils/dateFormatters';
 
@@ -10,6 +11,30 @@ export const DailyTrendChart = ({
 }) => {
     const [chartMode, setChartMode] = useState('FUNNEL'); // 'FUNNEL' | 'DEPOSIT' | 'FOLLOWUP'
     const [hoveredDay, setHoveredDay] = useState(null);
+    const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0, placeBelow: false });
+
+    useEffect(() => {
+        if (hoveredDay === null) return;
+        const clearHover = () => setHoveredDay(null);
+        window.addEventListener('scroll', clearHover, { passive: true });
+        return () => window.removeEventListener('scroll', clearHover);
+    }, [hoveredDay]);
+
+    const handleActivateDay = (dayNum, targetEl) => {
+        setHoveredDay(dayNum);
+        if (targetEl && typeof window !== 'undefined') {
+            const rect = targetEl.getBoundingClientRect();
+            const tooltipWidth = 225;
+            const centerX = rect.left + rect.width / 2;
+            const clampedLeft = Math.max(12, Math.min(window.innerWidth - tooltipWidth - 12, centerX - tooltipWidth / 2));
+            const placeBelow = rect.top < 190;
+            setTooltipPos({
+                top: placeBelow ? rect.bottom + 8 : rect.top - 8,
+                left: clampedLeft,
+                placeBelow
+            });
+        }
+    };
 
     const isLight = theme === 'light';
     const curMonthStr = getCurrentMonthStr();
@@ -44,13 +69,6 @@ export const DailyTrendChart = ({
         if (hoveredDay === null) return null;
         return days.find((d) => d.day === hoveredDay) || null;
     }, [days, hoveredDay]);
-
-    const getTooltipHorizontalStyle = (dayNum) => {
-        const totalDays = days.length || 30;
-        if (dayNum <= 6) return { left: '0px', transform: 'none' };
-        if (dayNum >= totalDays - 5) return { right: '0px', left: 'auto', transform: 'none' };
-        return { left: '50%', transform: 'translateX(-50%)' };
-    };
 
     const hasAnyData = (totals.inquiries || 0) > 0 || (totals.depositAmount || 0) > 0 || (totals.followUps || 0) > 0;
 
@@ -334,8 +352,11 @@ export const DailyTrendChart = ({
                                     return (
                                         <div
                                             key={item.day}
-                                            onMouseEnter={() => setHoveredDay(item.day)}
-                                            onClick={() => setHoveredDay(isHovered ? null : item.day)}
+                                            onMouseEnter={(e) => handleActivateDay(item.day, e.currentTarget)}
+                                            onClick={(e) => {
+                                                if (isHovered) setHoveredDay(null);
+                                                else handleActivateDay(item.day, e.currentTarget);
+                                            }}
                                             style={{
                                                 height: '100%',
                                                 display: 'flex',
@@ -353,70 +374,6 @@ export const DailyTrendChart = ({
                                                 transition: 'background 0.15s ease'
                                             }}
                                         >
-                                            {/* Interactive Hover Tooltip */}
-                                            {isHovered && hoveredItem && (
-                                                <div
-                                                    style={{
-                                                        position: 'absolute',
-                                                        bottom: '100%',
-                                                        marginBottom: '8px',
-                                                        zIndex: 50,
-                                                        minWidth: '215px',
-                                                        padding: '10px 12px',
-                                                        borderRadius: '12px',
-                                                        background: isLight ? '#0f172a' : '#020617',
-                                                        color: '#f8fafc',
-                                                        border: '1px solid rgba(168, 85, 247, 0.5)',
-                                                        boxShadow: '0 10px 28px rgba(0, 0, 0, 0.45)',
-                                                        pointerEvents: 'none',
-                                                        fontSize: '11.5px',
-                                                        ...getTooltipHorizontalStyle(item.day)
-                                                    }}
-                                                >
-                                                    <div style={{
-                                                        fontWeight: 800,
-                                                        fontSize: '12px',
-                                                        paddingBottom: '6px',
-                                                        marginBottom: '6px',
-                                                        borderBottom: '1px solid rgba(255,255,255,0.12)',
-                                                        display: 'flex',
-                                                        justifyContent: 'space-between',
-                                                        alignItems: 'center',
-                                                        gap: '8px'
-                                                    }}>
-                                                        <span>📅 {lang === 'TH' ? `วันที่ ${item.day}` : `Day ${item.day}`}</span>
-                                                        <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 600 }}>{item.dateStr}</span>
-                                                    </div>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                                                            <span style={{ color: '#c084fc' }}>🟣 {lang === 'TH' ? 'ทักเข้ามา:' : 'Inquiries:'}</span>
-                                                            <strong>{item.inquiries} {lang === 'TH' ? 'คน' : ''}</strong>
-                                                        </div>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                                                            <span style={{ color: '#38bdf8' }}>🔵 {lang === 'TH' ? 'สมัครแล้ว:' : 'Registered:'}</span>
-                                                            <strong>{item.registered} {lang === 'TH' ? 'คน' : ''}</strong>
-                                                        </div>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                                                            <span style={{ color: '#34d399' }}>🟢 {lang === 'TH' ? 'ปิดฝากได้:' : 'Deposited:'}</span>
-                                                            <strong>
-                                                                {item.depositors} {lang === 'TH' ? 'คน' : ''}
-                                                                {item.registered > 0 ? ` (${item.conversionRate}%)` : ''}
-                                                            </strong>
-                                                        </div>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', paddingTop: '3px', borderTop: '1px dashed rgba(255,255,255,0.12)' }}>
-                                                            <span style={{ color: '#fbbf24' }}>
-                                                                💰 {depositMetricMode === 'FIRST' ? (lang === 'TH' ? 'ยอดฝาก (FTD):' : 'FTD:') : (lang === 'TH' ? 'ยอดฝาก:' : 'Deposit:')}
-                                                            </span>
-                                                            <strong style={{ color: '#fbbf24' }}>฿{item.depositAmount.toLocaleString()}</strong>
-                                                        </div>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                                                            <span style={{ color: '#7dd3fc' }}>📞 {lang === 'TH' ? 'ติ๊กติดตาม:' : 'Follow-ups:'}</span>
-                                                            <strong>{item.followUps} {lang === 'TH' ? 'ครั้ง' : ''}</strong>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-
                                             {/* Bars Render */}
                                             {chartMode === 'FUNNEL' && (
                                                 <div style={{
@@ -584,6 +541,71 @@ export const DailyTrendChart = ({
                     💡 {lang === 'TH' ? 'ชี้หรือแตะที่แท่งกราฟเพื่อดูรายละเอียดรายวัน' : 'Hover or tap any day bar for details'}
                 </span>
             </div>
+
+            {/* Floating Portal Tooltip (Never Clipped by Overflow Containers) */}
+            {hoveredItem && typeof document !== 'undefined' && createPortal(
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: `${tooltipPos.top}px`,
+                        left: `${tooltipPos.left}px`,
+                        transform: tooltipPos.placeBelow ? 'none' : 'translateY(-100%)',
+                        zIndex: 3000,
+                        width: '225px',
+                        padding: '11px 13px',
+                        borderRadius: '12px',
+                        background: isLight ? '#0f172a' : '#020617',
+                        color: '#f8fafc',
+                        border: '1px solid rgba(168, 85, 247, 0.55)',
+                        boxShadow: '0 12px 32px rgba(0, 0, 0, 0.48)',
+                        pointerEvents: 'none',
+                        fontSize: '12px'
+                    }}
+                >
+                    <div style={{
+                        fontWeight: 800,
+                        fontSize: '12.5px',
+                        paddingBottom: '6px',
+                        marginBottom: '6px',
+                        borderBottom: '1px solid rgba(255,255,255,0.14)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}>
+                        <span>📅 {lang === 'TH' ? `วันที่ ${hoveredItem.day}` : `Day ${hoveredItem.day}`}</span>
+                        <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 600 }}>{hoveredItem.dateStr}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                            <span style={{ color: '#c084fc' }}>🟣 {lang === 'TH' ? 'ทักเข้ามา:' : 'Inquiries:'}</span>
+                            <strong>{hoveredItem.inquiries} {lang === 'TH' ? 'คน' : ''}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                            <span style={{ color: '#38bdf8' }}>🔵 {lang === 'TH' ? 'สมัครแล้ว:' : 'Registered:'}</span>
+                            <strong>{hoveredItem.registered} {lang === 'TH' ? 'คน' : ''}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                            <span style={{ color: '#34d399' }}>🟢 {lang === 'TH' ? 'ปิดฝากได้:' : 'Deposited:'}</span>
+                            <strong>
+                                {hoveredItem.depositors} {lang === 'TH' ? 'คน' : ''}
+                                {hoveredItem.registered > 0 ? ` (${hoveredItem.conversionRate}%)` : ''}
+                            </strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', paddingTop: '4px', marginTop: '2px', borderTop: '1px dashed rgba(255,255,255,0.14)' }}>
+                            <span style={{ color: '#fbbf24' }}>
+                                💰 {depositMetricMode === 'FIRST' ? (lang === 'TH' ? 'ยอดฝาก (FTD):' : 'FTD:') : (lang === 'TH' ? 'ยอดฝาก:' : 'Deposit:')}
+                            </span>
+                            <strong style={{ color: '#fbbf24' }}>฿{hoveredItem.depositAmount.toLocaleString()}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                            <span style={{ color: '#7dd3fc' }}>📞 {lang === 'TH' ? 'ติ๊กติดตาม:' : 'Follow-ups:'}</span>
+                            <strong>{hoveredItem.followUps} {lang === 'TH' ? 'ครั้ง' : ''}</strong>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };
