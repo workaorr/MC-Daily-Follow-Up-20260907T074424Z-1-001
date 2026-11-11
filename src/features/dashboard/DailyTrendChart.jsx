@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { TrendingUp, MessageSquare, Banknote, PhoneCall, Flame, Gem, BarChart3 } from 'lucide-react';
+import { TrendingUp, Banknote, PhoneCall, Flame, Gem, BarChart3 } from 'lucide-react';
 import { getCurrentMonthStr } from '../../utils/dateFormatters';
 
 export const DailyTrendChart = ({
@@ -9,7 +9,6 @@ export const DailyTrendChart = ({
     lang = 'TH',
     theme = 'dark'
 }) => {
-    const [chartMode, setChartMode] = useState('FUNNEL'); // 'FUNNEL' | 'DEPOSIT' | 'FOLLOWUP'
     const [hoveredDay, setHoveredDay] = useState(null);
     const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0, placeBelow: false });
 
@@ -24,10 +23,10 @@ export const DailyTrendChart = ({
         setHoveredDay(dayNum);
         if (targetEl && typeof window !== 'undefined') {
             const rect = targetEl.getBoundingClientRect();
-            const tooltipWidth = 225;
+            const tooltipWidth = 230;
             const centerX = rect.left + rect.width / 2;
             const clampedLeft = Math.max(12, Math.min(window.innerWidth - tooltipWidth - 12, centerX - tooltipWidth / 2));
-            const placeBelow = rect.top < 190;
+            const placeBelow = rect.top < 200;
             setTooltipPos({
                 top: placeBelow ? rect.bottom + 8 : rect.top - 8,
                 left: clampedLeft,
@@ -47,22 +46,19 @@ export const DailyTrendChart = ({
     const isCurrentMonth = monthLabel === curMonthStr;
 
     const maxScale = useMemo(() => {
-        if (chartMode === 'DEPOSIT') {
-            return Math.max(1000, peaks.maxDepositAmount || 0);
-        }
-        if (chartMode === 'FOLLOWUP') {
-            return Math.max(5, peaks.maxFollowUps || 0);
-        }
-        return Math.max(5, peaks.maxInquiries || 0, peaks.maxRegistered || 0, peaks.maxDepositors || 0);
-    }, [chartMode, peaks]);
+        return Math.max(
+            5,
+            peaks.maxInquiries || 0,
+            peaks.maxRegistered || 0,
+            peaks.maxDepositors || 0,
+            peaks.maxFollowUps || 0
+        );
+    }, [peaks]);
 
-    const formatYAxisVal = (val) => {
-        if (chartMode === 'DEPOSIT') {
-            if (val >= 1000000) return `฿${(val / 1000000).toFixed(1)}M`;
-            if (val >= 1000) return `฿${Math.round(val / 1000)}k`;
-            return `฿${val}`;
-        }
-        return String(Math.round(val));
+    const formatCompactBaht = (val) => {
+        if (val >= 1000000) return `฿${(val / 1000000).toFixed(1)}M`;
+        if (val >= 1000) return `฿${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}k`;
+        return `฿${val.toLocaleString()}`;
     };
 
     const hoveredItem = useMemo(() => {
@@ -86,7 +82,7 @@ export const DailyTrendChart = ({
                 gap: '16px'
             }}
         >
-            {/* Header & Metric Mode Switcher */}
+            {/* Header & Unified Summary Badges */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -107,8 +103,8 @@ export const DailyTrendChart = ({
                             </h4>
                             <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
                                 {lang === 'TH'
-                                    ? 'แสดงสถิติรายวันตั้งแต่วันที่ 1 ถึงสิ้นเดือน • ชี้ที่แท่งกราฟเพื่อดูรายละเอียด'
-                                    : 'Daily metrics from Day 1 to end of month • Hover bars for daily breakdown'}
+                                    ? 'รวมสถิติทัก • สมัคร • ฝาก • ติ๊กติดตาม และยอดฝาก (฿) ในหน้าเดียว • ชี้แท่งกราฟเพื่อดูรายละเอียด'
+                                    : 'Unified daily Leads, Registrations, Deposits, Follow-ups & Revenue • Hover any day for details'}
                             </span>
                         </div>
                     </div>
@@ -181,83 +177,41 @@ export const DailyTrendChart = ({
                     </div>
                 </div>
 
-                {/* Chart Mode Toggle Tabs */}
-                <div style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '4px',
-                    background: isLight ? '#f1f5f9' : 'rgba(0,0,0,0.45)',
-                    border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: '12px',
-                    padding: '4px'
-                }}>
-                    <button
-                        type="button"
-                        onClick={() => setChartMode('FUNNEL')}
-                        style={{
-                            padding: '6px 12px',
-                            borderRadius: '9px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            background: chartMode === 'FUNNEL' ? 'var(--primary)' : 'transparent',
-                            color: chartMode === 'FUNNEL' ? '#ffffff' : 'var(--text-muted)',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        <MessageSquare size={13} />
-                        <span>{lang === 'TH' ? 'ทัก / สมัคร / ฝาก' : 'Leads / Reg / Dep'}</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setChartMode('DEPOSIT')}
-                        style={{
-                            padding: '6px 12px',
-                            borderRadius: '9px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            background: chartMode === 'DEPOSIT' ? '#10b981' : 'transparent',
-                            color: chartMode === 'DEPOSIT' ? '#ffffff' : 'var(--text-muted)',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        <Banknote size={13} />
-                        <span>
-                            {depositMetricMode === 'FIRST'
-                                ? (lang === 'TH' ? 'ยอดฝากแรก (FTD)' : 'Daily FTD (฿)')
-                                : (lang === 'TH' ? 'ยอดฝากรายวัน (฿)' : 'Daily Deposits (฿)')}
+                {/* Right-side Summary Totals (Deposits & Follow-up Ticks) */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                    <div style={{
+                        padding: '6px 12px',
+                        borderRadius: '10px',
+                        background: isLight ? '#ecfdf5' : 'rgba(16, 185, 129, 0.12)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '12px'
+                    }}>
+                        <Banknote size={15} style={{ color: '#10b981' }} />
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+                            {depositMetricMode === 'FIRST' ? (lang === 'TH' ? 'ยอดฝากแรก:' : 'FTD:') : (lang === 'TH' ? 'ยอดฝากรวม:' : 'Deposits:')}
                         </span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setChartMode('FOLLOWUP')}
-                        style={{
-                            padding: '6px 12px',
-                            borderRadius: '9px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            background: chartMode === 'FOLLOWUP' ? '#0284c7' : 'transparent',
-                            color: chartMode === 'FOLLOWUP' ? '#ffffff' : 'var(--text-muted)',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        <PhoneCall size={13} />
-                        <span>{lang === 'TH' ? 'ติ๊กติดตามรายวัน' : 'Daily Follow-ups'}</span>
-                    </button>
+                        <strong style={{ color: '#10b981', fontWeight: 800 }}>฿{(totals.depositAmount || 0).toLocaleString()}</strong>
+                    </div>
+
+                    <div style={{
+                        padding: '6px 12px',
+                        borderRadius: '10px',
+                        background: isLight ? '#fffbeb' : 'rgba(245, 158, 11, 0.12)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '12px'
+                    }}>
+                        <PhoneCall size={14} style={{ color: '#f59e0b' }} />
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+                            {lang === 'TH' ? 'ติ๊กติดตามรวม:' : 'Follow-ups:'}
+                        </span>
+                        <strong style={{ color: '#f59e0b', fontWeight: 800 }}>{totals.followUps || 0} {lang === 'TH' ? 'ครั้ง' : ''}</strong>
+                    </div>
                 </div>
             </div>
 
@@ -279,14 +233,14 @@ export const DailyTrendChart = ({
             ) : (
                 <div style={{ overflowX: 'auto', paddingBottom: '4px' }}>
                     <div style={{
-                        minWidth: '680px',
+                        minWidth: '720px',
                         position: 'relative',
-                        paddingTop: '14px',
-                        paddingLeft: '46px',
+                        paddingTop: '22px',
+                        paddingLeft: '42px',
                         paddingRight: '8px'
                     }}>
                         {/* Horizontal Grid Lines + Y-Axis Labels */}
-                        <div style={{ position: 'relative', height: '210px', display: 'flex', alignItems: 'flex-end' }}>
+                        <div style={{ position: 'relative', height: '215px', display: 'flex', alignItems: 'flex-end' }}>
                             {[1, 0.5, 0].map((ratio) => {
                                 const topPct = (1 - ratio) * 100;
                                 return (
@@ -294,7 +248,7 @@ export const DailyTrendChart = ({
                                         key={ratio}
                                         style={{
                                             position: 'absolute',
-                                            left: '-46px',
+                                            left: '-42px',
                                             right: 0,
                                             top: `${topPct}%`,
                                             display: 'flex',
@@ -304,7 +258,7 @@ export const DailyTrendChart = ({
                                         }}
                                     >
                                         <span style={{
-                                            width: '40px',
+                                            width: '36px',
                                             textAlign: 'right',
                                             paddingRight: '6px',
                                             fontSize: '10px',
@@ -312,7 +266,7 @@ export const DailyTrendChart = ({
                                             color: 'var(--text-muted)',
                                             transform: 'translateY(-50%)'
                                         }}>
-                                            {formatYAxisVal(maxScale * ratio)}
+                                            {String(Math.round(maxScale * ratio))}
                                         </span>
                                         <div style={{
                                             flex: 1,
@@ -329,7 +283,7 @@ export const DailyTrendChart = ({
                                 style={{
                                     display: 'grid',
                                     gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
-                                    gap: '4px',
+                                    gap: '3px',
                                     width: '100%',
                                     height: '100%',
                                     alignItems: 'flex-end',
@@ -341,12 +295,10 @@ export const DailyTrendChart = ({
                                 {days.map((item) => {
                                     const isHovered = hoveredDay === item.day;
                                     const isToday = isCurrentMonth && item.day === todayDateNum;
-                                    const isPeakDep = chartMode === 'DEPOSIT' && item.day === peaks.maxDepositDay && item.depositAmount > 0;
 
                                     const hInq = item.inquiries > 0 ? Math.max(4, Math.round((item.inquiries / maxScale) * 100)) : 0;
                                     const hReg = item.registered > 0 ? Math.max(4, Math.round((item.registered / maxScale) * 100)) : 0;
                                     const hDepCnt = item.depositors > 0 ? Math.max(4, Math.round((item.depositors / maxScale) * 100)) : 0;
-                                    const hDepAmt = item.depositAmount > 0 ? Math.max(5, Math.round((item.depositAmount / maxScale) * 100)) : 0;
                                     const hFollow = item.followUps > 0 ? Math.max(4, Math.round((item.followUps / maxScale) * 100)) : 0;
 
                                     return (
@@ -374,77 +326,72 @@ export const DailyTrendChart = ({
                                                 transition: 'background 0.15s ease'
                                             }}
                                         >
-                                            {/* Bars Render */}
-                                            {chartMode === 'FUNNEL' && (
+                                            {/* Compact Deposit Amount Tag Above Bar */}
+                                            {item.depositAmount > 0 && (
                                                 <div style={{
-                                                    display: 'flex',
-                                                    alignItems: 'flex-end',
-                                                    justifyContent: 'center',
-                                                    gap: '1.5px',
-                                                    width: '100%',
-                                                    height: '100%',
-                                                    padding: '0 2px'
+                                                    position: 'absolute',
+                                                    top: '-18px',
+                                                    fontSize: '9px',
+                                                    fontWeight: 800,
+                                                    color: isLight ? '#059669' : '#34d399',
+                                                    background: isLight ? '#ecfdf5' : 'rgba(16, 185, 129, 0.15)',
+                                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                                    padding: '0px 4px',
+                                                    borderRadius: '4px',
+                                                    whiteSpace: 'nowrap',
+                                                    pointerEvents: 'none'
                                                 }}>
-                                                    <div style={{
-                                                        width: '30%',
-                                                        maxWidth: '7px',
-                                                        height: `${hInq}%`,
-                                                        minHeight: item.inquiries > 0 ? '4px' : '2px',
-                                                        background: item.inquiries > 0 ? '#a855f7' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.07)'),
-                                                        borderRadius: '3px 3px 0 0',
-                                                        transition: 'height 0.3s ease'
-                                                    }} />
-                                                    <div style={{
-                                                        width: '30%',
-                                                        maxWidth: '7px',
-                                                        height: `${hReg}%`,
-                                                        minHeight: item.registered > 0 ? '4px' : '2px',
-                                                        background: item.registered > 0 ? '#38bdf8' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.07)'),
-                                                        borderRadius: '3px 3px 0 0',
-                                                        transition: 'height 0.3s ease'
-                                                    }} />
-                                                    <div style={{
-                                                        width: '30%',
-                                                        maxWidth: '7px',
-                                                        height: `${hDepCnt}%`,
-                                                        minHeight: item.depositors > 0 ? '4px' : '2px',
-                                                        background: item.depositors > 0 ? '#10b981' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.07)'),
-                                                        borderRadius: '3px 3px 0 0',
-                                                        transition: 'height 0.3s ease'
-                                                    }} />
+                                                    {formatCompactBaht(item.depositAmount)}
                                                 </div>
                                             )}
 
-                                            {chartMode === 'DEPOSIT' && (
+                                            {/* 4 Unified Bars: Inquiries, Registered, Depositors, Follow-up Ticks */}
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'flex-end',
+                                                justifyContent: 'center',
+                                                gap: '1.5px',
+                                                width: '100%',
+                                                height: '100%',
+                                                padding: '0 2px'
+                                            }}>
                                                 <div style={{
-                                                    width: '65%',
-                                                    maxWidth: '16px',
-                                                    height: `${hDepAmt}%`,
-                                                    minHeight: item.depositAmount > 0 ? '5px' : '2px',
-                                                    background: isPeakDep
-                                                        ? 'linear-gradient(180deg, #fbbf24 0%, #10b981 100%)'
-                                                        : item.depositAmount > 0
-                                                            ? 'linear-gradient(180deg, #34d399 0%, #059669 100%)'
-                                                            : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.07)'),
-                                                    borderRadius: '4px 4px 0 0',
-                                                    boxShadow: isPeakDep ? '0 0 10px rgba(251, 191, 36, 0.45)' : 'none',
+                                                    width: '22%',
+                                                    maxWidth: '6px',
+                                                    height: `${hInq}%`,
+                                                    minHeight: item.inquiries > 0 ? '4px' : '2px',
+                                                    background: item.inquiries > 0 ? '#a855f7' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.07)'),
+                                                    borderRadius: '3px 3px 0 0',
                                                     transition: 'height 0.3s ease'
                                                 }} />
-                                            )}
-
-                                            {chartMode === 'FOLLOWUP' && (
                                                 <div style={{
-                                                    width: '65%',
-                                                    maxWidth: '16px',
+                                                    width: '22%',
+                                                    maxWidth: '6px',
+                                                    height: `${hReg}%`,
+                                                    minHeight: item.registered > 0 ? '4px' : '2px',
+                                                    background: item.registered > 0 ? '#38bdf8' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.07)'),
+                                                    borderRadius: '3px 3px 0 0',
+                                                    transition: 'height 0.3s ease'
+                                                }} />
+                                                <div style={{
+                                                    width: '22%',
+                                                    maxWidth: '6px',
+                                                    height: `${hDepCnt}%`,
+                                                    minHeight: item.depositors > 0 ? '4px' : '2px',
+                                                    background: item.depositors > 0 ? '#10b981' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.07)'),
+                                                    borderRadius: '3px 3px 0 0',
+                                                    transition: 'height 0.3s ease'
+                                                }} />
+                                                <div style={{
+                                                    width: '22%',
+                                                    maxWidth: '6px',
                                                     height: `${hFollow}%`,
                                                     minHeight: item.followUps > 0 ? '4px' : '2px',
-                                                    background: item.followUps > 0
-                                                        ? 'linear-gradient(180deg, #38bdf8 0%, #6366f1 100%)'
-                                                        : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.07)'),
-                                                    borderRadius: '4px 4px 0 0',
+                                                    background: item.followUps > 0 ? '#f59e0b' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.07)'),
+                                                    borderRadius: '3px 3px 0 0',
                                                     transition: 'height 0.3s ease'
                                                 }} />
-                                            )}
+                                            </div>
                                         </div>
                                     );
                                 })}
@@ -455,7 +402,7 @@ export const DailyTrendChart = ({
                         <div style={{
                             display: 'grid',
                             gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
-                            gap: '4px',
+                            gap: '3px',
                             marginTop: '6px'
                         }}>
                             {days.map((item) => {
@@ -488,7 +435,7 @@ export const DailyTrendChart = ({
                 </div>
             )}
 
-            {/* Legend & Hint Footer */}
+            {/* Unified Legend & Hint Footer */}
             <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -501,44 +448,26 @@ export const DailyTrendChart = ({
                 color: 'var(--text-muted)'
             }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center' }}>
-                    {chartMode === 'FUNNEL' && (
-                        <>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#a855f7', display: 'inline-block' }} />
-                                <span>{lang === 'TH' ? `ทักทั้งหมด (${totals.inquiries || 0})` : `Inquiries (${totals.inquiries || 0})`}</span>
-                            </span>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#38bdf8', display: 'inline-block' }} />
-                                <span>{lang === 'TH' ? `สมัครแล้ว (${totals.registered || 0})` : `Registered (${totals.registered || 0})`}</span>
-                            </span>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#10b981', display: 'inline-block' }} />
-                                <span>{lang === 'TH' ? `ฝากแล้ว (${totals.depositors || 0})` : `Deposited (${totals.depositors || 0})`}</span>
-                            </span>
-                        </>
-                    )}
-                    {chartMode === 'DEPOSIT' && (
-                        <>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#10b981', display: 'inline-block' }} />
-                                <span>{lang === 'TH' ? `ยอดฝากรายวัน (รวม ฿${(totals.depositAmount || 0).toLocaleString()})` : `Daily Deposits (Total ฿${(totals.depositAmount || 0).toLocaleString()})`}</span>
-                            </span>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#fbbf24', display: 'inline-block' }} />
-                                <span>{lang === 'TH' ? 'วันที่ยอดฝากสูงสุด' : 'Peak Deposit Day'}</span>
-                            </span>
-                        </>
-                    )}
-                    {chartMode === 'FOLLOWUP' && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#38bdf8', display: 'inline-block' }} />
-                            <span>{lang === 'TH' ? `จำนวนครั้งที่ติ๊กติดตามลูกค้า (รวม ${totals.followUps || 0} ครั้ง)` : `Daily Follow-up Checkmarks (Total ${totals.followUps || 0})`}</span>
-                        </span>
-                    )}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#a855f7', display: 'inline-block' }} />
+                        <span>{lang === 'TH' ? `ทักทั้งหมด (${totals.inquiries || 0})` : `Inquiries (${totals.inquiries || 0})`}</span>
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#38bdf8', display: 'inline-block' }} />
+                        <span>{lang === 'TH' ? `สมัครแล้ว (${totals.registered || 0})` : `Registered (${totals.registered || 0})`}</span>
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#10b981', display: 'inline-block' }} />
+                        <span>{lang === 'TH' ? `ฝากแล้ว (${totals.depositors || 0})` : `Deposited (${totals.depositors || 0})`}</span>
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#f59e0b', display: 'inline-block' }} />
+                        <span>{lang === 'TH' ? `ติ๊กติดตาม (${totals.followUps || 0} ครั้ง)` : `Follow-ups (${totals.followUps || 0})`}</span>
+                    </span>
                 </div>
 
                 <span>
-                    💡 {lang === 'TH' ? 'ชี้หรือแตะที่แท่งกราฟเพื่อดูรายละเอียดรายวัน' : 'Hover or tap any day bar for details'}
+                    💡 {lang === 'TH' ? 'ชี้หรือแตะที่แท่งกราฟเพื่อดูรายละเอียดและยอดฝากรายวัน' : 'Hover or tap any day bar for daily details & revenue'}
                 </span>
             </div>
 
@@ -551,7 +480,7 @@ export const DailyTrendChart = ({
                         left: `${tooltipPos.left}px`,
                         transform: tooltipPos.placeBelow ? 'none' : 'translateY(-100%)',
                         zIndex: 3000,
-                        width: '225px',
+                        width: '230px',
                         padding: '11px 13px',
                         borderRadius: '12px',
                         background: isLight ? '#0f172a' : '#020617',
@@ -592,15 +521,15 @@ export const DailyTrendChart = ({
                                 {hoveredItem.registered > 0 ? ` (${hoveredItem.conversionRate}%)` : ''}
                             </strong>
                         </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                            <span style={{ color: '#fbbf24' }}>🟠 {lang === 'TH' ? 'ติ๊กติดตาม:' : 'Follow-ups:'}</span>
+                            <strong>{hoveredItem.followUps} {lang === 'TH' ? 'ครั้ง' : ''}</strong>
+                        </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', paddingTop: '4px', marginTop: '2px', borderTop: '1px dashed rgba(255,255,255,0.14)' }}>
-                            <span style={{ color: '#fbbf24' }}>
+                            <span style={{ color: '#34d399' }}>
                                 💰 {depositMetricMode === 'FIRST' ? (lang === 'TH' ? 'ยอดฝาก (FTD):' : 'FTD:') : (lang === 'TH' ? 'ยอดฝาก:' : 'Deposit:')}
                             </span>
                             <strong style={{ color: '#fbbf24' }}>฿{hoveredItem.depositAmount.toLocaleString()}</strong>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                            <span style={{ color: '#7dd3fc' }}>📞 {lang === 'TH' ? 'ติ๊กติดตาม:' : 'Follow-ups:'}</span>
-                            <strong>{hoveredItem.followUps} {lang === 'TH' ? 'ครั้ง' : ''}</strong>
                         </div>
                     </div>
                 </div>,
