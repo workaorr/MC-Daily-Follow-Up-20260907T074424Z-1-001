@@ -1,5 +1,6 @@
 export * from './auth.js';
 export * from './customerFormatters.js';
+export * from './dailyStats.js';
 export * from './dateFormatters.js';
 export * from './depositMatcher.js';
 export * from './duplicateDetector.js';

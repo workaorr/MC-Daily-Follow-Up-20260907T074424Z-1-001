@@ -1,10 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
+import { DailyTrendChart } from './DailyTrendChart';
 import { getTodayLocalDateStr, getCurrentMonthStr } from '../../utils/dateFormatters';
 import { exportCustomersToExcel } from '../../utils/exportExcel';
 import { getChannelIcon } from '../../constants/channels';
 import { formatChannelDisplayName } from '../../utils/customerFormatters';
+import { 
+    buildDailyTrendStats, 
+    buildAgentTargetComparisonData, 
+    getCustomerDepositAmount 
+} from '../../utils/dailyStats.js';
 import { 
     Calendar, 
     FileSpreadsheet, 
@@ -62,17 +68,6 @@ export const DashboardView = () => {
 
     const hasSupervisorAccess = Boolean(isSupervisor || activeAgent?.role === 'SUPERVISOR');
 
-    // Helper: Get customer deposit amount by metric mode ('TOTAL' | 'FIRST')
-    const getCustDepositAmt = (c, mode) => {
-        if (!c || !c.hasDeposited) return 0;
-        if (mode === 'FIRST') {
-            const ftd = parseFloat(c.returnedDepositAmount || 0);
-            if (!isNaN(ftd) && ftd > 0) return ftd;
-        }
-        const total = parseFloat(c.totalDeposit || 0);
-        return isNaN(total) ? 0 : total;
-    };
-
     // Dynamic campaign months list from customers
     const monthsList = useMemo(() => {
         const set = new Set();
@@ -117,7 +112,7 @@ export const DashboardView = () => {
     const pendingDepPct = totalReg > 0 ? Math.round((totalNotDeposited / totalReg) * 100) : 0;
 
     const displayDepositValue = useMemo(() => {
-        return filteredCustomers.reduce((acc, c) => acc + getCustDepositAmt(c, depositMetricMode), 0);
+        return filteredCustomers.reduce((acc, c) => acc + getCustomerDepositAmount(c, depositMetricMode), 0);
     }, [filteredCustomers, depositMetricMode]);
 
     // Helper: get monthly target for an agent (specific month or sum across all months if ALL)
@@ -162,8 +157,8 @@ export const DashboardView = () => {
             const contactedRegistered = agCusts.filter(c => c.username && c.username.trim()).length;
             const registeredAndDeposited = agCusts.filter(c => c.hasDeposited).length;
             const registeredNotDeposited = Math.max(0, contactedRegistered - registeredAndDeposited);
-            const totalDeposit = agCusts.reduce((acc, c) => acc + getCustDepositAmt(c, 'TOTAL'), 0);
-            const firstDeposit = agCusts.reduce((acc, c) => acc + getCustDepositAmt(c, 'FIRST'), 0);
+            const totalDeposit = agCusts.reduce((acc, c) => acc + getCustomerDepositAmount(c, 'TOTAL'), 0);
+            const firstDeposit = agCusts.reduce((acc, c) => acc + getCustomerDepositAmount(c, 'FIRST'), 0);
             const activeDeposit = depositMetricMode === 'FIRST' ? firstDeposit : totalDeposit;
             const monthlyTarget = getAgentTargetForView(ag);
             const targetPct = monthlyTarget > 0 ? Math.round((activeDeposit / monthlyTarget) * 100) : 0;
@@ -279,11 +274,24 @@ export const DashboardView = () => {
                 map[ch] = { name: ch, count: 0, totalDeposit: 0, firstDeposit: 0 };
             }
             map[ch].count += 1;
-            map[ch].totalDeposit += getCustDepositAmt(c, 'TOTAL');
-            map[ch].firstDeposit += getCustDepositAmt(c, 'FIRST');
+            map[ch].totalDeposit += getCustomerDepositAmount(c, 'TOTAL');
+            map[ch].firstDeposit += getCustomerDepositAmount(c, 'FIRST');
         });
         return Object.values(map).sort((a, b) => b.count - a.count || b.totalDeposit - a.totalDeposit);
     }, [depositedCustList]);
+
+    // Daily Trend Statistics (Day 1 to End of Month)
+    const dailyTrendStats = useMemo(() => {
+        return buildDailyTrendStats(customers, selectedMonth, depositMetricMode, {
+            startDateFilter,
+            endDateFilter
+        });
+    }, [customers, selectedMonth, depositMetricMode, startDateFilter, endDateFilter]);
+
+    // Agent Actual vs Target Chart Data
+    const agentTargetChartData = useMemo(() => {
+        return buildAgentTargetComparisonData(agentStats, depositMetricMode);
+    }, [agentStats, depositMetricMode]);
 
     const isUsingDefaultPasscode = activeAgent?.passcode === '1234';
 
@@ -885,6 +893,14 @@ export const DashboardView = () => {
                     </div>
                 )}
             </div>
+
+            {/* Daily Trend Chart (Day 1 to End of Month) */}
+            <DailyTrendChart
+                dailyTrendStats={dailyTrendStats}
+                depositMetricMode={depositMetricMode}
+                lang={lang}
+                theme={theme}
+            />
 
             {/* 2-Column: Top 3 Closers & Top Channels */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '16px' }}>
