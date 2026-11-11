@@ -231,6 +231,13 @@ export function buildAgentTargetComparisonData(agentStats = [], depositMetricMod
                 : (Number(ag.totalDeposit) || 0);
             const targetAmount = Number(ag.monthlyTarget) || 0;
             const pct = targetAmount > 0 ? Math.round((actualDeposit / targetAmount) * 100) : 0;
+            const inquiriesCount = Number(ag.totalContacted) || 0;
+            const notRegisteredCount = Number(ag.contactedNotRegistered) || 0;
+            const registeredCount = Number(ag.contactedRegistered) || 0;
+            const depositorsCount = Number(ag.registeredAndDeposited) || 0;
+            const pendingDepositCount = Number(ag.registeredNotDeposited) || 0;
+            const conversionRate = registeredCount > 0 ? Math.round((depositorsCount / registeredCount) * 100) : 0;
+
             return {
                 name: ag.name,
                 role: ag.role || 'AGENT',
@@ -239,9 +246,18 @@ export function buildAgentTargetComparisonData(agentStats = [], depositMetricMod
                 pct,
                 remaining: Math.max(0, targetAmount - actualDeposit),
                 isExceeded: targetAmount > 0 && actualDeposit >= targetAmount,
-                inquiriesCount: Number(ag.totalContacted) || 0,
-                depositorsCount: Number(ag.registeredAndDeposited) || 0
+                inquiriesCount,
+                notRegisteredCount,
+                registeredCount,
+                depositorsCount,
+                pendingDepositCount,
+                conversionRate
             };
         })
-        .sort((a, b) => b.actualDeposit - a.actualDeposit || b.targetAmount - a.targetAmount);
+        .sort((a, b) =>
+            b.actualDeposit - a.actualDeposit ||
+            b.depositorsCount - a.depositorsCount ||
+            b.targetAmount - a.targetAmount ||
+            b.inquiriesCount - a.inquiriesCount
+        );
 }

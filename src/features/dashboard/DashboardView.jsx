@@ -22,11 +22,8 @@ import {
     AlertCircle, 
     Banknote, 
     Sparkles, 
-    Trophy, 
-    Award, 
     Share2, 
     Filter, 
-    PieChart,
     ShieldAlert,
     Target,
     Pencil,
@@ -252,15 +249,6 @@ export const DashboardView = () => {
             setIsSavingTargets(false);
         }
     };
-
-    // Top 3 agents ranking
-    const top3Agents = useMemo(() => {
-        return [...agentStats]
-            .sort((a, b) => b.registeredAndDeposited - a.registeredAndDeposited || b.activeDeposit - a.activeDeposit)
-            .slice(0, 3);
-    }, [agentStats]);
-
-    const hasAnyTopAgentDeposits = top3Agents.some(a => a.registeredAndDeposited > 0);
 
     // Channel ranking for depositors
     const depositedCustList = useMemo(() => {
@@ -913,311 +901,99 @@ export const DashboardView = () => {
                 theme={theme}
             />
 
-            {/* 2-Column: Top 3 Closers & Top Channels */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '16px' }}>
-                {/* Top 3 Closers */}
-                <div className="panel" style={{ padding: '20px', borderRadius: '16px', background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(168, 85, 247, 0.3)', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{ padding: '8px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.35)' }}>
-                                <Trophy size={20} />
-                            </div>
-                            <div>
-                                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.2px' }}>
-                                    {lang === 'TH' ? '🏆 KPI พนักงานตามลูกค้ามาฝากได้ 3 อันดับ' : '🏆 Top 3 Deposit Closers (MC)'}
-                                </h4>
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                    {lang === 'TH' ? 'จัดอันดับพนักงาน MC ที่ปิดยอดฝากสำเร็จสูงสุด' : 'Ranking MC agents with highest deposit conversions'}
-                                </span>
-                            </div>
+            {/* Top Depositing Channels (Full-Width Responsive Card) */}
+            <div className="panel" style={{ padding: '20px 22px', borderRadius: '16px', background: theme === 'light' ? '#ffffff' : 'rgba(15, 23, 42, 0.85)', border: '1px solid rgba(16, 185, 129, 0.3)', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ padding: '8px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
+                            <Share2 size={20} />
                         </div>
-                        <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 10px', borderRadius: '10px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.35)' }}>
-                            Top Closers
-                        </span>
+                        <div>
+                            <h4 style={{ margin: 0, fontSize: '15.5px', fontWeight: 800, color: theme === 'light' ? '#0f172a' : '#f8fafc', letterSpacing: '-0.2px' }}>
+                                {lang === 'TH' ? '📊 อันดับช่องทางสมัครของลูกค้าที่ฝากเงิน' : '📊 Top Depositing Channels'}
+                            </h4>
+                            <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                                {lang === 'TH' ? 'เรียงอันดับช่องทางที่ลูกค้าเข้ามาและมียอดฝากจริง' : 'Acquisition channels by confirmed deposits'}
+                            </span>
+                        </div>
                     </div>
+                    <span style={{ fontSize: '11.5px', fontWeight: 800, padding: '4px 12px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
+                        {depositedCustList.length} {lang === 'TH' ? 'คนฝากเงิน' : 'Depositors'}
+                    </span>
+                </div>
 
-                    {!hasAnyTopAgentDeposits ? (
-                        <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)', fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                            <Award size={28} style={{ opacity: 0.5 }} />
-                            <span>{lang === 'TH' ? 'ยังไม่มีข้อมูลพนักงานที่ตามลูกค้ามาฝากสำเร็จในช่วงเวลานี้' : 'No successful deposit conversions recorded in this period'}</span>
-                        </div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {top3Agents.map((ag, rankIdx) => {
-                                const medals = lang === 'TH' ? ['🥇 อันดับ 1', '🥈 อันดับ 2', '🥉 อันดับ 3'] : ['🥇 1st Place', '🥈 2nd Place', '🥉 3rd Place'];
-                                const badgeGradients = [
-                                    'linear-gradient(135deg, #f59e0b, #d97706)',
-                                    'linear-gradient(135deg, #94a3b8, #64748b)',
-                                    'linear-gradient(135deg, #d97706, #b45309)'
-                                ];
-                                const crPercent = ag.contactedRegistered > 0 ? Math.round((ag.registeredAndDeposited / ag.contactedRegistered) * 100) : 0;
+                {rankedDepositChannels.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)', fontSize: '12.5px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                        <Filter size={28} style={{ opacity: 0.5 }} />
+                        <span>{lang === 'TH' ? 'ยังไม่มีข้อมูลลูกค้าที่มียอดฝากจากช่องทางใดในช่วงเวลานี้' : 'No channel deposit records in this period'}</span>
+                    </div>
+                ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '10px' }}>
+                        {rankedDepositChannels.slice(0, 6).map((ch, idx) => {
+                            const totalDep = Math.max(1, depositedCustList.length);
+                            const pct = Math.round((ch.count / totalDep) * 100);
+                            const dispAmt = depositMetricMode === 'FIRST' ? ch.firstDeposit : ch.totalDeposit;
 
-                                return (
-                                    <div 
-                                        key={ag.name} 
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between',
-                                            padding: '12px 14px',
-                                            borderRadius: '12px',
-                                            background: 'rgba(255, 255, 255, 0.03)',
-                                            border: '1px solid rgba(255, 255, 255, 0.08)',
-                                            gap: '12px'
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '130px' }}>
+                            return (
+                                <div 
+                                    key={ch.name} 
+                                    style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '7px',
+                                        padding: '11px 14px',
+                                        borderRadius: '12px',
+                                        background: theme === 'light' ? '#f8fafc' : 'rgba(255, 255, 255, 0.02)',
+                                        border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255, 255, 255, 0.06)'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                             <span style={{
-                                                fontSize: '11px',
-                                                fontWeight: 800,
-                                                padding: '4px 8px',
-                                                borderRadius: '8px',
-                                                background: badgeGradients[rankIdx] || badgeGradients[2],
+                                                fontSize: '10.5px',
+                                                fontWeight: 900,
+                                                width: '22px',
+                                                height: '22px',
+                                                borderRadius: '6px',
+                                                background: idx === 0 ? '#10b981' : idx === 1 ? '#0284c7' : idx === 2 ? '#d97706' : '#6366f1',
                                                 color: '#ffffff',
-                                                whiteSpace: 'nowrap'
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
                                             }}>
-                                                {medals[rankIdx]}
+                                                #{idx + 1}
                                             </span>
-                                            <div>
-                                                <div style={{ fontWeight: 800, fontSize: '13.5px', color: theme === 'light' ? '#0f172a' : '#f8fafc' }}>
-                                                    {ag.name}
-                                                </div>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                                    {lang === 'TH' ? 'อัตราสำเร็จ: ' : 'Success: '}<strong style={{ color: '#34d399' }}>{crPercent}%</strong>
-                                                </div>
-                                            </div>
+                                            <span style={{ fontSize: '13px' }}>{getChannelIcon(ch.name)}</span>
+                                            <span style={{ fontSize: '13px', fontWeight: 700, color: theme === 'light' ? '#0f172a' : '#f8fafc' }}>
+                                                {formatChannelDisplayName(ch.name, lang)}
+                                            </span>
                                         </div>
 
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', textAlign: 'right' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'right' }}>
                                             <div>
-                                                <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>{lang === 'TH' ? 'ตามฝากสำเร็จ' : 'Deposited'}</div>
-                                                <div style={{ fontSize: '16px', fontWeight: 900, color: '#34d399' }}>
-                                                    {ag.registeredAndDeposited} <span style={{ fontSize: '11px', fontWeight: 600 }}>{lang === 'TH' ? 'คน' : 'leads'}</span>
-                                                </div>
+                                                <span style={{ fontSize: '13.5px', fontWeight: 900, color: '#10b981' }}>
+                                                    {ch.count} <span style={{ fontSize: '10.5px', fontWeight: 600 }}>{lang === 'TH' ? 'คน' : 'leads'}</span>
+                                                </span>
+                                                <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                                                    ({pct}%)
+                                                </span>
                                             </div>
-                                            <div style={{ borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: '14px', minWidth: '95px' }}>
-                                                <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
-                                                    {depositMetricMode === 'FIRST' ? (lang === 'TH' ? 'ยอดฝาก (FTD)' : 'FTD') : (lang === 'TH' ? 'ยอดสะสม' : 'Total')}
-                                                </div>
-                                                <div style={{ fontSize: '14px', fontWeight: 800, color: '#fbbf24' }}>
-                                                    ฿{ag.activeDeposit.toLocaleString()}
-                                                </div>
+                                            <div style={{ minWidth: '85px', borderLeft: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', paddingLeft: '12px' }}>
+                                                <span style={{ fontSize: '13px', fontWeight: 800, color: '#f59e0b' }}>
+                                                    ฿{dispAmt.toLocaleString()}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
 
-                {/* Top Channels */}
-                <div className="panel" style={{ padding: '20px', borderRadius: '16px', background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(16, 185, 129, 0.3)', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{ padding: '8px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
-                                <Share2 size={20} />
-                            </div>
-                            <div>
-                                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.2px' }}>
-                                    {lang === 'TH' ? '📊 อันดับช่องทางสมัครของลูกค้าที่ฝากเงิน' : '📊 Top Depositing Channels'}
-                                </h4>
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                    {lang === 'TH' ? 'เรียงอันดับช่องทางที่ลูกค้าเข้ามาและมียอดฝากจริง' : 'Acquisition channels by confirmed deposits'}
-                                </span>
-                            </div>
-                        </div>
-                        <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 10px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
-                            {depositedCustList.length} {lang === 'TH' ? 'คนฝากเงิน' : 'Depositors'}
-                        </span>
+                                    <div style={{ width: '100%', height: '6px', background: theme === 'light' ? '#e2e8f0' : 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
+                                        <div style={{ width: `${Math.max(5, pct)}%`, height: '100%', background: idx === 0 ? '#10b981' : '#38bdf8', borderRadius: '3px' }}></div>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
-
-                    {rankedDepositChannels.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)', fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                            <Filter size={28} style={{ opacity: 0.5 }} />
-                            <span>{lang === 'TH' ? 'ยังไม่มีข้อมูลลูกค้าที่มียอดฝากจากช่องทางใดในช่วงเวลานี้' : 'No channel deposit records in this period'}</span>
-                        </div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {rankedDepositChannels.slice(0, 5).map((ch, idx) => {
-                                const totalDep = Math.max(1, depositedCustList.length);
-                                const pct = Math.round((ch.count / totalDep) * 100);
-                                const dispAmt = depositMetricMode === 'FIRST' ? ch.firstDeposit : ch.totalDeposit;
-
-                                return (
-                                    <div 
-                                        key={ch.name} 
-                                        style={{
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '6px',
-                                            padding: '10px 12px',
-                                            borderRadius: '12px',
-                                            background: 'rgba(255, 255, 255, 0.02)',
-                                            border: '1px solid rgba(255, 255, 255, 0.06)'
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <span style={{
-                                                    fontSize: '10.5px',
-                                                    fontWeight: 900,
-                                                    width: '20px',
-                                                    height: '20px',
-                                                    borderRadius: '6px',
-                                                    background: idx === 0 ? '#10b981' : idx === 1 ? '#0284c7' : idx === 2 ? '#d97706' : '#6366f1',
-                                                    color: '#ffffff',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center'
-                                                }}>
-                                                    #{idx + 1}
-                                                </span>
-                                                <span style={{ fontSize: '13px' }}>{getChannelIcon(ch.name)}</span>
-                                                <span style={{ fontSize: '12.5px', fontWeight: 700, color: theme === 'light' ? '#0f172a' : '#f8fafc' }}>
-                                                    {formatChannelDisplayName(ch.name, lang)}
-                                                </span>
-                                            </div>
-
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'right' }}>
-                                                <div>
-                                                    <span style={{ fontSize: '13.5px', fontWeight: 900, color: '#34d399' }}>
-                                                        {ch.count} <span style={{ fontSize: '10.5px', fontWeight: 600 }}>{lang === 'TH' ? 'คน' : 'leads'}</span>
-                                                    </span>
-                                                    <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginLeft: '4px' }}>
-                                                        ({pct}%)
-                                                    </span>
-                                                </div>
-                                                <div style={{ minWidth: '85px', borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: '12px' }}>
-                                                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#fbbf24' }}>
-                                                        ฿{dispAmt.toLocaleString()}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div style={{ width: '100%', height: '5px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
-                                            <div style={{ width: `${Math.max(5, pct)}%`, height: '100%', background: idx === 0 ? '#10b981' : '#38bdf8', borderRadius: '3px' }}></div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Individual MC Agent Workload & Performance Table */}
-            <div className="panel">
-                <div className="panel-header" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                    <h3 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-                        <PieChart size={18} />
-                        <span>{lang === 'TH' ? 'รายงานสถิติยอดติดตามและความสำเร็จแยกตามรายบุคคล' : 'Individual Follow-up & Performance Statistics Report'}</span>
-                    </h3>
-                    {hasSupervisorAccess && (
-                        <button
-                            type="button"
-                            onClick={() => openTargetModal()}
-                            className="btn btn-secondary"
-                            style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', color: theme === 'light' ? '#6d28d9' : '#d8b4fe', borderColor: 'rgba(168, 85, 247, 0.35)' }}
-                        >
-                            <Target size={14} style={{ color: '#a855f7' }} />
-                            <span>{lang === 'TH' ? 'กำหนดเป้ารายบุคคล' : 'Set Individual Targets'}</span>
-                        </button>
-                    )}
-                </div>
-                <div id="tour-customer-table" className="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style={{ color: '#f8fafc' }}>{lang === 'TH' ? 'รายชื่อพนักงาน MC' : 'MC Agent Name'}</th>
-                                <th style={{ textAlign: 'center', color: '#f8fafc' }}>{lang === 'TH' ? '1. จำนวนทัก' : '1. Inquiries'}</th>
-                                <th style={{ textAlign: 'center', color: '#fde047' }}>{lang === 'TH' ? '2. ทักแต่ไม่สมัคร' : '2. Inquired (Not Reg)'}</th>
-                                <th style={{ textAlign: 'center', color: '#60a5fa' }}>{lang === 'TH' ? '3. ทักสมัคร' : '3. Registered'}</th>
-                                <th style={{ textAlign: 'center', color: '#34d399' }}>{lang === 'TH' ? '4. สมัครและฝาก' : '4. Reg & Deposited'}</th>
-                                <th style={{ textAlign: 'center', color: '#fb7185' }}>{lang === 'TH' ? '5. สมัครไม่ฝาก' : '5. Reg (No Deposit)'}</th>
-                                <th style={{ textAlign: 'right', color: '#fbbf24' }}>
-                                    {depositMetricMode === 'FIRST' ? (lang === 'TH' ? 'ยอดฝาก (FTD)' : 'FTD') : (lang === 'TH' ? 'ยอดฝากสะสมรวม' : 'Total Deposits')}
-                                </th>
-                                <th style={{ textAlign: 'center', color: '#d8b4fe' }}>{lang === 'TH' ? 'เป้าหมาย & ความคืบหน้า' : 'Target & Progress'}</th>
-                                <th style={{ textAlign: 'center', color: '#c084fc' }}>{lang === 'TH' ? 'อัตราสำเร็จ (MC%)' : 'Success Rate (%)'}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {agentStats.map((stat, idx) => {
-                                const percent = stat.contactedRegistered > 0 ? Math.round((stat.registeredAndDeposited / stat.contactedRegistered) * 100) : 0;
-                                return (
-                                    <tr key={idx}>
-                                        <td style={{ fontWeight: 700, color: theme === 'light' ? '#0f172a' : '#f8fafc', fontSize: '13.5px' }}>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                                                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#c084fc', display: 'inline-block' }}></span>
-                                                <span>{stat.name}</span>
-                                            </span>
-                                        </td>
-                                        <td style={{ textAlign: 'center' }}><strong>{stat.totalContacted} {lang === 'TH' ? 'คน' : ''}</strong></td>
-                                        <td style={{ textAlign: 'center', color: '#fde047' }}><strong>{stat.contactedNotRegistered} {lang === 'TH' ? 'คน' : ''}</strong></td>
-                                        <td style={{ textAlign: 'center', color: '#60a5fa' }}><strong>{stat.contactedRegistered} {lang === 'TH' ? 'คน' : ''}</strong></td>
-                                        <td style={{ textAlign: 'center', color: '#34d399' }}><strong>{stat.registeredAndDeposited} {lang === 'TH' ? 'คน' : ''}</strong></td>
-                                        <td style={{ textAlign: 'center', color: '#fb7185' }}><strong>{stat.registeredNotDeposited} {lang === 'TH' ? 'คน' : ''}</strong></td>
-                                        <td style={{ textAlign: 'right', color: '#34d399' }}>
-                                            <div><strong>฿{stat.activeDeposit.toLocaleString()}</strong></div>
-                                        </td>
-                                        <td>
-                                            {stat.monthlyTarget > 0 ? (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '130px' }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
-                                                        <span style={{ color: 'var(--text-muted)' }}>เป้า ฿{stat.monthlyTarget.toLocaleString()}</span>
-                                                        <strong style={{ color: stat.targetPct >= 100 ? '#10b981' : stat.targetPct >= 50 ? '#38bdf8' : '#f59e0b' }}>
-                                                            {stat.targetPct}%
-                                                        </strong>
-                                                    </div>
-                                                    <div style={{ width: '100%', height: '6px', background: theme === 'light' ? '#e2e8f0' : 'rgba(255,255,255,0.08)', borderRadius: '999px', overflow: 'hidden' }}>
-                                                        <div style={{
-                                                            width: `${Math.min(100, Math.max(0, stat.targetPct))}%`,
-                                                            height: '100%',
-                                                            background: stat.targetPct >= 100 ? '#10b981' : stat.targetPct >= 50 ? '#38bdf8' : '#f59e0b',
-                                                            borderRadius: '999px'
-                                                        }} />
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div style={{ textAlign: 'center' }}>
-                                                    {hasSupervisorAccess ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openTargetModal()}
-                                                            style={{
-                                                                background: 'transparent',
-                                                                border: '1px dashed rgba(168, 85, 247, 0.4)',
-                                                                color: '#c084fc',
-                                                                fontSize: '11px',
-                                                                padding: '2px 8px',
-                                                                borderRadius: '8px',
-                                                                cursor: 'pointer'
-                                                            }}
-                                                        >
-                                                            + {lang === 'TH' ? 'ตั้งเป้า' : 'Set'}
-                                                        </button>
-                                                    ) : (
-                                                        <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                                                <div style={{ width: '60px', height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
-                                                    <div style={{ width: `${percent}%`, height: '100%', background: 'linear-gradient(to right, #a855f7, #10b981)' }}></div>
-                                                </div>
-                                                <span style={{ fontSize: '11px', color: theme === 'light' ? '#0f172a' : '#f8fafc', fontWeight: 700 }}>{percent}%</span>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
+                )}
             </div>
 
             {/* Monthly Deposit Target Setting Modal (Supervisor Only) */}

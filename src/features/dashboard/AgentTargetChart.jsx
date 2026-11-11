@@ -28,6 +28,18 @@ export const AgentTargetChart = ({
         return agentTargetChartData.filter((r) => r.actualDeposit > 0 || r.targetAmount > 0);
     }, [agentTargetChartData, showOnlyWithTargetOrDeposit]);
 
+    // Rank order map among agents who have closed at least 1 deposit (for Top 3 medals)
+    const topCloserRankMap = useMemo(() => {
+        const ranked = [...agentTargetChartData]
+            .filter((r) => r.depositorsCount > 0 || r.actualDeposit > 0)
+            .sort((a, b) => b.actualDeposit - a.actualDeposit || b.depositorsCount - a.depositorsCount);
+        const map = {};
+        ranked.slice(0, 3).forEach((r, idx) => {
+            map[r.name] = idx; // 0, 1, 2
+        });
+        return map;
+    }, [agentTargetChartData]);
+
     const maxScale = useMemo(() => {
         let maxVal = 1000;
         visibleRows.forEach((r) => {
@@ -59,10 +71,10 @@ export const AgentTargetChart = ({
         setHoveredName(name);
         if (targetEl && typeof window !== 'undefined') {
             const rect = targetEl.getBoundingClientRect();
-            const tooltipWidth = 245;
+            const tooltipWidth = 260;
             const centerX = rect.left + rect.width / 2;
             const clampedLeft = Math.max(12, Math.min(window.innerWidth - tooltipWidth - 12, centerX - tooltipWidth / 2));
-            const placeBelow = rect.top < 190;
+            const placeBelow = rect.top < 220;
             setTooltipPos({
                 top: placeBelow ? rect.bottom + 8 : rect.top - 8,
                 left: clampedLeft,
@@ -70,6 +82,14 @@ export const AgentTargetChart = ({
             });
         }
     };
+
+    const medalLabelsTH = ['🥇 อันดับ 1', '🥈 อันดับ 2', '🥉 อันดับ 3'];
+    const medalLabelsEN = ['🥇 #1', '🥈 #2', '🥉 #3'];
+    const medalGradients = [
+        'linear-gradient(135deg, #f59e0b, #d97706)',
+        'linear-gradient(135deg, #94a3b8, #64748b)',
+        'linear-gradient(135deg, #d97706, #b45309)'
+    ];
 
     return (
         <div
@@ -100,13 +120,13 @@ export const AgentTargetChart = ({
                     <div>
                         <h4 style={{ margin: 0, fontSize: '15.5px', fontWeight: 800, color: isLight ? '#0f172a' : '#f8fafc', letterSpacing: '-0.2px' }}>
                             {lang === 'TH'
-                                ? '📊 กราฟเปรียบเทียบยอดฝากจริง vs เป้าหมายรายบุคคล'
-                                : '📊 Individual Deposit Actual vs Target'}
+                                ? '🏆 ผลงานรายบุคคล & กราฟเปรียบเทียบยอดฝากจริง vs เป้าหมาย'
+                                : '🏆 Individual Performance & Deposit vs Target'}
                         </h4>
                         <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
                             {depositMetricMode === 'FIRST'
-                                ? (lang === 'TH' ? 'เปรียบเทียบโหมด: ยอดฝากแรก (FTD) เทียบกับเป้าหมายรายบุคคลของพนักงาน MC' : 'Mode: First-Time Deposits (FTD) vs Individual Targets')
-                                : (lang === 'TH' ? 'เปรียบเทียบโหมด: ยอดฝากรวมสะสม เทียบกับเป้าหมายรายบุคคลของพนักงาน MC' : 'Mode: Total Accumulated Deposits vs Individual Targets')}
+                                ? (lang === 'TH' ? 'เรียงอันดับยอดฝากแรก (FTD) พร้อมสถิติติดตามและเป้าหมายรายบุคคลครบในจุดเดียว' : 'Ranked by FTD with full funnel metrics & individual targets')
+                                : (lang === 'TH' ? 'เรียงอันดับยอดฝากสะสมรวม พร้อมสถิติติดตาม (ทัก-สมัคร-ฝาก) และเป้าหมายรายบุคคลครบในจุดเดียว' : 'Ranked by Total Deposits with full funnel metrics & individual targets')}
                         </span>
                     </div>
                 </div>
@@ -176,7 +196,7 @@ export const AgentTargetChart = ({
                 </div>
             </div>
 
-            {/* Horizontal Grouped Bar Rows */}
+            {/* Unified Agent Rows */}
             {visibleRows.length === 0 ? (
                 <div style={{
                     textAlign: 'center',
@@ -202,6 +222,9 @@ export const AgentTargetChart = ({
                             ? Math.max(2, Math.round((row.targetAmount / maxScale) * 100))
                             : 0;
                         const isHovered = hoveredName === row.name;
+                        const topRankIdx = Object.prototype.hasOwnProperty.call(topCloserRankMap, row.name)
+                            ? topCloserRankMap[row.name]
+                            : -1;
 
                         const statusColor = row.targetAmount <= 0
                             ? '#38bdf8'
@@ -221,47 +244,88 @@ export const AgentTargetChart = ({
                                 }}
                                 style={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'minmax(160px, 210px) 1fr auto',
+                                    gridTemplateColumns: 'minmax(240px, 340px) 1fr auto',
                                     alignItems: 'center',
                                     gap: '14px',
-                                    padding: '10px 14px',
+                                    padding: '11px 14px',
                                     borderRadius: '12px',
                                     cursor: 'pointer',
                                     background: isHovered
                                         ? (isLight ? '#f5f3ff' : 'rgba(168, 85, 247, 0.12)')
                                         : (isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)'),
-                                    border: isHovered
-                                        ? '1px solid rgba(168, 85, 247, 0.4)'
-                                        : (isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.06)'),
+                                    border: topRankIdx === 0
+                                        ? '1px solid rgba(245, 158, 11, 0.45)'
+                                        : isHovered
+                                            ? '1px solid rgba(168, 85, 247, 0.4)'
+                                            : (isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.06)'),
                                     transition: 'all 0.15s ease'
                                 }}
                             >
-                                {/* Left: Agent Name & Lead Stats */}
-                                <div style={{ minWidth: 0 }}>
+                                {/* Left: Medal + Agent Name + Full 5-Stage Funnel Chips */}
+                                <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                     <div style={{
-                                        fontWeight: 700,
-                                        fontSize: '13px',
+                                        fontWeight: 800,
+                                        fontSize: '13.5px',
                                         color: isLight ? '#0f172a' : '#f8fafc',
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '6px'
+                                        gap: '7px',
+                                        flexWrap: 'wrap'
                                     }}>
+                                        {topRankIdx >= 0 ? (
+                                            <span style={{
+                                                fontSize: '10px',
+                                                fontWeight: 800,
+                                                padding: '2px 7px',
+                                                borderRadius: '7px',
+                                                background: medalGradients[topRankIdx],
+                                                color: '#ffffff',
+                                                whiteSpace: 'nowrap',
+                                                flexShrink: 0
+                                            }}>
+                                                {lang === 'TH' ? medalLabelsTH[topRankIdx] : medalLabelsEN[topRankIdx]}
+                                            </span>
+                                        ) : (
+                                            <span style={{
+                                                width: '8px',
+                                                height: '8px',
+                                                borderRadius: '50%',
+                                                background: '#a855f7',
+                                                flexShrink: 0
+                                            }} />
+                                        )}
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {row.name}
+                                        </span>
                                         <span style={{
-                                            width: '8px',
-                                            height: '8px',
-                                            borderRadius: '50%',
-                                            background: row.isExceeded ? '#10b981' : '#a855f7',
-                                            flexShrink: 0
-                                        }} />
-                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name}</span>
+                                            fontSize: '10.5px',
+                                            fontWeight: 800,
+                                            padding: '1px 7px',
+                                            borderRadius: '999px',
+                                            background: row.conversionRate > 0 ? 'rgba(16, 185, 129, 0.14)' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)'),
+                                            color: row.conversionRate > 0 ? '#10b981' : 'var(--text-muted)'
+                                        }}>
+                                            MC: {row.conversionRate}%
+                                        </span>
                                     </div>
-                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                        {lang === 'TH'
-                                            ? `ทัก ${row.inquiriesCount} • ฝากแล้ว ${row.depositorsCount} คน`
-                                            : `${row.inquiriesCount} leads • ${row.depositorsCount} dep`}
+
+                                    {/* 5-Stage Funnel Breakdown Chips */}
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', fontSize: '10.5px', fontWeight: 600 }}>
+                                        <span style={{ padding: '1px 6px', borderRadius: '5px', background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)', color: isLight ? '#334155' : '#cbd5e1' }}>
+                                            {lang === 'TH' ? `ทัก ${row.inquiriesCount}` : `Inq ${row.inquiriesCount}`}
+                                        </span>
+                                        <span style={{ padding: '1px 6px', borderRadius: '5px', background: row.notRegisteredCount > 0 ? 'rgba(245, 158, 11, 0.14)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.04)'), color: row.notRegisteredCount > 0 ? '#d97706' : 'var(--text-muted)' }}>
+                                            {lang === 'TH' ? `ไม่สมัคร ${row.notRegisteredCount}` : `NoReg ${row.notRegisteredCount}`}
+                                        </span>
+                                        <span style={{ padding: '1px 6px', borderRadius: '5px', background: 'rgba(56, 189, 248, 0.14)', color: isLight ? '#0284c7' : '#38bdf8' }}>
+                                            {lang === 'TH' ? `สมัคร ${row.registeredCount}` : `Reg ${row.registeredCount}`}
+                                        </span>
+                                        <span style={{ padding: '1px 6px', borderRadius: '5px', background: row.depositorsCount > 0 ? 'rgba(16, 185, 129, 0.15)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.04)'), color: row.depositorsCount > 0 ? '#10b981' : 'var(--text-muted)', fontWeight: 700 }}>
+                                            {lang === 'TH' ? `ฝาก ${row.depositorsCount}` : `Dep ${row.depositorsCount}`}
+                                        </span>
+                                        <span style={{ padding: '1px 6px', borderRadius: '5px', background: row.pendingDepositCount > 0 ? 'rgba(244, 63, 94, 0.14)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.04)'), color: row.pendingDepositCount > 0 ? '#e11d48' : 'var(--text-muted)' }}>
+                                            {lang === 'TH' ? `ค้างฝาก ${row.pendingDepositCount}` : `Pend ${row.pendingDepositCount}`}
+                                        </span>
                                     </div>
                                 </div>
 
@@ -289,7 +353,7 @@ export const AgentTargetChart = ({
                                         <span style={{
                                             minWidth: '72px',
                                             textAlign: 'right',
-                                            fontSize: '11.5px',
+                                            fontSize: '12px',
                                             fontWeight: 800,
                                             color: row.actualDeposit > 0 ? '#10b981' : 'var(--text-muted)'
                                         }}>
@@ -331,8 +395,8 @@ export const AgentTargetChart = ({
                                     </div>
                                 </div>
 
-                                {/* Right: Achievement % Badge */}
-                                <div style={{ minWidth: '82px', textAlign: 'right' }}>
+                                {/* Right: Achievement % Badge or Set Target Pill */}
+                                <div style={{ minWidth: '88px', textAlign: 'right' }}>
                                     {row.targetAmount > 0 ? (
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
                                             <span style={{
@@ -352,6 +416,26 @@ export const AgentTargetChart = ({
                                                     : (lang === 'TH' ? `ขาด ฿${row.remaining.toLocaleString()}` : `-฿${row.remaining.toLocaleString()}`)}
                                             </span>
                                         </div>
+                                    ) : hasSupervisorAccess && onOpenTargetModal ? (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onOpenTargetModal();
+                                            }}
+                                            style={{
+                                                background: 'transparent',
+                                                border: '1px dashed rgba(168, 85, 247, 0.45)',
+                                                color: isLight ? '#7c3aed' : '#c084fc',
+                                                fontSize: '11px',
+                                                fontWeight: 700,
+                                                padding: '3px 9px',
+                                                borderRadius: '8px',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            + {lang === 'TH' ? 'ตั้งเป้า' : 'Set'}
+                                        </button>
                                     ) : (
                                         <span style={{
                                             fontSize: '11px',
@@ -402,7 +486,7 @@ export const AgentTargetChart = ({
                 </div>
 
                 <span>
-                    💡 {lang === 'TH' ? 'ชี้ที่แถวพนักงานเพื่อดูสรุปเทียบเป้าละเอียด' : 'Hover any row for detailed target breakdown'}
+                    💡 {lang === 'TH' ? 'ชี้ที่แถวพนักงานเพื่อดูสรุปสถิติและเป้าหมายละเอียด' : 'Hover any row for full funnel & target breakdown'}
                 </span>
             </div>
 
@@ -415,8 +499,8 @@ export const AgentTargetChart = ({
                         left: `${tooltipPos.left}px`,
                         transform: tooltipPos.placeBelow ? 'none' : 'translateY(-100%)',
                         zIndex: 3000,
-                        width: '245px',
-                        padding: '11px 13px',
+                        width: '260px',
+                        padding: '12px 14px',
                         borderRadius: '12px',
                         background: isLight ? '#0f172a' : '#020617',
                         color: '#f8fafc',
@@ -438,15 +522,9 @@ export const AgentTargetChart = ({
                         gap: '8px'
                     }}>
                         <span>👤 {hoveredItem.name}</span>
-                        {hoveredItem.targetAmount > 0 && (
-                            <span style={{
-                                fontSize: '10.5px',
-                                fontWeight: 800,
-                                color: hoveredItem.isExceeded ? '#34d399' : '#fbbf24'
-                            }}>
-                                {hoveredItem.pct}%
-                            </span>
-                        )}
+                        <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#34d399' }}>
+                            MC: {hoveredItem.conversionRate}%
+                        </span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
@@ -465,13 +543,31 @@ export const AgentTargetChart = ({
                                     {hoveredItem.isExceeded ? (lang === 'TH' ? '🎉 เกินเป้า:' : '🎉 Exceeded:') : (lang === 'TH' ? '⏳ ขาดอีก:' : '⏳ Remaining:')}
                                 </span>
                                 <strong style={{ color: hoveredItem.isExceeded ? '#34d399' : '#fbbf24' }}>
-                                    ฿{Math.abs(hoveredItem.actualDeposit - hoveredItem.targetAmount).toLocaleString()}
+                                    ฿{Math.abs(hoveredItem.actualDeposit - hoveredItem.targetAmount).toLocaleString()} ({hoveredItem.pct}%)
                                 </strong>
                             </div>
                         )}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', paddingTop: '4px', marginTop: '2px', borderTop: '1px dashed rgba(255,255,255,0.14)' }}>
-                            <span style={{ color: '#94a3b8' }}>📞 {lang === 'TH' ? 'ทัก / ฝากสำเร็จ:' : 'Leads / Dep:'}</span>
-                            <strong>{hoveredItem.inquiriesCount} / {hoveredItem.depositorsCount} {lang === 'TH' ? 'คน' : ''}</strong>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', paddingTop: '5px', marginTop: '3px', borderTop: '1px dashed rgba(255,255,255,0.14)', fontSize: '11.5px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ color: '#cbd5e1' }}>1. {lang === 'TH' ? 'ทักทั้งหมด:' : 'Inquiries:'}</span>
+                                <strong>{hoveredItem.inquiriesCount} {lang === 'TH' ? 'คน' : ''}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ color: '#fbbf24' }}>2. {lang === 'TH' ? 'ทักแต่ไม่สมัคร:' : 'Not Reg:'}</span>
+                                <strong>{hoveredItem.notRegisteredCount} {lang === 'TH' ? 'คน' : ''}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ color: '#38bdf8' }}>3. {lang === 'TH' ? 'ทักสมัคร:' : 'Registered:'}</span>
+                                <strong>{hoveredItem.registeredCount} {lang === 'TH' ? 'คน' : ''}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ color: '#34d399' }}>4. {lang === 'TH' ? 'สมัครและฝาก:' : 'Deposited:'}</span>
+                                <strong>{hoveredItem.depositorsCount} {lang === 'TH' ? 'คน' : ''}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ color: '#fb7185' }}>5. {lang === 'TH' ? 'สมัครไม่ฝาก:' : 'Pending Dep:'}</span>
+                                <strong>{hoveredItem.pendingDepositCount} {lang === 'TH' ? 'คน' : ''}</strong>
+                            </div>
                         </div>
                     </div>
                 </div>,
