@@ -54,11 +54,15 @@ export const QuickManualModal = ({ isOpen, onClose }) => {
 
     const isLight = theme === 'light';
     const isTH = lang === 'TH';
-    const perms = activeAgent?.permissions || {};
 
-    const visibleCategories = useMemo(
-        () => QUICK_MANUAL_CATEGORIES.filter((item) => getHasPermission(item.permissionKey, perms, isSupervisor)),
-        [perms, isSupervisor]
+    const visibleCategories = useMemo(() => {
+        const perms = activeAgent?.permissions || {};
+        return QUICK_MANUAL_CATEGORIES.filter((item) => getHasPermission(item.permissionKey, perms, isSupervisor));
+    }, [activeAgent, isSupervisor]);
+
+    const menuCount = useMemo(
+        () => visibleCategories.filter((item) => !item.isChecklist).length,
+        [visibleCategories]
     );
 
     const [selectedId, setSelectedId] = useState('supervisor');
@@ -86,6 +90,10 @@ export const QuickManualModal = ({ isOpen, onClose }) => {
 
     const activeGuide = visibleCategories.find((item) => item.id === selectedId) || visibleCategories[0];
     if (!activeGuide) return null;
+
+    const activeMenuOrder = activeGuide.isChecklist
+        ? '✓'
+        : String(visibleCategories.filter((item) => !item.isChecklist).findIndex((item) => item.id === activeGuide.id) + 1);
 
     const ActiveIcon = ICON_MAP[activeGuide.id] || BookOpen;
     const tKey = isTH ? 'TH' : 'EN';
@@ -251,8 +259,12 @@ export const QuickManualModal = ({ isOpen, onClose }) => {
                                     }}
                                 >
                                     {isSupervisor
-                                        ? (isTH ? 'สิทธิ์ Supervisor (เห็นครบทุกเมนู)' : 'Supervisor Access')
-                                        : (isTH ? 'แสดงเฉพาะเมนูที่คุณใช้งานได้' : 'Role-Filtered Menus')}
+                                        ? (isTH
+                                            ? `👑 Supervisor${activeAgent?.name ? ` (${activeAgent.name})` : ''} • เห็นครบทุกเมนู (${menuCount}/${menuCount})`
+                                            : `👑 Supervisor${activeAgent?.name ? ` (${activeAgent.name})` : ''} • All ${menuCount} Menus`)
+                                        : (isTH
+                                            ? `👤 Agent${activeAgent?.name ? ` (${activeAgent.name})` : ''} • เฉพาะเมนูที่มีสิทธิ์ (${menuCount} เมนู)`
+                                            : `👤 Agent${activeAgent?.name ? ` (${activeAgent.name})` : ''} • ${menuCount} Permitted Menus`)}
                                 </span>
                             </div>
                             <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: textMuted }}>
@@ -310,10 +322,11 @@ export const QuickManualModal = ({ isOpen, onClose }) => {
                             {isTH ? 'หมวดหมู่ตามเมนูซ้ายมือ' : 'Sidebar Menu Categories'}
                         </div>
 
-                        {visibleCategories.map((cat) => {
+                        {visibleCategories.map((cat, idx) => {
                             const CatIcon = ICON_MAP[cat.id] || BookOpen;
                             const isSelected = cat.id === activeGuide.id;
                             const isActivePage = cat.viewMode && cat.viewMode === viewMode;
+                            const displayOrder = cat.isChecklist ? '✓' : String(idx + 1);
 
                             return (
                                 <button
@@ -368,7 +381,7 @@ export const QuickManualModal = ({ isOpen, onClose }) => {
                                                 textOverflow: 'ellipsis'
                                             }}
                                         >
-                                            {cat.badge}. {cat.title[tKey]}
+                                            {displayOrder}. {cat.title[tKey]}
                                         </div>
                                         {isActivePage && (
                                             <div
@@ -427,7 +440,7 @@ export const QuickManualModal = ({ isOpen, onClose }) => {
                                     <div style={{ fontSize: '11px', fontWeight: 700, color: activeGuide.accent, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
                                         {activeGuide.isChecklist
                                             ? (isTH ? 'แนวทางปฏิบัติประจำวัน' : 'Daily Routine')
-                                            : (isTH ? `เมนูที่ ${activeGuide.badge} ในแถบซ้ายมือ` : `Sidebar Menu #${activeGuide.badge}`)}
+                                            : (isTH ? `เมนูที่ ${activeMenuOrder} ในสิทธิ์การใช้งานของคุณ` : `Permitted Menu #${activeMenuOrder}`)}
                                     </div>
                                     <h3 style={{ margin: '2px 0 4px 0', fontSize: '17px', fontWeight: 700, color: textPrimary }}>
                                         {activeGuide.title[tKey]}

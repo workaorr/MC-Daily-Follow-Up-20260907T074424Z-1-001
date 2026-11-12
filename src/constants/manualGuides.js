@@ -76,6 +76,10 @@ export const QUICK_MANUAL_CATEGORIES = [
         tip: {
             TH: 'เน้นตามกลุ่มที่ "สมัครแล้วแต่ยังไม่ฝาก" ก่อนทุกเช้า เพราะเป็นกลุ่มที่มีโอกาสปิดยอดฝากได้เร็วที่สุด',
             EN: 'Prioritize "Registered but Not Yet Deposited" leads each morning for the fastest conversion wins.'
+        },
+        supervisorNote: {
+            TH: 'สิทธิ์หัวหน้างาน: สามารถเลือกดูงานของพนักงานรายคนหรือดูรวมทั้งทีมจากตัวเลือกด้านบน และใช้ปุ่ม "โอนย้ายเคสหมู่" เพื่อกระจายลูกค้าให้พนักงานอื่นได้ทันที',
+            EN: 'Supervisor only: Use the staff selector at the top to inspect individual or team-wide queues, and use "Bulk Reassign" to transfer leads between agents.'
         }
     },
     {
