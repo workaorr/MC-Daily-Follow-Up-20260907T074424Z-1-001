@@ -117,30 +117,30 @@ export const AppProvider = ({ children }) => {
         setTheme(next);
     };
 
-    const setTheme = (nextTheme) => {
-        if (typeof document !== 'undefined') {
-            if (nextTheme === 'light') {
-                document.documentElement.classList.add('light-theme');
-                document.body.classList.add('light-theme');
-            } else {
-                document.documentElement.classList.remove('light-theme');
-                document.body.classList.remove('light-theme');
-            }
+    const applyThemeToDom = (nextTheme) => {
+        if (typeof document === 'undefined') return;
+        const root = document.documentElement;
+        if (nextTheme === 'light') {
+            root.classList.add('light-theme');
+            root.style.backgroundColor = '#f1f5f9';
+            root.style.colorScheme = 'light';
+            document.body.classList.add('light-theme');
+        } else {
+            root.classList.remove('light-theme');
+            root.style.backgroundColor = '#060913';
+            root.style.colorScheme = 'dark';
+            document.body.classList.remove('light-theme');
         }
+    };
+
+    const setTheme = (nextTheme) => {
+        applyThemeToDom(nextTheme);
         localStorage.setItem('mc_theme', nextTheme);
         setThemeState(nextTheme);
     };
 
     useEffect(() => {
-        if (typeof document !== 'undefined') {
-            if (theme === 'light') {
-                document.documentElement.classList.add('light-theme');
-                document.body.classList.add('light-theme');
-            } else {
-                document.documentElement.classList.remove('light-theme');
-                document.body.classList.remove('light-theme');
-            }
-        }
+        applyThemeToDom(theme);
     }, [theme]);
 
     // --- AGENTS & AUTH ---

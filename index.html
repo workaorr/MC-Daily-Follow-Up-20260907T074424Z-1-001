@@ -3,6 +3,27 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+        (function () {
+            try {
+                var params = new URLSearchParams(window.location.search);
+                var theme = params.get('theme') || localStorage.getItem('mc_theme') || 'dark';
+                var root = document.documentElement;
+                if (theme === 'light') {
+                    root.classList.add('light-theme');
+                    root.style.backgroundColor = '#f1f5f9';
+                    root.style.colorScheme = 'light';
+                } else {
+                    root.style.backgroundColor = '#060913';
+                    root.style.colorScheme = 'dark';
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <style>
+        html.light-theme, html.light-theme body { background-color: #f1f5f9 !important; color-scheme: light; }
+        html:not(.light-theme), html:not(.light-theme) body { background-color: #060913; color-scheme: dark; }
+    </style>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -17,6 +38,11 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 42 42'><rect width='42' height='42' rx='12' fill='%2310b981'/><path d='M12 21a9 9 0 0 1 18 0v6a3 3 0 0 1-6 0v-3a3 3 0 0 0-6 0v3a3 3 0 0 1-6 0z' fill='%23ffffff'/></svg>" />
 </head>
 <body>
+    <script>
+        if (document.documentElement.classList.contains('light-theme')) {
+            document.body.classList.add('light-theme');
+        }
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 </body>
