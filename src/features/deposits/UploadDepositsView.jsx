@@ -638,15 +638,51 @@ export const UploadDepositsView = () => {
                 </div>
 
                 {/* Guidance Information */}
-                <div style={{ maxWidth: '640px', width: '100%', marginTop: '6px', padding: '16px 20px', borderRadius: '14px', background: 'rgba(15, 23, 42, 0.4)', border: '1px solid rgba(255,255,255,0.06)', textAlign: 'left', fontSize: '12px' }}>
-                    <div style={{ fontWeight: 700, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Info size={15} style={{ color: '#c084fc' }} />
+                <div style={{
+                    maxWidth: '640px',
+                    width: '100%',
+                    marginTop: '6px',
+                    padding: '16px 20px',
+                    borderRadius: '14px',
+                    background: theme === 'light' ? '#f8fafc' : 'rgba(15, 23, 42, 0.45)',
+                    border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.08)',
+                    textAlign: 'left',
+                    fontSize: '12px'
+                }}>
+                    <div style={{
+                        fontWeight: 700,
+                        marginBottom: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        color: theme === 'light' ? '#0f172a' : '#f8fafc'
+                    }}>
+                        <Info size={16} style={{ color: theme === 'light' ? '#7c3aed' : '#c084fc' }} />
                         <span>{lang === 'TH' ? 'รูปแบบไฟล์ที่แนะนำสำหรับการประมวลผลอัตโนมัติ:' : 'Recommended column formats for auto-matching:'}</span>
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-                        <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1' }}>{lang === 'TH' ? 'คอลัมน์: username / ยูสเซอร์ (จำเป็น)' : 'Column: username (required)'}</span>
-                        <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1' }}>{lang === 'TH' ? 'คอลัมน์: amount / ยอดฝาก (จำเป็น)' : 'Column: amount (required)'}</span>
-                        <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1' }}>{lang === 'TH' ? 'คอลัมน์: date / วันที่ (จำเป็น)' : 'Column: date (required)'}</span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {[
+                            lang === 'TH' ? 'คอลัมน์: username / ยูสเซอร์ (จำเป็น)' : 'Column: username (required)',
+                            lang === 'TH' ? 'คอลัมน์: amount / ยอดฝาก (จำเป็น)' : 'Column: amount (required)',
+                            lang === 'TH' ? 'คอลัมน์: date / วันที่ (จำเป็น)' : 'Column: date (required)'
+                        ].map((label, idx) => (
+                            <span
+                                key={idx}
+                                style={{
+                                    padding: '5px 10px',
+                                    borderRadius: '8px',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    fontFamily: 'monospace',
+                                    background: theme === 'light' ? '#ffffff' : 'rgba(255,255,255,0.08)',
+                                    border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(148, 163, 184, 0.2)',
+                                    color: theme === 'light' ? '#1e293b' : '#e2e8f0',
+                                    boxShadow: theme === 'light' ? '0 1px 2px rgba(15, 23, 42, 0.04)' : 'none'
+                                }}
+                            >
+                                {label}
+                            </span>
+                        ))}
                     </div>
                 </div>
             </div>
