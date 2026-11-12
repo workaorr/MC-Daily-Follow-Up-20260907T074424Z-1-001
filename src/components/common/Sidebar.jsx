@@ -10,10 +10,11 @@ import {
     Shield, 
     History, 
     Trash2, 
-    HelpCircle 
+    HelpCircle,
+    BookOpen 
 } from 'lucide-react';
 
-export const Sidebar = ({ onStartTour }) => {
+export const Sidebar = ({ onStartTour, onOpenManual }) => {
     const { 
         viewMode, 
         setViewMode, 
@@ -142,12 +143,34 @@ export const Sidebar = ({ onStartTour }) => {
                 MC Operations Gateway
             </div>
 
+            {/* Quick Menu Manual Trigger */}
+            <button 
+                type="button"
+                className="sidebar-btn"
+                onClick={onOpenManual}
+                style={{
+                    marginTop: '10px',
+                    color: theme === 'light' ? '#0369a1' : '#38bdf8',
+                    background: theme === 'light' ? '#eff6ff' : 'rgba(14, 165, 233, 0.1)',
+                    border: '1px solid rgba(14, 165, 233, 0.35)',
+                    borderRadius: '8px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                }}
+            >
+                <BookOpen size={16} />
+                <span>{lang === 'TH' ? '📖 คู่มือการใช้งานแต่ละเมนู' : '📖 Quick Menu Manual'}</span>
+            </button>
+
             {/* Sidebar Tour Guide Trigger */}
             <button 
+                type="button"
                 className="sidebar-btn"
                 onClick={onStartTour}
                 style={{
-                    marginTop: '12px',
+                    marginTop: '8px',
                     color: theme === 'light' ? '#7c3aed' : '#c084fc',
                     background: theme === 'light' ? '#f5f3ff' : 'rgba(168, 85, 247, 0.08)',
                     border: '1px dashed rgba(168, 85, 247, 0.4)',

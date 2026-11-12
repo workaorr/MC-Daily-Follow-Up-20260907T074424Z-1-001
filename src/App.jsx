@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from './context/AppContext';
 
 // Common Shell Components
@@ -6,7 +6,8 @@ import {
     Navbar, 
     Sidebar, 
     DbSettingsModal, 
-    TourOverlay 
+    TourOverlay,
+    QuickManualModal 
 } from './components/common';
 
 // Domain Feature Modules
@@ -38,6 +39,8 @@ export default function App() {
         isTourActive,
         setIsTourActive
     } = useApp();
+
+    const [isManualOpen, setIsManualOpen] = useState(false);
 
     const handleCloseLogin = () => {
         if (isLockedDueToInactivity) return;
@@ -94,7 +97,10 @@ export default function App() {
             />
 
             {/* Left Sidebar Navigation */}
-            <Sidebar onStartTour={() => setIsTourActive(true)} />
+            <Sidebar
+                onStartTour={() => setIsTourActive(true)}
+                onOpenManual={() => setIsManualOpen(true)}
+            />
 
             {/* Main Application Workspace */}
             <main className="app-main">
@@ -129,6 +135,12 @@ export default function App() {
             <TourOverlay 
                 isActive={isTourActive} 
                 onClose={() => setIsTourActive(false)} 
+            />
+
+            {/* Quick Menu User Manual */}
+            <QuickManualModal
+                isOpen={isManualOpen}
+                onClose={() => setIsManualOpen(false)}
             />
         </div>
     );

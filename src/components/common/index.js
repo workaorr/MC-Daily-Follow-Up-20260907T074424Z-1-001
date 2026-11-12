@@ -12,6 +12,7 @@ export { Navbar } from './Navbar';
 export { Sidebar } from './Sidebar';
 export { DbSettingsModal } from './DbSettingsModal';
 export { TourOverlay } from './TourOverlay';
+export { QuickManualModal } from './QuickManualModal';
 
 // Re-export Auth for backward compatibility
 export { LoginModal } from '../../features/auth';
