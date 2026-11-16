@@ -63,12 +63,12 @@ export const QUICK_MANUAL_CATEGORIES = [
         },
         steps: {
             TH: [
-                'ใช้ช่องค้นหาหรือตัวกรอง (เช่น ยังไม่ฝาก / สมัครแล้ว / ค้นหาจากชื่อหรือยูสเซอร์) เพื่อเรียงลำดับคิวที่ต้องทักตามในวันนั้น',
+                'ใช้ช่องค้นหาหรือตัวกรองสถานะ (เช่น ต้องติดตามวันนี้ / สมัครไม่ฝาก / หมดรอบ 10 วัน) เพื่อเรียงลำดับคิวที่ต้องทักตามในวันนั้น',
                 'กดติ๊กช่องติดตามรายวัน (Day 1 - Day 10) หลังทักตามลูกค้าเสร็จ พร้อมบันทึกหมายเหตุสำคัญเพื่อให้จำบริบทได้เวลาตามต่อ',
                 'อัปเดตสถานะลูกค้าเป็น "สมัครแล้ว" หรือ "ฝากแล้ว" และกดแก้ไขข้อมูลได้ทันทีเมื่อลูกค้าแจ้งข้อมูลเพิ่มเติม'
             ],
             EN: [
-                'Use search and status filters (e.g., Not Deposited, Registered, name/username lookup) to prioritize your daily follow-up queue.',
+                'Use search and status filters (e.g., Due Today, Reg Not Deposited, 10d Cycle Ended) to prioritize your daily follow-up queue.',
                 'Check off the daily follow-up box (Day 1 - Day 10) after contacting the customer and record clear notes for the next touchpoint.',
                 'Update customer status to Registered or Deposited, or edit profile details whenever new information arrives.'
             ]

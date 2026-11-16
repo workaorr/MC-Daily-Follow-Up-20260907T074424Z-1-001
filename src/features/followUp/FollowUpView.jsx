@@ -148,6 +148,7 @@ export default function FollowUpView() {
   const cScopeReg = scopeCusts.filter(c => c.username && c.username.trim() !== '').length;
   const cScopeDep = scopeCusts.filter(c => c.username && c.username.trim() !== '' && isDepositedAsOfDate(c)).length;
   const cScopeNotDep = scopeCusts.filter(c => c.username && c.username.trim() !== '' && !isDepositedAsOfDate(c)).length;
+  const cScopeCycleCompleted = scopeCusts.filter(c => isTenDaysFollowUpCompleted(c)).length;
 
   // Sub-counts for "สมัครไม่ฝาก"
   const notDepScopeCusts = useMemo(() => {
@@ -160,6 +161,7 @@ export default function FollowUpView() {
   const cNotDepWaiting = notDepScopeCusts.filter(c => getLineLekStatus(c.lineLek) === 'WAITING').length;
   const cNotDepOverdue = notDepScopeCusts.filter(c => isOverdue3Days(c, selectedMonth)).length;
   const cNotDepCurrentMonth = notDepScopeCusts.filter(c => isCurrentMonth(c)).length;
+  const cNotDepCycleCompleted = notDepScopeCusts.filter(c => isTenDaysFollowUpCompleted(c)).length;
 
   // Final displayed list
   const displayList = useMemo(() => {
@@ -168,6 +170,7 @@ export default function FollowUpView() {
       const isDep = isDepositedAsOfDate(c);
 
       // Status Filters
+      if (statusFilter === 'CYCLE_COMPLETED' && !isTenDaysFollowUpCompleted(c)) return false;
       if (statusFilter === 'DUE_TODAY' && !isDueTodayFollowUp(c, selectedMonth)) return false;
       if (['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) && isDep) return false;
       if (['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) && hasUser) return false;
@@ -178,6 +181,7 @@ export default function FollowUpView() {
       // Sub-filter for สมัครแต่ไม่ฝาก
       if (['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) && quickNotDepSubFilter !== 'ALL') {
         const lineSt = getLineLekStatus(c.lineLek);
+        if (quickNotDepSubFilter === 'CYCLE_COMPLETED' && !isTenDaysFollowUpCompleted(c)) return false;
         if (quickNotDepSubFilter === 'DUE_TODAY' && !isDueTodayFollowUp(c, selectedMonth)) return false;
         if (quickNotDepSubFilter === 'HAS_LINE' && lineSt !== 'HAS') return false;
         if (quickNotDepSubFilter === 'WAITING_LINE' && lineSt !== 'WAITING') return false;
@@ -657,6 +661,22 @@ export default function FollowUpView() {
                 >
                   {lang === 'TH' ? `🔴 สมัครไม่ฝาก (${cScopeNotDep})` : `🔴 Reg (No Deposit) (${cScopeNotDep})`}
                 </button>
+                <button 
+                  className={`filter-status-pill ${statusFilter === 'CYCLE_COMPLETED' ? 'active' : ''}`} 
+                  onClick={() => {
+                    setStatusFilter(statusFilter === 'CYCLE_COMPLETED' ? 'ALL' : 'CYCLE_COMPLETED');
+                    setQuickNotDepSubFilter('ALL');
+                  }}
+                  title={lang === 'TH' ? 'ลูกค้าที่ติดตามครบ 10 วันแล้วแต่ยังไม่มียอดฝากเงิน (หมดรอบติดตาม 10 วัน)' : 'Leads followed up for 10 days with no deposit (cycle completed)'}
+                  style={{
+                    border: statusFilter === 'CYCLE_COMPLETED' ? '1px solid #64748b' : '1px solid rgba(148, 163, 184, 0.45)',
+                    background: statusFilter === 'CYCLE_COMPLETED' ? '#64748b' : (theme === 'light' ? 'rgba(100, 116, 139, 0.08)' : 'rgba(148, 163, 184, 0.12)'),
+                    color: statusFilter === 'CYCLE_COMPLETED' ? '#ffffff' : (theme === 'light' ? '#475569' : '#cbd5e1'),
+                    fontWeight: 700
+                  }}
+                >
+                  {lang === 'TH' ? `🏁 หมดรอบ 10 วัน (${cScopeCycleCompleted})` : `🏁 10d Ended (${cScopeCycleCompleted})`}
+                </button>
               </div>
             </div>
 
@@ -738,6 +758,16 @@ export default function FollowUpView() {
                   style={{ padding: '3px 9px', fontSize: '11px', color: quickNotDepSubFilter === 'CURRENT_MONTH' ? '#fff' : '#8b5cf6' }}
                 >
                   ✨ {lang === 'TH' ? 'ลูกค้าใหม่เดือนนี้' : 'New This Month'} ({cNotDepCurrentMonth})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setQuickNotDepSubFilter(quickNotDepSubFilter === 'CYCLE_COMPLETED' ? 'ALL' : 'CYCLE_COMPLETED')}
+                  className={`btn ${quickNotDepSubFilter === 'CYCLE_COMPLETED' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ padding: '3px 9px', fontSize: '11px', color: quickNotDepSubFilter === 'CYCLE_COMPLETED' ? '#fff' : '#64748b' }}
+                  title={lang === 'TH' ? 'ลูกค้าที่ติดตามครบ 10 วันแล้วแต่ยังไม่มียอดฝากเงิน' : 'Leads followed up for 10 days with no deposit'}
+                >
+                  🏁 {lang === 'TH' ? 'หมดรอบ 10 วัน' : '10d Ended'} ({cNotDepCycleCompleted})
                 </button>
 
                 <button
