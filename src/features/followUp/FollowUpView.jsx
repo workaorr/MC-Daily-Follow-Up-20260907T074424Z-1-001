@@ -1064,7 +1064,25 @@ export default function FollowUpView() {
                               </span>
                             )}
                             {!cust.hasDeposited && (
-                              isDueToday ? (
+                              isCycleCompleted ? (
+                                <span 
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    fontSize: '10px',
+                                    fontWeight: 700,
+                                    padding: '1px 6px',
+                                    borderRadius: '999px',
+                                    background: theme === 'light' ? '#f1f5f9' : 'rgba(100, 116, 139, 0.25)',
+                                    color: theme === 'light' ? '#475569' : '#94a3b8',
+                                    border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(148, 163, 184, 0.4)'
+                                  }}
+                                  title={lang === 'TH' ? 'ลูกค้าตามครบ 10 วันแล้ว จบกระบวนการติดตามประจำวัน' : '10-day cycle completed'}
+                                >
+                                  <span>{lang === 'TH' ? '🏁 หมดรอบ 10 วัน' : '🏁 10d Ended'}</span>
+                                </span>
+                              ) : isDueToday ? (
                                 <span 
                                   style={{
                                     display: 'inline-flex',

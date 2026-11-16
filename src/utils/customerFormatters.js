@@ -56,7 +56,7 @@ export const getCustomerKpiCategory = (c, lang = 'TH') => {
 };
 
 export const isOverdue3Days = (c, monthKey) => {
-    if (c.hasDeposited) return false;
+    if (c.hasDeposited || isTenDaysFollowUpCompleted(c)) return false;
     const today = new Date();
     const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
     const isHistoricalMonth = Boolean(monthKey && monthKey !== 'ALL' && monthKey < currentMonthStr);
@@ -88,6 +88,9 @@ export const isOverdue3Days = (c, monthKey) => {
 
 export const isDueTodayFollowUp = (c, monthKey = null) => {
     if (!c || c.hasDeposited) return false;
+    // คัดลีดที่ตามครบ 10 วันแล้วแต่ยังไม่ฝาก ออกจากคิวต้องติดตามวันนี้อัตโนมัติ
+    if (isTenDaysFollowUpCompleted(c)) return false;
+
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const todayDayNum = String(now.getDate());
@@ -96,17 +99,17 @@ export const isDueTodayFollowUp = (c, monthKey = null) => {
     const fMap = (c.followUpByMonth && (c.followUpByMonth[targetMonth] || c.followUpByMonth[c.campaignMonth])) || c.followUp || {};
     const isTickedToday = Boolean(fMap[todayDayNum] || (c.followUp && c.followUp[todayDayNum]));
 
-    // ระบบเคลียร์คิวงานประจำวัน: ลูกค้าที่ยังไม่ได้ฝากเงินทุกคน ต้องทักแชทติดตามทุกวัน หากวันนี้ยังไม่ได้ติ๊ก = อยู่ในคิวต้องติดตามวันนี้
+    // ระบบเคลียร์คิวงานประจำวัน: ลูกค้าที่ยังไม่ได้ฝากเงิน และยังไม่หมดรอบ 10 วัน หากวันนี้ยังไม่ได้ติ๊ก = อยู่ในคิวต้องติดตามวันนี้
     return !isTickedToday;
 };
 
 export const getFollowUpDueReason = (c, monthKey = null) => {
-    if (!c || c.hasDeposited) return null;
+    if (!c || c.hasDeposited || isTenDaysFollowUpCompleted(c)) return null;
     return isDueTodayFollowUp(c, monthKey) ? 'PENDING_TODAY' : null;
 };
 
 export const getStagnantDepositInfo = (c, lang = 'TH') => {
-    if (!c || c.hasDeposited) return null;
+    if (!c || c.hasDeposited || isTenDaysFollowUpCompleted(c)) return null;
     if (!c.createdAt) return null;
     const createdDate = new Date(c.createdAt);
     if (isNaN(createdDate.getTime())) return null;
