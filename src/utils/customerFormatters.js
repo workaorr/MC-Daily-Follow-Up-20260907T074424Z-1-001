@@ -138,3 +138,48 @@ export const getStagnantDepositInfo = (c, lang = 'TH') => {
     return null;
 };
 
+/**
+ * นับจำนวนวันที่ได้รับการติดตามทั้งหมดของลูกค้า (นับวันที่มีการติ๊กถูกจริง)
+ * รองรับทั้งโครงสร้างเดือนปัจจุบันและข้ามเดือน (followUpByMonth) รวมถึง followUp เดิม
+ */
+export const getCustomerFollowUpDaysCount = (c) => {
+    if (!c) return 0;
+    const distinctDays = new Set();
+
+    if (c.followUpByMonth && typeof c.followUpByMonth === 'object') {
+        Object.entries(c.followUpByMonth).forEach(([mKey, mObj]) => {
+            if (mObj && typeof mObj === 'object') {
+                Object.entries(mObj).forEach(([dayNum, isTicked]) => {
+                    if (isTicked) {
+                        distinctDays.add(`${mKey}_${dayNum}`);
+                    }
+                });
+            }
+        });
+    }
+
+    if (distinctDays.size === 0 && c.followUp && typeof c.followUp === 'object') {
+        Object.entries(c.followUp).forEach(([dayNum, isTicked]) => {
+            if (isTicked) {
+                distinctDays.add(`legacy_${dayNum}`);
+            }
+        });
+    }
+
+    return distinctDays.size;
+};
+
+/**
+ * ตรวจสอบว่าลูกค้าตามครบ 10 วันแล้วแต่ยังไม่ฝากเงินหรือไม่ (หมดรอบติดตาม 10 วัน)
+ * เงื่อนไข: ยังไม่มียอดฝากเงิน และมีประวัติติดตาม (ติ๊กถูก) ครบ 10 วันขึ้นไป
+ */
+export const isTenDaysFollowUpCompleted = (c) => {
+    if (!c) return false;
+    const hasDep = Boolean(c.hasDeposited || Number(c.totalDeposit || 0) > 0);
+    if (hasDep) return false;
+
+    const count = getCustomerFollowUpDaysCount(c);
+    return count >= 10;
+};
+
+

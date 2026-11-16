@@ -1394,6 +1394,8 @@
 
         .badge-saved { background: rgba(16, 185, 129, 0.2); color: #86efac; border: 1px solid rgba(16, 185, 129, 0.45); font-weight: 700; }
         .badge-pending { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.45); font-weight: 700; }
+        .badge-cycle-completed { background: rgba(100, 116, 139, 0.25); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.45); font-weight: 700; }
+        body.light-theme .badge-cycle-completed { background: #f1f5f9 !important; color: #475569 !important; border: 1px solid #cbd5e1 !important; }
 
         /* KPI dashboard section */
         .kpi-row {

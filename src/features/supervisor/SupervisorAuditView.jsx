@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import MonthlyHeatmap from './MonthlyHeatmap';
 import { formatKeyedDateTime } from '../../utils/dateFormatters';
-import { formatChannelDisplayName, isOverdue3Days } from '../../utils/customerFormatters';
+import { formatChannelDisplayName, isOverdue3Days, isTenDaysFollowUpCompleted } from '../../utils/customerFormatters';
 import { 
   ShieldAlert, 
   Calendar, 
@@ -434,6 +434,10 @@ export default function SupervisorAuditView() {
                       {cust.hasDeposited ? (
                         <span className="badge badge-saved">
                           {lang === 'TH' ? `🟢 ฝากแล้ว (฿${(cust.returnedDepositAmount || cust.totalDeposit || 0).toLocaleString()})` : `🟢 Deposited (฿${(cust.returnedDepositAmount || cust.totalDeposit || 0).toLocaleString()})`}
+                        </span>
+                      ) : isTenDaysFollowUpCompleted(cust) ? (
+                        <span className="badge badge-cycle-completed" title={lang === 'TH' ? 'ติดตามครบ 10 วันแล้วยังไม่มียอดฝากเงิน (หมดรอบติดตาม 10 วัน)' : '10-day follow-up completed with no deposit'}>
+                          {lang === 'TH' ? '⚪ หมดรอบ 10 วัน' : '⚪ 10d Ended'}
                         </span>
                       ) : (
                         <span className="badge badge-pending">{lang === 'TH' ? '🔴 ค้างฝาก' : '🔴 Pending'}</span>

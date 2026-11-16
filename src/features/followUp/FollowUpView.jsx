@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { DaysGrid } from './DaysGrid';
 import { QUICK_REMARK_PRESETS } from '../../constants/presets';
-import { formatChannelDisplayName, isOverdue3Days, isDueTodayFollowUp, getFollowUpDueReason, getStagnantDepositInfo } from '../../utils/customerFormatters';
+import { formatChannelDisplayName, isOverdue3Days, isDueTodayFollowUp, getFollowUpDueReason, getStagnantDepositInfo, getCustomerFollowUpDaysCount, isTenDaysFollowUpCompleted } from '../../utils/customerFormatters';
 import { getCurrentMonthStr } from '../../utils/dateFormatters';
 import { pushCustomerToCloud } from '../../services/supabase';
 import { SearchInput } from '../../components/common';
@@ -1026,6 +1026,8 @@ export default function FollowUpView() {
                   const isDueToday = isDueTodayFollowUp(cust, selectedMonth);
                   const dueReason = isDueToday ? getFollowUpDueReason(cust, selectedMonth) : null;
                   const stagnantInfo = getStagnantDepositInfo(cust, lang);
+                  const followUpDaysCount = getCustomerFollowUpDaysCount(cust);
+                  const isCycleCompleted = isTenDaysFollowUpCompleted(cust);
                   const isCustSelected = selectedCustIdsForReassign.includes(cust.id);
                   return (
                     <tr 
@@ -1113,7 +1115,7 @@ export default function FollowUpView() {
                               </span>
                             )}
                             {/* Stagnant Pending Deposit Badge (แบบที่ 2) */}
-                            {stagnantInfo && (
+                            {stagnantInfo && !isCycleCompleted && (
                               <span 
                                 style={{
                                   display: 'inline-flex',
@@ -1131,6 +1133,24 @@ export default function FollowUpView() {
                                 title={stagnantInfo.tooltip}
                               >
                                 {stagnantInfo.badgeText}
+                              </span>
+                            )}
+                            {/* 10-Day Cycle Completed Badge */}
+                            {isCycleCompleted && (
+                              <span 
+                                className="badge badge-cycle-completed"
+                                style={{
+                                  fontSize: '10px',
+                                  padding: '1.5px 7px',
+                                  borderRadius: '4px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  cursor: 'default'
+                                }}
+                                title={lang === 'TH' ? `ลูกค้าติดตามครบ ${followUpDaysCount} วันแล้วแต่ยังไม่มียอดฝากเงิน (หมดรอบติดตาม 10 วัน)` : `Followed up ${followUpDaysCount} days with no deposit (10-day cycle completed)`}
+                              >
+                                🏁 {lang === 'TH' ? `หมดรอบ 10 วัน (ตาม ${followUpDaysCount} วัน)` : `10d Ended (${followUpDaysCount}d)`}
                               </span>
                             )}
                             {cust.campaignMonth && (selectedMonth === 'ALL' || cust.campaignMonth < targetMonth) && (
@@ -1239,6 +1259,14 @@ export default function FollowUpView() {
                         {cust.hasDeposited ? (
                           <span className="badge badge-saved" style={{ padding: '3px 6px', fontSize: '10.5px', whiteSpace: 'nowrap' }}>
                             {lang === 'TH' ? `🟢 ฝากแล้ว (฿${(cust.returnedDepositAmount || cust.totalDeposit || 0).toLocaleString()})` : `🟢 Deposited (฿${(cust.returnedDepositAmount || cust.totalDeposit || 0).toLocaleString()})`}
+                          </span>
+                        ) : isCycleCompleted ? (
+                          <span 
+                            className="badge badge-cycle-completed" 
+                            style={{ padding: '3px 6px', fontSize: '10.5px', whiteSpace: 'nowrap' }}
+                            title={lang === 'TH' ? `ติดตามครบ ${followUpDaysCount} วันแล้วแต่ยังไม่มียอดฝากเงิน (หมดรอบติดตาม 10 วัน)` : `Followed up ${followUpDaysCount} days with no deposit (10-Day Cycle Complete)`}
+                          >
+                            {lang === 'TH' ? '⚪ หมดรอบ 10 วัน' : '⚪ 10d Ended'}
                           </span>
                         ) : (
                           <span className="badge badge-pending" style={{ padding: '3px 6px', fontSize: '10.5px', whiteSpace: 'nowrap' }}>
