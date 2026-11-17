@@ -514,6 +514,51 @@ export default function FollowUpView() {
     }
   };
 
+  // Generate 3 sample cycle-completed cases for testing / demo
+  const handleCreateSampleCompletedCases = () => {
+    const targetCusts = customers.filter(c => !c.deletedAt && !c.hasDeposited && !isTenDaysFollowUpCompleted(c)).slice(0, 3);
+    if (targetCusts.length === 0) {
+      alert(lang === 'TH' ? 'ไม่พบลูกค้ารอฝากเงินที่สามารถจำลองเคสได้' : 'No eligible unconverted customers found');
+      return;
+    }
+
+    const now = new Date();
+    const curMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const targetIds = targetCusts.map(c => c.id);
+
+    // Build 10 follow-up ticks (days 1 to 10)
+    const mockFollowUp = {};
+    for (let i = 1; i <= 10; i++) {
+      mockFollowUp[String(i)] = true;
+    }
+
+    const updated = customers.map(c => {
+      if (!targetIds.includes(c.id)) return c;
+      const monthMap = { ...((c.followUpByMonth && c.followUpByMonth[curMonth]) || c.followUp || {}), ...mockFollowUp };
+      const updatedCust = {
+        ...c,
+        followUp: monthMap,
+        followUpByMonth: {
+          ...(c.followUpByMonth || {}),
+          [curMonth]: monthMap
+        },
+        updatedBy: activeAgentName || 'Supervisor',
+        updatedAt: now.toISOString()
+      };
+      if (supabaseClient) {
+        pushCustomerToCloud(supabaseClient, updatedCust);
+      }
+      return updatedCust;
+    });
+
+    setCustomers(updated);
+    writeLog('MOCK_CYCLE_TEST', `🧪 หัวหน้า [${activeAgentName || 'Supervisor'}] ได้จำลองข้อมูลติดตามครบ 10 วัน ให้กับลูกค้า 3 คน เพื่อทดสอบระบบ`, 'info', activeAgentName || 'Supervisor');
+    alert(lang === 'TH' 
+      ? `✅ จำลองเคส "หมดรอบ 10 วัน" ให้กับลูกค้า 3 รายการสำเร็จเรียบร้อยแล้ว!` 
+      : '✅ Successfully simulated 3 cycle completed cases!'
+    );
+  };
+
   return (
     <div className="panel" style={{ padding: 0 }}>
       {/* Sticky Top Controls & Filter Section */}
@@ -950,7 +995,35 @@ export default function FollowUpView() {
               {displayList.length === 0 ? (
                 <tr>
                   <td colSpan={isSupervisor && isBulkReassignMode ? 8 : 7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
-                    {lang === 'TH' ? 'ไม่มีรายชื่อลูกค้าตามเงื่อนไขการกรองนี้' : 'No customer records matching this filter'}
+                    <div style={{ fontSize: '13.5px', marginBottom: statusFilter === 'CYCLE_COMPLETED' && isSupervisor ? '14px' : '0' }}>
+                      {lang === 'TH' ? 'ไม่มีรายชื่อลูกค้าตามเงื่อนไขการกรองนี้' : 'No customer records matching this filter'}
+                    </div>
+                    {statusFilter === 'CYCLE_COMPLETED' && isSupervisor && (
+                      <div>
+                        <button
+                          type="button"
+                          onClick={handleCreateSampleCompletedCases}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 20px',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            borderRadius: '10px',
+                            background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                            color: '#ffffff',
+                            border: 'none',
+                            cursor: 'pointer',
+                            boxShadow: '0 4px 14px rgba(124, 58, 237, 0.4)',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <span>🧪</span>
+                          <span>{lang === 'TH' ? 'กดตรงนี้เพื่อจำลองเคส "หมดรอบ 10 วัน" ตัวอย่าง (3 คน)' : 'Simulate 3 Completed Cases for Testing'}</span>
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ) : (

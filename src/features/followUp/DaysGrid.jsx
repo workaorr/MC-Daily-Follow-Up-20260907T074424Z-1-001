@@ -10,7 +10,7 @@ export const DaysGrid = ({
     onToggleDay,
     id 
 }) => {
-    const { lang } = useApp();
+    const { lang, isSupervisor } = useApp();
     const now = new Date();
     const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const todayDayNum = String(now.getDate());
@@ -27,7 +27,7 @@ export const DaysGrid = ({
 
     const handleBoxClick = (dayNum) => {
         const isToday = isCurrentMonthView && dayNum === todayDayNum;
-        if (!isToday) {
+        if (!isToday && !isSupervisor) {
             alert(lang === 'TH' 
                 ? `⚠️ ไม่อนุญาตให้ติ๊กติดตามย้อนหลังหรือล่วงหน้า! คุณสามารถติ๊กติดตามได้เฉพาะวันที่ปัจจุบันเท่านั้น (วันที่ ${todayDayNum})`
                 : `⚠️ Cannot log follow-ups for past or future dates! You can only log follow-ups for today (Day ${todayDayNum})`);
@@ -60,17 +60,19 @@ export const DaysGrid = ({
                 return (
                     <div 
                         key={dayNum} 
-                        className={`day-box ${isTicked ? 'active' : 'inactive'} ${!isToday ? 'disabled' : ''}`}
+                        className={`day-box ${isTicked ? 'active' : 'inactive'} ${!isToday && !isSupervisor ? 'disabled' : ''}`}
                         onClick={() => handleBoxClick(dayNum)}
                         style={{
-                            cursor: isToday ? 'pointer' : 'not-allowed',
-                            opacity: isToday ? 1 : isTicked ? 0.6 : 0.3,
+                            cursor: (isToday || isSupervisor) ? 'pointer' : 'not-allowed',
+                            opacity: (isToday || isSupervisor) ? 1 : isTicked ? 0.6 : 0.3,
                             border: isToday ? '2px solid var(--primary)' : undefined,
                             transform: isToday ? 'scale(1.1)' : undefined
                         }}
                         title={
                             isToday
                                 ? (lang === 'TH' ? `วันที่ ${dayNum} (วันนี้): ${isTicked ? 'ติดตามแล้ว (กดเพื่อยกเลิก)' : 'ยังไม่ได้ติดตาม (กดเพื่อติ๊กติดตาม)'}` : `Day ${dayNum} (Today): ${isTicked ? 'Followed up (click to undo)' : 'Pending follow-up (click to check)'}`)
+                                : isSupervisor
+                                ? (lang === 'TH' ? `👑 หัวหน้างาน (Supervisor): คลิกเพื่อติ๊กติดตาม/แก้ไข วันที่ ${dayNum}` : `👑 Supervisor: Click to toggle Day ${dayNum}`)
                                 : (lang === 'TH' ? `วันที่ ${dayNum}: ไม่อนุญาตให้ติ๊กย้อนหลังหรือล่วงหน้า (ติ๊กได้เฉพาะวันที่ปัจจุบันเท่านั้น - วันที่ ${todayDayNum})` : `Day ${dayNum}: Cannot log past or future dates (today is day ${todayDayNum})`)
                         }
                     >
