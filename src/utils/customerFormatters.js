@@ -173,16 +173,27 @@ export const getCustomerFollowUpDaysCount = (c) => {
 };
 
 /**
+ * นับจำนวนวันที่ได้รับการติดตามในรอบปัจจุบัน (Cycle ปัจจุบัน)
+ * หากมีการฟื้นคืนชีพลีดเริ่มรอบใหม่ จะเริ่มนับวันของรอบนั้นๆ
+ */
+export const getCustomerCycleFollowUpDaysCount = (c) => {
+    if (!c) return 0;
+    const totalCount = getCustomerFollowUpDaysCount(c);
+    const startOffset = Number(c.cycleStartDaysCount || 0);
+    return Math.max(0, totalCount - startOffset);
+};
+
+/**
  * ตรวจสอบว่าลูกค้าตามครบ 10 วันแล้วแต่ยังไม่ฝากเงินหรือไม่ (หมดรอบติดตาม 10 วัน)
- * เงื่อนไข: ยังไม่มียอดฝากเงิน และมีประวัติติดตาม (ติ๊กถูก) ครบ 10 วันขึ้นไป
+ * เงื่อนไข: ยังไม่มียอดฝากเงิน และมีประวัติติดตามในรอบปัจจุบันครบ 10 วันขึ้นไป
  */
 export const isTenDaysFollowUpCompleted = (c) => {
     if (!c) return false;
     const hasDep = Boolean(c.hasDeposited || Number(c.totalDeposit || 0) > 0);
     if (hasDep) return false;
 
-    const count = getCustomerFollowUpDaysCount(c);
-    return count >= 10;
+    const cycleCount = getCustomerCycleFollowUpDaysCount(c);
+    return cycleCount >= 10;
 };
 
 

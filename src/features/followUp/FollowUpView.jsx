@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { DaysGrid } from './DaysGrid';
 import { QUICK_REMARK_PRESETS } from '../../constants/presets';
-import { formatChannelDisplayName, isOverdue3Days, isDueTodayFollowUp, getFollowUpDueReason, getStagnantDepositInfo, getCustomerFollowUpDaysCount, isTenDaysFollowUpCompleted } from '../../utils/customerFormatters';
+import { formatChannelDisplayName, isOverdue3Days, isDueTodayFollowUp, getFollowUpDueReason, getStagnantDepositInfo, getCustomerFollowUpDaysCount, getCustomerCycleFollowUpDaysCount, isTenDaysFollowUpCompleted } from '../../utils/customerFormatters';
 import { getCurrentMonthStr } from '../../utils/dateFormatters';
 import { pushCustomerToCloud } from '../../services/supabase';
 import { SearchInput } from '../../components/common';
@@ -73,6 +73,12 @@ export default function FollowUpView() {
   const [reassignRemark, setReassignRemark] = useState('');
   const [isReassignConfirmModalOpen, setIsReassignConfirmModalOpen] = useState(false);
   const [isReassigning, setIsReassigning] = useState(false);
+
+  // Reactivate Lead Cycle Modal State
+  const [reactivateCust, setReactivateCust] = useState(null);
+  const [reactivateReason, setReactivateReason] = useState('ลูกค้าทักแชทกลับมาสอบถาม');
+  const [reactivateCustomReason, setReactivateCustomReason] = useState('');
+  const [isReactivating, setIsReactivating] = useState(false);
 
   const handleToggleSelectCust = (custId) => {
     setSelectedCustIdsForReassign(prev => {
@@ -448,6 +454,63 @@ export default function FollowUpView() {
       console.error('Bulk reassign error:', err);
       setIsReassigning(false);
       alert(lang === 'TH' ? `เกิดข้อผิดพลาดในการโอนย้าย: ${err.message}` : `Reassignment error: ${err.message}`);
+    }
+  };
+
+  const handleOpenReactivateModal = (cust) => {
+    setReactivateCust(cust);
+    setReactivateReason('ลูกค้าทักแชทกลับมาสอบถาม');
+    setReactivateCustomReason('');
+  };
+
+  const handleConfirmReactivate = async () => {
+    if (!reactivateCust) return;
+    setIsReactivating(true);
+
+    try {
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const finalReason = reactivateReason === 'OTHER' ? (reactivateCustomReason.trim() || 'เริ่มรอบติดตามใหม่') : reactivateReason;
+      const currentDaysTotal = getCustomerFollowUpDaysCount(reactivateCust);
+      const nextCycleNum = (Number(reactivateCust.cycleNumber) || 1) + 1;
+
+      const formattedToday = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+      const cycleNoteTag = `[🔄 เริ่มรอบ ${nextCycleNum} (${formattedToday}): ${finalReason}]`;
+      const updatedNotes = reactivateCust.notes && reactivateCust.notes.trim() 
+        ? `${reactivateCust.notes.trim()}\n${cycleNoteTag}` 
+        : cycleNoteTag;
+
+      const updatedCust = {
+        ...reactivateCust,
+        cycleNumber: nextCycleNum,
+        cycleStartDaysCount: currentDaysTotal,
+        reactivatedAt: nowIso,
+        reactivatedBy: activeAgentName || 'MC Agent',
+        reactivatedReason: finalReason,
+        notes: updatedNotes,
+        updatedBy: activeAgentName || 'MC Agent',
+        updatedAt: nowIso
+      };
+
+      if (supabaseClient) {
+        pushCustomerToCloud(supabaseClient, updatedCust);
+      }
+
+      setCustomers(prev => prev.map(c => c.id === reactivateCust.id ? updatedCust : c));
+
+      const logMsg = `🔄 เจ้าหน้าที่ [${activeAgentName || 'MC Agent'}] เริ่มรอบติดตามใหม่ (รอบที่ ${nextCycleNum}) ให้กับลูกค้า [@${reactivateCust.username || reactivateCust.fullName || reactivateCust.phone}] เหตุผล: "${finalReason}"`;
+      writeLog('CUSTOMER_REACTIVATED', logMsg, 'info', activeAgentName || 'MC Agent');
+
+      setIsReactivating(false);
+      setReactivateCust(null);
+      alert(lang === 'TH' 
+        ? `✅ ฟื้นคืนชีพเคสสำเร็จ! เริ่มรอบติดตามใหม่ (รอบที่ ${nextCycleNum}) ให้กับคุณ ${reactivateCust.fullName || reactivateCust.username} เรียบร้อยแล้ว เคสจะกลับเข้าสู่คิวงาน "ต้องติดตามวันนี้"` 
+        : `✅ Lead reactivated for Cycle ${nextCycleNum}! Customer returned to Daily Follow-Up queue.`
+      );
+    } catch (err) {
+      console.error('Reactivate customer error:', err);
+      setIsReactivating(false);
+      alert(lang === 'TH' ? `เกิดข้อผิดพลาดในการเริ่มรอบใหม่: ${err.message}` : `Error reactivating lead: ${err.message}`);
     }
   };
 
@@ -897,6 +960,7 @@ export default function FollowUpView() {
                   const dueReason = isDueToday ? getFollowUpDueReason(cust, selectedMonth) : null;
                   const stagnantInfo = getStagnantDepositInfo(cust, lang);
                   const followUpDaysCount = getCustomerFollowUpDaysCount(cust);
+                  const cycleFollowUpDays = getCustomerCycleFollowUpDaysCount(cust);
                   const isCycleCompleted = isTenDaysFollowUpCompleted(cust);
                   const isCustSelected = selectedCustIdsForReassign.includes(cust.id);
                   return (
@@ -923,6 +987,28 @@ export default function FollowUpView() {
                               <div className={overdue ? 'text-overdue-blink' : ''} style={{ fontWeight: 700, fontSize: '13px', color: theme === 'light' ? '#0f172a' : '#ffffff' }}>
                                 {cust.fullName}
                               </div>
+                            )}
+                            {cust.cycleNumber && cust.cycleNumber > 1 && (
+                              <span 
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  padding: '1px 6px',
+                                  borderRadius: '999px',
+                                  background: theme === 'light' ? '#f3e8ff' : 'rgba(168, 85, 247, 0.2)',
+                                  color: theme === 'light' ? '#7c3aed' : '#c084fc',
+                                  border: '1px solid rgba(168, 85, 247, 0.4)'
+                                }}
+                                title={lang === 'TH' 
+                                  ? `เคสฟื้นคืนชีพ: ติดตามรอบที่ ${cust.cycleNumber} (${cust.reactivatedReason || 'เริ่มรอบใหม่'})` 
+                                  : `Reactivated Lead: Cycle ${cust.cycleNumber}`}
+                              >
+                                <span>🔄</span>
+                                <span>{lang === 'TH' ? `รอบที่ ${cust.cycleNumber}` : `Cycle ${cust.cycleNumber}`}</span>
+                              </span>
                             )}
                             {overdue && (
                               <span 
@@ -1149,13 +1235,38 @@ export default function FollowUpView() {
                             {lang === 'TH' ? `🟢 ฝากแล้ว (฿${(cust.returnedDepositAmount || cust.totalDeposit || 0).toLocaleString()})` : `🟢 Deposited (฿${(cust.returnedDepositAmount || cust.totalDeposit || 0).toLocaleString()})`}
                           </span>
                         ) : isCycleCompleted ? (
-                          <span 
-                            className="badge badge-cycle-completed" 
-                            style={{ padding: '3px 6px', fontSize: '10.5px', whiteSpace: 'nowrap' }}
-                            title={lang === 'TH' ? `ติดตามครบ ${followUpDaysCount} วันแล้วแต่ยังไม่มียอดฝากเงิน (หมดรอบติดตาม 10 วัน)` : `Followed up ${followUpDaysCount} days with no deposit (10-Day Cycle Complete)`}
-                          >
-                            {lang === 'TH' ? '⚪ หมดรอบ 10 วัน' : '⚪ 10d Ended'}
-                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                            <span 
+                              className="badge badge-cycle-completed" 
+                              style={{ padding: '2px 6px', fontSize: '10px', whiteSpace: 'nowrap' }}
+                              title={lang === 'TH' ? `ติดตามครบ ${cycleFollowUpDays} วันในรอบนี้ (สะสม ${followUpDaysCount} วัน) ยังไม่มียอดฝาก` : `Followed up ${cycleFollowUpDays} days in this cycle (10-Day Cycle Complete)`}
+                            >
+                              {lang === 'TH' ? `⚪ หมดรอบ 10 วัน${cust.cycleNumber > 1 ? ` (รอบ ${cust.cycleNumber})` : ''}` : `⚪ 10d Ended${cust.cycleNumber > 1 ? ` (C${cust.cycleNumber})` : ''}`}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReactivateModal(cust)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '2px 8px',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                borderRadius: '6px',
+                                background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                                color: '#ffffff',
+                                border: 'none',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 5px rgba(124, 58, 237, 0.35)',
+                                transition: 'all 0.15s ease'
+                              }}
+                              title={lang === 'TH' ? 'คลิกเพื่อฟื้นคืนชีพเคส เริ่มรอบติดตามใหม่อีก 10 วัน' : 'Reactivate lead for another 10-day cycle'}
+                            >
+                              <span>🔄</span>
+                              <span>{lang === 'TH' ? 'เริ่มรอบใหม่' : 'Reactivate'}</span>
+                            </button>
+                          </div>
                         ) : (
                           <span className="badge badge-pending" style={{ padding: '3px 6px', fontSize: '10.5px', whiteSpace: 'nowrap' }}>
                             {lang === 'TH' ? '🔴 รอฝากเงิน' : '🔴 Pending'}
@@ -1818,6 +1929,186 @@ export default function FollowUpView() {
                 >
                   <span>🚀</span>
                   <span>{isReassigning ? (lang === 'TH' ? 'กำลังโอนย้าย...' : 'Reassigning...') : (lang === 'TH' ? 'ยืนยันโอนย้ายเคส' : 'Confirm Reassign')}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Reactivate Lead Cycle Modal */}
+      {reactivateCust && createPortal(
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          backdropFilter: 'blur(3px)'
+        }}>
+          <div style={{
+            background: theme === 'light' ? '#ffffff' : '#0f172a',
+            border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '16px',
+            width: '460px',
+            maxWidth: '92vw',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+            overflow: 'hidden'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: theme === 'light' ? '#f5f3ff' : 'rgba(124, 58, 237, 0.12)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: 800, color: '#7c3aed' }}>
+                <span style={{ fontSize: '18px' }}>🔄</span>
+                <span>{lang === 'TH' ? 'ฟื้นคืนชีพเคส (เริ่มรอบติดตามใหม่)' : 'Reactivate Customer Lead'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReactivateCust(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                  padding: '2px 6px'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '20px' }}>
+              <div style={{
+                padding: '12px 16px',
+                borderRadius: '12px',
+                background: theme === 'light' ? '#f8fafc' : 'rgba(255,255,255,0.04)',
+                border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
+                marginBottom: '16px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{lang === 'TH' ? '👤 ลูกค้า:' : 'Customer:'}</span>
+                  <strong style={{ color: theme === 'light' ? '#0f172a' : '#ffffff' }}>
+                    {reactivateCust.fullName || '-'} {reactivateCust.username ? `(@${reactivateCust.username})` : ''}
+                  </strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{lang === 'TH' ? '🔁 รอบการติดตาม:' : 'Cycle:'}</span>
+                  <span style={{ fontWeight: 700, color: '#7c3aed' }}>
+                    {lang === 'TH' 
+                      ? `รอบที่ ${reactivateCust.cycleNumber || 1} ➔ กำลังจะเริ่ม รอบที่ ${(Number(reactivateCust.cycleNumber) || 1) + 1}` 
+                      : `Cycle ${reactivateCust.cycleNumber || 1} ➔ Cycle ${(Number(reactivateCust.cycleNumber) || 1) + 1}`}
+                  </span>
+                </div>
+                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', borderTop: theme === 'light' ? '1px dashed #cbd5e1' : '1px dashed rgba(255,255,255,0.1)', paddingTop: '8px', marginTop: '6px' }}>
+                  💡 {lang === 'TH' 
+                    ? 'เมื่อเริ่มรอบใหม่ ลูกค้าจะถูกดึงออกจากแท็บหมดรอบ และกลับเข้าสู่คิวงาน "ต้องติดตามวันนี้" เพื่อติดตามต่ออีก 10 วัน' 
+                    : 'Customer will be unblocked and returned to the Daily Queue for another 10 days.'}
+                </div>
+              </div>
+
+              {/* Select Reason */}
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                  {lang === 'TH' ? '🎯 เหตุผลการเริ่มรอบใหม่:' : 'Reactivation Reason:'}
+                </label>
+                <select
+                  value={reactivateReason}
+                  onChange={(e) => setReactivateReason(e.target.value)}
+                  className="select-input"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    fontSize: '12.5px',
+                    borderRadius: '8px',
+                    background: theme === 'light' ? '#ffffff' : '#020617',
+                    color: theme === 'light' ? '#0f172a' : '#ffffff',
+                    border: theme === 'light' ? '1.5px solid #cbd5e1' : '1.5px solid rgba(255,255,255,0.15)'
+                  }}
+                >
+                  <option value="ลูกค้าทักแชทกลับมาสอบถาม">💬 ลูกค้าทักแชทกลับมาสอบถาม</option>
+                  <option value="เสนอโปรโมชั่นพิเศษ/แคมเปญใหม่">🎁 เสนอโปรโมชั่นพิเศษ / แคมเปญใหม่</option>
+                  <option value="ขยายเวลาติดตาม (ลูกค้าสนใจแต่ยังไม่พร้อม)">⏳ ขยายเวลาติดตาม (ลูกค้าสนใจแต่ยังไม่พร้อม)</option>
+                  <option value="เปลี่ยนช่องทางคุย / ลูกค้าแอดไลน์มาใหม่">📲 เปลี่ยนช่องทางคุย / ลูกค้าแอดไลน์มาใหม่</option>
+                  <option value="OTHER">✍️ อื่นๆ (ระบุเอง)</option>
+                </select>
+              </div>
+
+              {reactivateReason === 'OTHER' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={reactivateCustomReason}
+                    onChange={(e) => setReactivateCustomReason(e.target.value)}
+                    placeholder={lang === 'TH' ? 'พิมพ์ระบุเหตุผล...' : 'Specify reason...'}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      fontSize: '12.5px',
+                      background: theme === 'light' ? '#f8fafc' : '#020617',
+                      color: theme === 'light' ? '#0f172a' : '#f8fafc',
+                      border: theme === 'light' ? '1.5px solid #cbd5e1' : '1.5px solid rgba(255,255,255,0.15)',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
+                <button
+                  type="button"
+                  disabled={isReactivating}
+                  onClick={() => setReactivateCust(null)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    background: 'transparent',
+                    border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)',
+                    color: 'var(--text-muted)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {lang === 'TH' ? 'ยกเลิก' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isReactivating}
+                  onClick={handleConfirmReactivate}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 20px',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    boxShadow: '0 2px 10px rgba(124, 58, 237, 0.35)',
+                    cursor: isReactivating ? 'wait' : 'pointer'
+                  }}
+                >
+                  <span>🔄</span>
+                  <span>{isReactivating ? (lang === 'TH' ? 'กำลังดำเนินการ...' : 'Reactivating...') : (lang === 'TH' ? 'ยืนยันเริ่มรอบใหม่' : 'Confirm Reactivate')}</span>
                 </button>
               </div>
             </div>
