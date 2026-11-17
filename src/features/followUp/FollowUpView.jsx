@@ -43,7 +43,6 @@ export default function FollowUpView() {
   const [supervisorFollowUpFilter, setSupervisorFollowUpFilter] = useState('ทั้งหมด');
   const [pastMonthSpecificFilter, setPastMonthSpecificFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [quickNotDepSubFilter, setQuickNotDepSubFilter] = useState('ALL');
   const [lineLekFilter, setLineLekFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -143,25 +142,10 @@ export default function FollowUpView() {
 
   const cScopeAll = scopeCusts.length;
   const cScopeDueToday = scopeCusts.filter(c => isDueTodayFollowUp(c, selectedMonth)).length;
-  const cScopeUnconv = scopeCusts.filter(c => !isDepositedAsOfDate(c)).length;
-  const cScopeNotReg = scopeCusts.filter(c => !c.username || c.username.trim() === '').length;
-  const cScopeReg = scopeCusts.filter(c => c.username && c.username.trim() !== '').length;
-  const cScopeDep = scopeCusts.filter(c => c.username && c.username.trim() !== '' && isDepositedAsOfDate(c)).length;
   const cScopeNotDep = scopeCusts.filter(c => c.username && c.username.trim() !== '' && !isDepositedAsOfDate(c)).length;
+  const cScopeNotReg = scopeCusts.filter(c => !c.username || c.username.trim() === '').length;
+  const cScopeDep = scopeCusts.filter(c => c.username && c.username.trim() !== '' && isDepositedAsOfDate(c)).length;
   const cScopeCycleCompleted = scopeCusts.filter(c => isTenDaysFollowUpCompleted(c)).length;
-
-  // Sub-counts for "สมัครไม่ฝาก"
-  const notDepScopeCusts = useMemo(() => {
-    return scopeCusts.filter(c => c.username && c.username.trim() !== '' && !isDepositedAsOfDate(c));
-  }, [scopeCusts]);
-
-  const cNotDepTotal = notDepScopeCusts.length;
-  const cNotDepDueToday = notDepScopeCusts.filter(c => isDueTodayFollowUp(c, selectedMonth)).length;
-  const cNotDepHasLine = notDepScopeCusts.filter(c => getLineLekStatus(c.lineLek) === 'HAS').length;
-  const cNotDepWaiting = notDepScopeCusts.filter(c => getLineLekStatus(c.lineLek) === 'WAITING').length;
-  const cNotDepOverdue = notDepScopeCusts.filter(c => isOverdue3Days(c, selectedMonth)).length;
-  const cNotDepCurrentMonth = notDepScopeCusts.filter(c => isCurrentMonth(c)).length;
-  const cNotDepCycleCompleted = notDepScopeCusts.filter(c => isTenDaysFollowUpCompleted(c)).length;
 
   // Final displayed list
   const displayList = useMemo(() => {
@@ -177,17 +161,6 @@ export default function FollowUpView() {
       if (statusFilter === 'REGISTERED' && !hasUser) return false;
       if (statusFilter === 'DEPOSITED' && (!hasUser || !isDep)) return false;
       if (['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) && (!hasUser || isDep)) return false;
-
-      // Sub-filter for สมัครแต่ไม่ฝาก
-      if (['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) && quickNotDepSubFilter !== 'ALL') {
-        const lineSt = getLineLekStatus(c.lineLek);
-        if (quickNotDepSubFilter === 'CYCLE_COMPLETED' && !isTenDaysFollowUpCompleted(c)) return false;
-        if (quickNotDepSubFilter === 'DUE_TODAY' && !isDueTodayFollowUp(c, selectedMonth)) return false;
-        if (quickNotDepSubFilter === 'HAS_LINE' && lineSt !== 'HAS') return false;
-        if (quickNotDepSubFilter === 'WAITING_LINE' && lineSt !== 'WAITING') return false;
-        if (quickNotDepSubFilter === 'OVERDUE_3D' && !isOverdue3Days(c, selectedMonth)) return false;
-        if (quickNotDepSubFilter === 'CURRENT_MONTH' && !isCurrentMonth(c)) return false;
-      }
 
       // Line Lek Filter
       if (lineLekFilter && lineLekFilter !== 'ALL' && lineLekFilter !== 'ทั้งหมด') {
@@ -208,7 +181,7 @@ export default function FollowUpView() {
 
       return true;
     });
-  }, [scopeCusts, statusFilter, quickNotDepSubFilter, lineLekFilter, searchQuery, selectedMonth]);
+  }, [scopeCusts, statusFilter, lineLekFilter, searchQuery, selectedMonth]);
 
   // Aggregate totals
   const displayTotalDeposit = displayList.reduce((sum, c) => sum + (parseFloat(c.totalDeposit || 0)), 0);
@@ -606,13 +579,13 @@ export default function FollowUpView() {
                 <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>📌 {lang === 'TH' ? 'สถานะ:' : 'Status:'}</span>
                 <button 
                   className={`filter-status-pill ${statusFilter === 'ALL' ? 'active' : ''}`} 
-                  onClick={() => { setStatusFilter('ALL'); setQuickNotDepSubFilter('ALL'); }}
+                  onClick={() => setStatusFilter('ALL')}
                 >
                   {lang === 'TH' ? 'ทั้งหมด' : 'All'} ({cScopeAll})
                 </button>
                 <button 
                   className={`filter-status-pill ${statusFilter === 'DUE_TODAY' ? 'active' : ''}`} 
-                  onClick={() => { setStatusFilter(statusFilter === 'DUE_TODAY' ? 'ALL' : 'DUE_TODAY'); setQuickNotDepSubFilter('ALL'); }}
+                  onClick={() => setStatusFilter(statusFilter === 'DUE_TODAY' ? 'ALL' : 'DUE_TODAY')}
                   title={lang === 'TH' ? 'เคลียร์คิวงานประจำวัน: ลูกค้าที่ยังไม่ได้ฝากเงิน และวันนี้ยังไม่ได้ติ๊กทักแชทติดตาม' : 'Daily Queue: Unconverted customers not yet followed up today'}
                   style={{
                     border: statusFilter === 'DUE_TODAY' ? '1px solid #ef4444' : '1px solid rgba(239, 68, 68, 0.4)',
@@ -624,49 +597,30 @@ export default function FollowUpView() {
                   {lang === 'TH' ? `⏰ ต้องติดตามวันนี้ (${cScopeDueToday})` : `⏰ Due Today (${cScopeDueToday})`}
                 </button>
                 <button 
-                  className={`filter-status-pill ${['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) ? 'active' : ''}`} 
-                  onClick={() => { setStatusFilter(['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) ? 'ALL' : 'UNCONVERTED'); setQuickNotDepSubFilter('ALL'); }}
-                >
-                  {lang === 'TH' ? `⏳ ไม่สมัครและไม่ฝาก (${cScopeUnconv})` : `⏳ Unconverted (${cScopeUnconv})`}
-                </button>
-                <button 
-                  className={`filter-status-pill ${['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) ? 'active' : ''}`} 
-                  onClick={() => { setStatusFilter(['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) ? 'ALL' : 'NOT_REGISTERED'); setQuickNotDepSubFilter('ALL'); }}
-                >
-                  {lang === 'TH' ? `🟠 ทักไม่สมัคร (${cScopeNotReg})` : `🟠 Inquired (Not Reg) (${cScopeNotReg})`}
-                </button>
-                <button 
-                  className={`filter-status-pill ${statusFilter === 'REGISTERED' ? 'active' : ''}`} 
-                  onClick={() => { setStatusFilter(statusFilter === 'REGISTERED' ? 'ALL' : 'REGISTERED'); setQuickNotDepSubFilter('ALL'); }}
-                >
-                  {lang === 'TH' ? `🔵 ทักสมัคร (${cScopeReg})` : `🔵 Registered (${cScopeReg})`}
-                </button>
-                <button 
-                  className={`filter-status-pill ${statusFilter === 'DEPOSITED' ? 'active' : ''}`} 
-                  onClick={() => { setStatusFilter(statusFilter === 'DEPOSITED' ? 'ALL' : 'DEPOSITED'); setQuickNotDepSubFilter('ALL'); }}
-                >
-                  {lang === 'TH' ? `🟢 สมัครและฝาก (${cScopeDep})` : `🟢 Reg & Deposited (${cScopeDep})`}
-                </button>
-                <button 
                   className={`filter-status-pill ${['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) ? 'active' : ''}`} 
-                  onClick={() => {
-                    if (['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter)) {
-                      setStatusFilter('ALL');
-                      setQuickNotDepSubFilter('ALL');
-                    } else {
-                      setStatusFilter('NOT_DEPOSITED');
-                      setQuickNotDepSubFilter('ALL');
-                    }
+                  onClick={() => setStatusFilter(['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) ? 'ALL' : 'NOT_DEPOSITED')}
+                  style={{
+                    border: ['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) ? '1px solid #dc2626' : undefined,
+                    fontWeight: 600
                   }}
                 >
                   {lang === 'TH' ? `🔴 สมัครไม่ฝาก (${cScopeNotDep})` : `🔴 Reg (No Deposit) (${cScopeNotDep})`}
                 </button>
                 <button 
+                  className={`filter-status-pill ${['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) ? 'active' : ''}`} 
+                  onClick={() => setStatusFilter(['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) ? 'ALL' : 'NOT_REGISTERED')}
+                >
+                  {lang === 'TH' ? `🟠 ทักไม่สมัคร (${cScopeNotReg})` : `🟠 Inquired (Not Reg) (${cScopeNotReg})`}
+                </button>
+                <button 
+                  className={`filter-status-pill ${statusFilter === 'DEPOSITED' ? 'active' : ''}`} 
+                  onClick={() => setStatusFilter(statusFilter === 'DEPOSITED' ? 'ALL' : 'DEPOSITED')}
+                >
+                  {lang === 'TH' ? `🟢 สมัครและฝาก (${cScopeDep})` : `🟢 Reg & Deposited (${cScopeDep})`}
+                </button>
+                <button 
                   className={`filter-status-pill ${statusFilter === 'CYCLE_COMPLETED' ? 'active' : ''}`} 
-                  onClick={() => {
-                    setStatusFilter(statusFilter === 'CYCLE_COMPLETED' ? 'ALL' : 'CYCLE_COMPLETED');
-                    setQuickNotDepSubFilter('ALL');
-                  }}
+                  onClick={() => setStatusFilter(statusFilter === 'CYCLE_COMPLETED' ? 'ALL' : 'CYCLE_COMPLETED')}
                   title={lang === 'TH' ? 'ลูกค้าที่ติดตามครบ 10 วันแล้วแต่ยังไม่มียอดฝากเงิน (หมดรอบติดตาม 10 วัน)' : 'Leads followed up for 10 days with no deposit (cycle completed)'}
                   style={{
                     border: statusFilter === 'CYCLE_COMPLETED' ? '1px solid #64748b' : '1px solid rgba(148, 163, 184, 0.45)',
@@ -679,120 +633,6 @@ export default function FollowUpView() {
                 </button>
               </div>
             </div>
-
-            {/* Dynamic Sub-pills for สมัครไม่ฝาก */}
-            {['NOT_DEPOSITED', 'PAST_NOT_DEPOSITED'].includes(statusFilter) && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                flexWrap: 'wrap',
-                padding: '8px 12px',
-                marginTop: '8px',
-                marginBottom: '4px',
-                borderRadius: '8px',
-                background: theme === 'light' ? 'rgba(244, 63, 94, 0.06)' : 'rgba(244, 63, 94, 0.12)',
-                border: '1px dashed rgba(244, 63, 94, 0.35)'
-              }}>
-                <span style={{ fontSize: '11.5px', fontWeight: 700, color: theme === 'light' ? '#be123c' : '#fda4af', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  🎯 {lang === 'TH' ? 'ตัวกรองย่อยสมัครไม่ฝาก:' : 'Sub-filters:'}
-                </span>
-
-                <button
-                  type="button"
-                  onClick={() => setQuickNotDepSubFilter('ALL')}
-                  className={`btn ${quickNotDepSubFilter === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ padding: '3px 9px', fontSize: '11px' }}
-                >
-                  🔴 {lang === 'TH' ? 'ทั้งหมด' : 'All'} ({cNotDepTotal})
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setQuickNotDepSubFilter(quickNotDepSubFilter === 'DUE_TODAY' ? 'ALL' : 'DUE_TODAY')}
-                  className={`btn ${quickNotDepSubFilter === 'DUE_TODAY' ? 'btn-primary' : 'btn-secondary'}`}
-                  title={lang === 'TH' ? 'ลูกค้าที่สมัครไม่ฝากและวันนี้ยังไม่ได้ติ๊กทักแชทติดตาม' : 'Pending deposit leads not yet contacted today'}
-                  style={{
-                    padding: '3px 9px',
-                    fontSize: '11px',
-                    color: quickNotDepSubFilter === 'DUE_TODAY' ? '#fff' : '#ef4444',
-                    borderColor: quickNotDepSubFilter === 'DUE_TODAY' ? '#ef4444' : 'rgba(239, 68, 68, 0.4)',
-                    background: quickNotDepSubFilter === 'DUE_TODAY' ? '#ef4444' : 'rgba(239, 68, 68, 0.08)',
-                    fontWeight: 700
-                  }}
-                >
-                  ⏰ {lang === 'TH' ? 'ต้องติดตามวันนี้ (ยังไม่ได้ทัก)' : 'Due Today (Pending)'} ({cNotDepDueToday})
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setQuickNotDepSubFilter(quickNotDepSubFilter === 'HAS_LINE' ? 'ALL' : 'HAS_LINE')}
-                  className={`btn ${quickNotDepSubFilter === 'HAS_LINE' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ padding: '3px 9px', fontSize: '11px', color: quickNotDepSubFilter === 'HAS_LINE' ? '#fff' : '#10b981' }}
-                >
-                  💬 {lang === 'TH' ? 'มีไลน์ (พร้อมทัก)' : 'Has LINE (Ready)'} ({cNotDepHasLine})
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setQuickNotDepSubFilter(quickNotDepSubFilter === 'WAITING_LINE' ? 'ALL' : 'WAITING_LINE')}
-                  className={`btn ${quickNotDepSubFilter === 'WAITING_LINE' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ padding: '3px 9px', fontSize: '11px', color: quickNotDepSubFilter === 'WAITING_LINE' ? '#fff' : '#f59e0b' }}
-                >
-                  🟡 {lang === 'TH' ? 'รอแอดไลน์' : 'Pending LINE'} ({cNotDepWaiting})
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setQuickNotDepSubFilter(quickNotDepSubFilter === 'OVERDUE_3D' ? 'ALL' : 'OVERDUE_3D')}
-                  className={`btn ${quickNotDepSubFilter === 'OVERDUE_3D' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ padding: '3px 9px', fontSize: '11px', color: quickNotDepSubFilter === 'OVERDUE_3D' ? '#fff' : '#ef4444' }}
-                >
-                  ⚠️ {lang === 'TH' ? 'ค้างตาม 3 วัน+' : 'Overdue 3d+'} ({cNotDepOverdue})
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setQuickNotDepSubFilter(quickNotDepSubFilter === 'CURRENT_MONTH' ? 'ALL' : 'CURRENT_MONTH')}
-                  className={`btn ${quickNotDepSubFilter === 'CURRENT_MONTH' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ padding: '3px 9px', fontSize: '11px', color: quickNotDepSubFilter === 'CURRENT_MONTH' ? '#fff' : '#8b5cf6' }}
-                >
-                  ✨ {lang === 'TH' ? 'ลูกค้าใหม่เดือนนี้' : 'New This Month'} ({cNotDepCurrentMonth})
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setQuickNotDepSubFilter(quickNotDepSubFilter === 'CYCLE_COMPLETED' ? 'ALL' : 'CYCLE_COMPLETED')}
-                  className={`btn ${quickNotDepSubFilter === 'CYCLE_COMPLETED' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ padding: '3px 9px', fontSize: '11px', color: quickNotDepSubFilter === 'CYCLE_COMPLETED' ? '#fff' : '#64748b' }}
-                  title={lang === 'TH' ? 'ลูกค้าที่ติดตามครบ 10 วันแล้วแต่ยังไม่มียอดฝากเงิน' : 'Leads followed up for 10 days with no deposit'}
-                >
-                  🏁 {lang === 'TH' ? 'หมดรอบ 10 วัน' : '10d Ended'} ({cNotDepCycleCompleted})
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStatusFilter('ALL');
-                    setQuickNotDepSubFilter('ALL');
-                  }}
-                  style={{
-                    padding: '2px 8px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    borderRadius: '4px',
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    marginLeft: 'auto'
-                  }}
-                >
-                  ✕ {lang === 'TH' ? 'ปิดตัวกรองย่อย' : 'Close'}
-                </button>
-              </div>
-            )}
 
             {/* Row 2: Line Lek Status Filter */}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', borderTop: theme === 'light' ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.06)', paddingTop: '8px' }}>
