@@ -343,6 +343,8 @@ export const AppProvider = ({ children }) => {
                     );
                     const archiveMeta = (c.follow_up_by_month && c.follow_up_by_month._archived) || 
                                         (c.follow_up && c.follow_up._archived) || {};
+                    const cycleMeta = (c.follow_up_by_month && c.follow_up_by_month._cycle) || 
+                                      (c.follow_up && c.follow_up._cycle) || {};
 
                     const nextFollowUpDate = extractNextFollowUpDate(c);
 
@@ -367,6 +369,11 @@ export const AppProvider = ({ children }) => {
                         nextFollowUpDate: nextFollowUpDate,
                         hasDeposited: c.has_deposited || false,
                         returnedDepositAmount: parseFloat(c.returned_deposit_amount || 0),
+                        cycleNumber: Number(c.cycle_number || cycleMeta.cycleNumber || 1),
+                        cycleStartDaysCount: Number(c.cycle_start_days_count || cycleMeta.cycleStartDaysCount || 0),
+                        reactivatedAt: c.reactivated_at || cycleMeta.reactivatedAt || null,
+                        reactivatedBy: c.reactivated_by || cycleMeta.reactivatedBy || null,
+                        reactivatedReason: c.reactivated_reason || cycleMeta.reactivatedReason || null,
                         deletedAt: archiveMeta.archivedAt || c.deleted_at || null,
                         deletedBy: archiveMeta.archivedBy || c.deleted_by || 'Supervisor',
                         isDeleted: isArchived

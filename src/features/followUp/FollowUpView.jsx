@@ -199,6 +199,24 @@ export default function FollowUpView() {
   const displayDepositedCount = displayList.filter(c => isDepositedAsOfDate(c)).length;
   const displayUnconvertedCount = displayList.length - displayDepositedCount;
 
+  // Completed Cycle Leads in current filtered display
+  const completedCycleInDisplay = useMemo(() => {
+    return displayList.filter(c => isTenDaysFollowUpCompleted(c));
+  }, [displayList]);
+
+  const handleSelectAllCycleCompleted = () => {
+    if (!isBulkReassignMode) setIsBulkReassignMode(true);
+    const targetList = statusFilter === 'CYCLE_COMPLETED' ? displayList : completedCycleInDisplay;
+    const completedIds = targetList.map(c => c.id);
+    setSelectedCustIdsForReassign(completedIds);
+    setReassignRemark('โอนเคสหมดรอบ 10 วันเพื่อนำไป Re-marketing');
+  };
+
+  const handleSelectAllInPage = () => {
+    if (!isBulkReassignMode) setIsBulkReassignMode(true);
+    setSelectedCustIdsForReassign(displayList.map(c => c.id));
+  };
+
   // Toggle Day Follow-up checkbox
   const handleToggleDay = (customerId, dayNum) => {
     const updated = customers.map(c => {
@@ -895,6 +913,60 @@ export default function FollowUpView() {
 
       {/* Scrolling Table Section */}
       <div style={{ padding: '16px 24px 24px 24px' }}>
+        {/* Supervisor Shortcut Banner for 10-Day Ended Leads */}
+        {isSupervisor && statusFilter === 'CYCLE_COMPLETED' && displayList.length > 0 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 16px',
+            borderRadius: '10px',
+            background: theme === 'light' ? '#f5f3ff' : 'rgba(124, 58, 237, 0.14)',
+            border: theme === 'light' ? '1.5px solid #d8b4fe' : '1.5px solid rgba(168, 85, 247, 0.4)',
+            marginBottom: '12px',
+            boxShadow: '0 2px 8px rgba(124, 58, 237, 0.15)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px' }}>🏁</span>
+              <div>
+                <span style={{ fontWeight: 800, fontSize: '13px', color: '#7c3aed' }}>
+                  {lang === 'TH' ? 'พบเคสหมดรอบ 10 วันทั้งหมดในหน้านี้:' : 'Completed Cycle Leads on this page:'}
+                </span>
+                <strong style={{ marginLeft: '6px', fontSize: '14px', color: theme === 'light' ? '#0f172a' : '#ffffff' }}>
+                  {displayList.length} {lang === 'TH' ? 'คน' : 'leads'}
+                </strong>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: '8px' }}>
+                  {lang === 'TH' ? '(เหมาะสำหรับโอนย้ายไปให้ทีม Re-marketing ต่อ)' : '(Ready for Re-marketing team)'}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSelectAllCycleCompleted}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: '12.5px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(124, 58, 237, 0.35)',
+                transition: 'all 0.15s ease'
+              }}
+              title={lang === 'TH' ? 'คลิกเพื่อเลือกเคสหมดรอบทั้งหมดในหน้านี้ แล้วเปิดโหมดโอนย้ายเคสหมู่ทันที' : 'Select all completed leads on this page'}
+            >
+              <span>✓</span>
+              <span>{lang === 'TH' ? `เลือกเคสหมดรอบทั้งหมดในหน้านี้ (${displayList.length} คน) เพื่อโอนย้าย` : `Select All (${displayList.length}) for Reassign`}</span>
+            </button>
+          </div>
+        )}
+
         <div className="table-wrapper">
           <table style={{ minWidth: '1050px', width: '100%' }}>
             <thead>
@@ -1776,6 +1848,69 @@ export default function FollowUpView() {
             }}>
               {lang === 'TH' ? `เลือกอยู่ ${selectedCustIdsForReassign.length} คน` : `Selected ${selectedCustIdsForReassign.length}`}
             </span>
+
+            {/* Quick selection shortcuts */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '4px' }}>
+              <button
+                type="button"
+                onClick={handleSelectAllCycleCompleted}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  background: 'rgba(124, 58, 237, 0.15)',
+                  border: '1px solid #7c3aed',
+                  color: '#7c3aed',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+                title={lang === 'TH' ? 'คลิกเพื่อเลือกเฉพาะเคสที่หมดรอบ 10 วันทั้งหมดในหน้านี้' : 'Select only completed cycle leads'}
+              >
+                <span>🏁</span>
+                <span>{lang === 'TH' ? `เลือกเคสหมดรอบ (${statusFilter === 'CYCLE_COMPLETED' ? displayList.length : completedCycleInDisplay.length})` : `Select 10d Ended (${statusFilter === 'CYCLE_COMPLETED' ? displayList.length : completedCycleInDisplay.length})`}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSelectAllInPage}
+                style={{
+                  padding: '4px 9px',
+                  borderRadius: '6px',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  background: theme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.08)',
+                  border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)',
+                  color: 'inherit',
+                  cursor: 'pointer'
+                }}
+                title={lang === 'TH' ? 'เลือกรายการทั้งหมดที่กำลังแสดงผลอยู่ในหน้านี้' : 'Select all currently filtered leads'}
+              >
+                {lang === 'TH' ? `เลือกทั้งหมดในหน้านี้ (${displayList.length})` : `Select All (${displayList.length})`}
+              </button>
+
+              {selectedCustIdsForReassign.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustIdsForReassign([])}
+                  style={{
+                    padding: '4px 6px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#ef4444',
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  {lang === 'TH' ? 'ล้างที่เลือก' : 'Clear'}
+                </button>
+              )}
+            </div>
           </div>
 
           <div style={{ width: '1px', height: '24px', background: theme === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.12)' }}></div>

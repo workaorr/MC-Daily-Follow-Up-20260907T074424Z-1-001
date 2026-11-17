@@ -45,6 +45,15 @@ export const pushCustomerToCloud = async (supabaseClient, cust) => {
                 nextFollowUpDate: cust.nextFollowUpDate
             };
         }
+        if (cust.cycleNumber || cust.cycleStartDaysCount) {
+            cleanFollowUp._cycle = {
+                cycleNumber: cust.cycleNumber || 1,
+                cycleStartDaysCount: cust.cycleStartDaysCount || 0,
+                reactivatedAt: cust.reactivatedAt || null,
+                reactivatedBy: cust.reactivatedBy || null,
+                reactivatedReason: cust.reactivatedReason || null
+            };
+        }
 
         const payload = {
             id: cust.id,
