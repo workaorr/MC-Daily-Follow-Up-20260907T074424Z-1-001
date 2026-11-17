@@ -966,60 +966,6 @@ export default function FollowUpView() {
 
       {/* Scrolling Table Section */}
       <div style={{ padding: '16px 24px 24px 24px' }}>
-        {/* Supervisor Shortcut Banner for 10-Day Ended Leads */}
-        {isSupervisor && statusFilter === 'CYCLE_COMPLETED' && displayList.length > 0 && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '10px 16px',
-            borderRadius: '10px',
-            background: theme === 'light' ? '#f5f3ff' : 'rgba(124, 58, 237, 0.14)',
-            border: theme === 'light' ? '1.5px solid #d8b4fe' : '1.5px solid rgba(168, 85, 247, 0.4)',
-            marginBottom: '12px',
-            boxShadow: '0 2px 8px rgba(124, 58, 237, 0.15)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '18px' }}>🏁</span>
-              <div>
-                <span style={{ fontWeight: 800, fontSize: '13px', color: '#7c3aed' }}>
-                  {lang === 'TH' ? `พบเคสหมดรอบ ${followUpCycleDays} วันทั้งหมดในหน้านี้:` : `Completed ${followUpCycleDays}d Cycle Leads on this page:`}
-                </span>
-                <strong style={{ marginLeft: '6px', fontSize: '14px', color: theme === 'light' ? '#0f172a' : '#ffffff' }}>
-                  {displayList.length} {lang === 'TH' ? 'คน' : 'leads'}
-                </strong>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: '8px' }}>
-                  {lang === 'TH' ? '(เหมาะสำหรับโอนย้ายไปให้ทีม Re-marketing ต่อ)' : '(Ready for Re-marketing team)'}
-                </span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleSelectAllCycleCompleted}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 14px',
-                borderRadius: '8px',
-                background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '12.5px',
-                fontWeight: 800,
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(124, 58, 237, 0.35)',
-                transition: 'all 0.15s ease'
-              }}
-              title={lang === 'TH' ? 'คลิกเพื่อเลือกเคสหมดรอบทั้งหมดในหน้านี้ แล้วเปิดโหมดโอนย้ายเคสหมู่ทันที' : 'Select all completed leads on this page'}
-            >
-              <span>✓</span>
-              <span>{lang === 'TH' ? `เลือกเคสหมดรอบทั้งหมดในหน้านี้ (${displayList.length} คน) เพื่อโอนย้าย` : `Select All (${displayList.length}) for Reassign`}</span>
-            </button>
-          </div>
-        )}
-
         <div className="table-wrapper">
           <table style={{ minWidth: '1050px', width: '100%' }}>
             <thead>
