@@ -200,6 +200,25 @@ export const AppProvider = ({ children }) => {
         }
     }, [activeAgentName]);
 
+    // --- FOLLOW-UP CYCLE THRESHOLD DAYS ---
+    const [followUpCycleDays, setFollowUpCycleDays] = useState(() => {
+        try {
+            const saved = localStorage.getItem('mc_follow_up_cycle_days');
+            const parsed = saved ? parseInt(saved, 10) : 10;
+            return parsed > 0 ? parsed : 10;
+        } catch (e) {
+            return 10;
+        }
+    });
+
+    const updateFollowUpCycleDays = (days) => {
+        const val = Math.max(1, parseInt(days, 10) || 10);
+        setFollowUpCycleDays(val);
+        try {
+            localStorage.setItem('mc_follow_up_cycle_days', String(val));
+        } catch (e) {}
+    };
+
     // --- CUSTOMERS & RECYCLE BIN ---
     const [customers, setCustomers] = useState(() => {
         try {
@@ -772,6 +791,9 @@ export const AppProvider = ({ children }) => {
         teamMonthlyTargets,
         setTeamMonthlyTargets,
         saveMonthlyTargets,
+        followUpCycleDays,
+        setFollowUpCycleDays,
+        updateFollowUpCycleDays,
 
         // Data Models
         customers,

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { DaysGrid } from './DaysGrid';
 import { QUICK_REMARK_PRESETS } from '../../constants/presets';
-import { formatChannelDisplayName, isOverdue3Days, isDueTodayFollowUp, getFollowUpDueReason, getStagnantDepositInfo, getCustomerFollowUpDaysCount, getCustomerCycleFollowUpDaysCount, isTenDaysFollowUpCompleted } from '../../utils/customerFormatters';
+import { formatChannelDisplayName, isOverdue3Days, isDueTodayFollowUp, getFollowUpDueReason, getStagnantDepositInfo, getCustomerFollowUpDaysCount, getCustomerCycleFollowUpDaysCount, isTenDaysFollowUpCompleted, isFollowUpCycleCompleted } from '../../utils/customerFormatters';
 import { getCurrentMonthStr } from '../../utils/dateFormatters';
 import { pushCustomerToCloud } from '../../services/supabase';
 import { SearchInput } from '../../components/common';
@@ -33,7 +33,9 @@ export default function FollowUpView() {
     theme,
     setSelectedCustForModal,
     supabaseClient,
-    writeLog
+    writeLog,
+    followUpCycleDays = 10,
+    updateFollowUpCycleDays
   } = useApp();
 
   const currentMonthStr = getCurrentMonthStr();
@@ -147,11 +149,11 @@ export default function FollowUpView() {
   }, [agentCusts, pastMonthSpecificFilter, targetMonth]);
 
   const cScopeAll = scopeCusts.length;
-  const cScopeDueToday = scopeCusts.filter(c => isDueTodayFollowUp(c, selectedMonth)).length;
+  const cScopeDueToday = scopeCusts.filter(c => isDueTodayFollowUp(c, selectedMonth, followUpCycleDays)).length;
   const cScopeNotDep = scopeCusts.filter(c => c.username && c.username.trim() !== '' && !isDepositedAsOfDate(c)).length;
   const cScopeNotReg = scopeCusts.filter(c => !c.username || c.username.trim() === '').length;
   const cScopeDep = scopeCusts.filter(c => c.username && c.username.trim() !== '' && isDepositedAsOfDate(c)).length;
-  const cScopeCycleCompleted = scopeCusts.filter(c => isTenDaysFollowUpCompleted(c)).length;
+  const cScopeCycleCompleted = scopeCusts.filter(c => isFollowUpCycleCompleted(c, followUpCycleDays)).length;
 
   // Final displayed list
   const displayList = useMemo(() => {
@@ -160,8 +162,8 @@ export default function FollowUpView() {
       const isDep = isDepositedAsOfDate(c);
 
       // Status Filters
-      if (statusFilter === 'CYCLE_COMPLETED' && !isTenDaysFollowUpCompleted(c)) return false;
-      if (statusFilter === 'DUE_TODAY' && !isDueTodayFollowUp(c, selectedMonth)) return false;
+      if (statusFilter === 'CYCLE_COMPLETED' && !isFollowUpCycleCompleted(c, followUpCycleDays)) return false;
+      if (statusFilter === 'DUE_TODAY' && !isDueTodayFollowUp(c, selectedMonth, followUpCycleDays)) return false;
       if (['UNCONVERTED', 'PAST_UNCONVERTED'].includes(statusFilter) && isDep) return false;
       if (['NOT_REGISTERED', 'PAST_NOT_REGISTERED'].includes(statusFilter) && hasUser) return false;
       if (statusFilter === 'REGISTERED' && !hasUser) return false;
@@ -187,7 +189,7 @@ export default function FollowUpView() {
 
       return true;
     });
-  }, [scopeCusts, statusFilter, lineLekFilter, searchQuery, selectedMonth]);
+  }, [scopeCusts, statusFilter, lineLekFilter, searchQuery, selectedMonth, followUpCycleDays]);
 
   // Aggregate totals
   const displayTotalDeposit = displayList.reduce((sum, c) => sum + (parseFloat(c.totalDeposit || 0)), 0);
@@ -201,15 +203,15 @@ export default function FollowUpView() {
 
   // Completed Cycle Leads in current filtered display
   const completedCycleInDisplay = useMemo(() => {
-    return displayList.filter(c => isTenDaysFollowUpCompleted(c));
-  }, [displayList]);
+    return displayList.filter(c => isFollowUpCycleCompleted(c, followUpCycleDays));
+  }, [displayList, followUpCycleDays]);
 
   const handleSelectAllCycleCompleted = () => {
     if (!isBulkReassignMode) setIsBulkReassignMode(true);
     const targetList = statusFilter === 'CYCLE_COMPLETED' ? displayList : completedCycleInDisplay;
     const completedIds = targetList.map(c => c.id);
     setSelectedCustIdsForReassign(completedIds);
-    setReassignRemark('โอนเคสหมดรอบ 10 วันเพื่อนำไป Re-marketing');
+    setReassignRemark(`โอนเคสหมดรอบ ${followUpCycleDays} วันเพื่อนำไป Re-marketing`);
   };
 
   const handleSelectAllInPage = () => {
@@ -365,8 +367,8 @@ export default function FollowUpView() {
     });
     const followedUpCount = followedUpCusts.length;
 
-    // Unconverted queue total
-    const unconvertedCusts = targetCusts.filter(c => !c.hasDeposited);
+    // Unconverted active queue total (excludes completed cycle leads)
+    const unconvertedCusts = targetCusts.filter(c => !c.hasDeposited && !isFollowUpCycleCompleted(c, followUpCycleDays));
     const queueTotalCount = unconvertedCusts.length;
     const clearedPct = queueTotalCount > 0 ? Math.min(100, Math.round((followedUpCount / queueTotalCount) * 100)) : 100;
 
@@ -534,7 +536,7 @@ export default function FollowUpView() {
 
   // Generate 3 sample cycle-completed cases for testing / demo
   const handleCreateSampleCompletedCases = () => {
-    const targetCusts = customers.filter(c => !c.deletedAt && !c.hasDeposited && !isTenDaysFollowUpCompleted(c)).slice(0, 3);
+    const targetCusts = customers.filter(c => !c.deletedAt && !c.hasDeposited && !isFollowUpCycleCompleted(c, followUpCycleDays)).slice(0, 3);
     if (targetCusts.length === 0) {
       alert(lang === 'TH' ? 'ไม่พบลูกค้ารอฝากเงินที่สามารถจำลองเคสได้' : 'No eligible unconverted customers found');
       return;
@@ -544,9 +546,9 @@ export default function FollowUpView() {
     const curMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const targetIds = targetCusts.map(c => c.id);
 
-    // Build 10 follow-up ticks (days 1 to 10)
+    // Build follow-up ticks according to configured cycle days
     const mockFollowUp = {};
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= followUpCycleDays; i++) {
       mockFollowUp[String(i)] = true;
     }
 
@@ -570,10 +572,10 @@ export default function FollowUpView() {
     });
 
     setCustomers(updated);
-    writeLog('MOCK_CYCLE_TEST', `🧪 หัวหน้า [${activeAgentName || 'Supervisor'}] ได้จำลองข้อมูลติดตามครบ 10 วัน ให้กับลูกค้า 3 คน เพื่อทดสอบระบบ`, 'info', activeAgentName || 'Supervisor');
+    writeLog('MOCK_CYCLE_TEST', `🧪 หัวหน้า [${activeAgentName || 'Supervisor'}] ได้จำลองข้อมูลติดตามครบ ${followUpCycleDays} วัน ให้กับลูกค้า 3 คน เพื่อทดสอบระบบ`, 'info', activeAgentName || 'Supervisor');
     alert(lang === 'TH' 
-      ? `✅ จำลองเคส "หมดรอบ 10 วัน" ให้กับลูกค้า 3 รายการสำเร็จเรียบร้อยแล้ว!` 
-      : '✅ Successfully simulated 3 cycle completed cases!'
+      ? `✅ จำลองเคส "หมดรอบ ${followUpCycleDays} วัน" ให้กับลูกค้า 3 รายการสำเร็จเรียบร้อยแล้ว!` 
+      : `✅ Successfully simulated 3 cycle completed cases (${followUpCycleDays} days)!`
     );
   };
 
@@ -602,6 +604,57 @@ export default function FollowUpView() {
                     </option>
                   ))}
                 </select>
+
+                {/* Supervisor Follow-Up Cycle Threshold Selector */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '3px 8px',
+                  borderRadius: '8px',
+                  background: theme === 'light' ? '#f5f3ff' : 'rgba(124, 58, 237, 0.12)',
+                  border: theme === 'light' ? '1px solid #d8b4fe' : '1px solid rgba(168, 85, 247, 0.35)'
+                }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#7c3aed', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    ⚙️ {lang === 'TH' ? 'รอบติดตาม:' : 'Cycle Limit:'}
+                  </span>
+                  <select
+                    className="select-input"
+                    value={[3, 5, 7, 10, 14, 15, 20, 30].includes(Number(followUpCycleDays)) ? String(followUpCycleDays) : 'CUSTOM'}
+                    onChange={(e) => {
+                      if (e.target.value === 'CUSTOM') {
+                        const inputVal = prompt(lang === 'TH' ? 'ระบุจำนวนวันของรอบติดตามที่ต้องการ (เช่น 7, 10, 12, 14, 21):' : 'Enter follow-up cycle threshold days:', String(followUpCycleDays));
+                        if (inputVal && !isNaN(parseInt(inputVal, 10)) && parseInt(inputVal, 10) > 0) {
+                          updateFollowUpCycleDays(parseInt(inputVal, 10));
+                        }
+                      } else {
+                        updateFollowUpCycleDays(parseInt(e.target.value, 10));
+                      }
+                    }}
+                    style={{
+                      height: '28px',
+                      padding: '2px 8px',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      border: '1px solid #7c3aed',
+                      background: theme === 'light' ? '#ffffff' : '#0f172a',
+                      color: '#7c3aed'
+                    }}
+                    title={lang === 'TH' ? 'กำหนดจำนวนวันที่แอดมินต้องติดตามครบ ก่อนระบบจะตัดเป็น "หมดรอบ"' : 'Configure follow-up cycle threshold'}
+                  >
+                    <option value="3">3 วัน</option>
+                    <option value="5">5 วัน</option>
+                    <option value="7">7 วัน (1 สัปดาห์)</option>
+                    <option value="10">10 วัน (ค่าเริ่มต้น)</option>
+                    <option value="14">14 วัน (2 สัปดาห์)</option>
+                    <option value="15">15 วัน (ครึ่งเดือน)</option>
+                    <option value="20">20 วัน</option>
+                    <option value="30">30 วัน (1 เดือน)</option>
+                    <option value="CUSTOM">✍️ กำหนดเอง ({followUpCycleDays} วัน)...</option>
+                  </select>
+                </div>
 
                 {/* Supervisor Bulk Reassign Mode Button */}
                 <button
@@ -747,7 +800,7 @@ export default function FollowUpView() {
                 <button 
                   className={`filter-status-pill ${statusFilter === 'CYCLE_COMPLETED' ? 'active' : ''}`} 
                   onClick={() => setStatusFilter(statusFilter === 'CYCLE_COMPLETED' ? 'ALL' : 'CYCLE_COMPLETED')}
-                  title={lang === 'TH' ? 'ลูกค้าที่ติดตามครบ 10 วันแล้วแต่ยังไม่มียอดฝากเงิน (หมดรอบติดตาม 10 วัน)' : 'Leads followed up for 10 days with no deposit (cycle completed)'}
+                  title={lang === 'TH' ? `ลูกค้าที่ติดตามครบ ${followUpCycleDays} วันแล้วแต่ยังไม่มียอดฝากเงิน (หมดรอบติดตาม ${followUpCycleDays} วัน)` : `Leads followed up for ${followUpCycleDays} days with no deposit (cycle completed)`}
                   style={{
                     border: statusFilter === 'CYCLE_COMPLETED' ? '1px solid #64748b' : '1px solid rgba(148, 163, 184, 0.45)',
                     background: statusFilter === 'CYCLE_COMPLETED' ? '#64748b' : (theme === 'light' ? 'rgba(100, 116, 139, 0.08)' : 'rgba(148, 163, 184, 0.12)'),
@@ -755,7 +808,7 @@ export default function FollowUpView() {
                     fontWeight: 700
                   }}
                 >
-                  {lang === 'TH' ? `🏁 หมดรอบ 10 วัน (${cScopeCycleCompleted})` : `🏁 10d Ended (${cScopeCycleCompleted})`}
+                  {lang === 'TH' ? `🏁 หมดรอบ ${followUpCycleDays} วัน (${cScopeCycleCompleted})` : `🏁 ${followUpCycleDays}d Ended (${cScopeCycleCompleted})`}
                 </button>
               </div>
             </div>
@@ -930,7 +983,7 @@ export default function FollowUpView() {
               <span style={{ fontSize: '18px' }}>🏁</span>
               <div>
                 <span style={{ fontWeight: 800, fontSize: '13px', color: '#7c3aed' }}>
-                  {lang === 'TH' ? 'พบเคสหมดรอบ 10 วันทั้งหมดในหน้านี้:' : 'Completed Cycle Leads on this page:'}
+                  {lang === 'TH' ? `พบเคสหมดรอบ ${followUpCycleDays} วันทั้งหมดในหน้านี้:` : `Completed ${followUpCycleDays}d Cycle Leads on this page:`}
                 </span>
                 <strong style={{ marginLeft: '6px', fontSize: '14px', color: theme === 'light' ? '#0f172a' : '#ffffff' }}>
                   {displayList.length} {lang === 'TH' ? 'คน' : 'leads'}
@@ -1092,7 +1145,7 @@ export default function FollowUpView() {
                           }}
                         >
                           <span>🧪</span>
-                          <span>{lang === 'TH' ? 'กดตรงนี้เพื่อจำลองเคส "หมดรอบ 10 วัน" ตัวอย่าง (3 คน)' : 'Simulate 3 Completed Cases for Testing'}</span>
+                          <span>{lang === 'TH' ? `กดตรงนี้เพื่อจำลองเคส "หมดรอบ ${followUpCycleDays} วัน" ตัวอย่าง (3 คน)` : `Simulate 3 Completed Cases for Testing (${followUpCycleDays}d)`}</span>
                         </button>
                       </div>
                     )}
@@ -1101,12 +1154,12 @@ export default function FollowUpView() {
               ) : (
                 displayList.map((cust, custIdx) => {
                   const overdue = isOverdue3Days(cust, selectedMonth);
-                  const isDueToday = isDueTodayFollowUp(cust, selectedMonth);
-                  const dueReason = isDueToday ? getFollowUpDueReason(cust, selectedMonth) : null;
-                  const stagnantInfo = getStagnantDepositInfo(cust, lang);
+                  const isDueToday = isDueTodayFollowUp(cust, selectedMonth, followUpCycleDays);
+                  const dueReason = isDueToday ? getFollowUpDueReason(cust, selectedMonth, followUpCycleDays) : null;
+                  const stagnantInfo = getStagnantDepositInfo(cust, lang, followUpCycleDays);
                   const followUpDaysCount = getCustomerFollowUpDaysCount(cust);
                   const cycleFollowUpDays = getCustomerCycleFollowUpDaysCount(cust);
-                  const isCycleCompleted = isTenDaysFollowUpCompleted(cust);
+                  const isCycleCompleted = isFollowUpCycleCompleted(cust, followUpCycleDays);
                   const isCustSelected = selectedCustIdsForReassign.includes(cust.id);
                   return (
                     <tr 
@@ -1179,9 +1232,9 @@ export default function FollowUpView() {
                                     color: theme === 'light' ? '#475569' : '#94a3b8',
                                     border: theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(148, 163, 184, 0.4)'
                                   }}
-                                  title={lang === 'TH' ? 'ลูกค้าตามครบ 10 วันแล้ว จบกระบวนการติดตามประจำวัน' : '10-day cycle completed'}
+                                  title={lang === 'TH' ? `ลูกค้าตามครบ ${followUpCycleDays} วันแล้ว จบกระบวนการติดตามประจำวัน` : `${followUpCycleDays}-day cycle completed`}
                                 >
-                                  <span>{lang === 'TH' ? '🏁 หมดรอบ 10 วัน' : '🏁 10d Ended'}</span>
+                                  <span>{lang === 'TH' ? `🏁 หมดรอบ ${followUpCycleDays} วัน` : `🏁 ${followUpCycleDays}d Ended`}</span>
                                 </span>
                               ) : isDueToday ? (
                                 <span 
@@ -1267,9 +1320,9 @@ export default function FollowUpView() {
                                   gap: '3px',
                                   cursor: 'default'
                                 }}
-                                title={lang === 'TH' ? `ลูกค้าติดตามครบ ${followUpDaysCount} วันแล้วแต่ยังไม่มียอดฝากเงิน (หมดรอบติดตาม 10 วัน)` : `Followed up ${followUpDaysCount} days with no deposit (10-day cycle completed)`}
+                                title={lang === 'TH' ? `ลูกค้าติดตามครบ ${cycleFollowUpDays} วันแล้วแต่ยังไม่มียอดฝากเงิน (หมดรอบติดตาม ${followUpCycleDays} วัน)` : `Followed up ${cycleFollowUpDays} days with no deposit (${followUpCycleDays}-day cycle completed)`}
                               >
-                                🏁 {lang === 'TH' ? `หมดรอบ 10 วัน (ตาม ${followUpDaysCount} วัน)` : `10d Ended (${followUpDaysCount}d)`}
+                                🏁 {lang === 'TH' ? `หมดรอบ ${followUpCycleDays} วัน (ตาม ${cycleFollowUpDays} วัน)` : `${followUpCycleDays}d Ended (${cycleFollowUpDays}d)`}
                               </span>
                             )}
                             {cust.campaignMonth && (selectedMonth === 'ALL' || cust.campaignMonth < targetMonth) && (
@@ -1384,9 +1437,9 @@ export default function FollowUpView() {
                             <span 
                               className="badge badge-cycle-completed" 
                               style={{ padding: '2px 6px', fontSize: '10px', whiteSpace: 'nowrap' }}
-                              title={lang === 'TH' ? `ติดตามครบ ${cycleFollowUpDays} วันในรอบนี้ (สะสม ${followUpDaysCount} วัน) ยังไม่มียอดฝาก` : `Followed up ${cycleFollowUpDays} days in this cycle (10-Day Cycle Complete)`}
+                              title={lang === 'TH' ? `ติดตามครบ ${cycleFollowUpDays} วันในรอบนี้ (สะสม ${followUpDaysCount} วัน) ยังไม่มียอดฝาก (เกณฑ์ ${followUpCycleDays} วัน)` : `Followed up ${cycleFollowUpDays} days in this cycle (${followUpCycleDays}-Day Cycle Complete)`}
                             >
-                              {lang === 'TH' ? `⚪ หมดรอบ 10 วัน${cust.cycleNumber > 1 ? ` (รอบ ${cust.cycleNumber})` : ''}` : `⚪ 10d Ended${cust.cycleNumber > 1 ? ` (C${cust.cycleNumber})` : ''}`}
+                              {lang === 'TH' ? `⚪ หมดรอบ ${followUpCycleDays} วัน${cust.cycleNumber > 1 ? ` (รอบ ${cust.cycleNumber})` : ''}` : `⚪ ${followUpCycleDays}d Ended${cust.cycleNumber > 1 ? ` (C${cust.cycleNumber})` : ''}`}
                             </span>
                             <button
                               type="button"
@@ -1406,7 +1459,7 @@ export default function FollowUpView() {
                                 boxShadow: '0 2px 5px rgba(124, 58, 237, 0.35)',
                                 transition: 'all 0.15s ease'
                               }}
-                              title={lang === 'TH' ? 'คลิกเพื่อฟื้นคืนชีพเคส เริ่มรอบติดตามใหม่อีก 10 วัน' : 'Reactivate lead for another 10-day cycle'}
+                              title={lang === 'TH' ? `คลิกเพื่อฟื้นคืนชีพเคส เริ่มรอบติดตามใหม่อีก ${followUpCycleDays} วัน` : `Reactivate lead for another ${followUpCycleDays}-day cycle`}
                             >
                               <span>🔄</span>
                               <span>{lang === 'TH' ? 'เริ่มรอบใหม่' : 'Reactivate'}</span>
@@ -2223,8 +2276,8 @@ export default function FollowUpView() {
                 </div>
                 <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', borderTop: theme === 'light' ? '1px dashed #cbd5e1' : '1px dashed rgba(255,255,255,0.1)', paddingTop: '8px', marginTop: '6px' }}>
                   💡 {lang === 'TH' 
-                    ? 'เมื่อเริ่มรอบใหม่ ลูกค้าจะถูกดึงออกจากแท็บหมดรอบ และกลับเข้าสู่คิวงาน "ต้องติดตามวันนี้" เพื่อติดตามต่ออีก 10 วัน' 
-                    : 'Customer will be unblocked and returned to the Daily Queue for another 10 days.'}
+                    ? `เมื่อเริ่มรอบใหม่ ลูกค้าจะถูกดึงออกจากแท็บหมดรอบ และกลับเข้าสู่คิวงาน "ต้องติดตามวันนี้" เพื่อติดตามต่ออีก ${followUpCycleDays} วัน` 
+                    : `Customer will be unblocked and returned to the Daily Queue for another ${followUpCycleDays} days.`}
                 </div>
               </div>
 

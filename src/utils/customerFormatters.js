@@ -86,10 +86,10 @@ export const isOverdue3Days = (c, monthKey) => {
     return !dToday && !d1 && !d2;
 };
 
-export const isDueTodayFollowUp = (c, monthKey = null) => {
+export const isDueTodayFollowUp = (c, monthKey = null, thresholdDays = 10) => {
     if (!c || c.hasDeposited) return false;
-    // คัดลีดที่ตามครบ 10 วันแล้วแต่ยังไม่ฝาก ออกจากคิวต้องติดตามวันนี้อัตโนมัติ
-    if (isTenDaysFollowUpCompleted(c)) return false;
+    // คัดลีดที่ตามครบตามจำนวนวันรอบติดตามแล้วแต่ยังไม่ฝาก ออกจากคิวต้องติดตามวันนี้อัตโนมัติ
+    if (isFollowUpCycleCompleted(c, thresholdDays)) return false;
 
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -99,17 +99,17 @@ export const isDueTodayFollowUp = (c, monthKey = null) => {
     const fMap = (c.followUpByMonth && (c.followUpByMonth[targetMonth] || c.followUpByMonth[c.campaignMonth])) || c.followUp || {};
     const isTickedToday = Boolean(fMap[todayDayNum] || (c.followUp && c.followUp[todayDayNum]));
 
-    // ระบบเคลียร์คิวงานประจำวัน: ลูกค้าที่ยังไม่ได้ฝากเงิน และยังไม่หมดรอบ 10 วัน หากวันนี้ยังไม่ได้ติ๊ก = อยู่ในคิวต้องติดตามวันนี้
+    // ระบบเคลียร์คิวงานประจำวัน: ลูกค้าที่ยังไม่ได้ฝากเงิน และยังไม่หมดรอบ หากวันนี้ยังไม่ได้ติ๊ก = อยู่ในคิวต้องติดตามวันนี้
     return !isTickedToday;
 };
 
-export const getFollowUpDueReason = (c, monthKey = null) => {
-    if (!c || c.hasDeposited || isTenDaysFollowUpCompleted(c)) return null;
-    return isDueTodayFollowUp(c, monthKey) ? 'PENDING_TODAY' : null;
+export const getFollowUpDueReason = (c, monthKey = null, thresholdDays = 10) => {
+    if (!c || c.hasDeposited || isFollowUpCycleCompleted(c, thresholdDays)) return null;
+    return isDueTodayFollowUp(c, monthKey, thresholdDays) ? 'PENDING_TODAY' : null;
 };
 
-export const getStagnantDepositInfo = (c, lang = 'TH') => {
-    if (!c || c.hasDeposited || isTenDaysFollowUpCompleted(c)) return null;
+export const getStagnantDepositInfo = (c, lang = 'TH', thresholdDays = 10) => {
+    if (!c || c.hasDeposited || isFollowUpCycleCompleted(c, thresholdDays)) return null;
     if (!c.createdAt) return null;
     const createdDate = new Date(c.createdAt);
     if (isNaN(createdDate.getTime())) return null;
@@ -184,16 +184,23 @@ export const getCustomerCycleFollowUpDaysCount = (c) => {
 };
 
 /**
- * ตรวจสอบว่าลูกค้าตามครบ 10 วันแล้วแต่ยังไม่ฝากเงินหรือไม่ (หมดรอบติดตาม 10 วัน)
- * เงื่อนไข: ยังไม่มียอดฝากเงิน และมีประวัติติดตามในรอบปัจจุบันครบ 10 วันขึ้นไป
+ * ตรวจสอบว่าลูกค้าตามครบกำหนดจำนวนวันในรอบแล้วแต่ยังไม่ฝากเงินหรือไม่ (หมดรอบติดตาม)
+ * ค่าเริ่มต้นคือ 10 วัน แต่สามารถกำหนดจำนวนวันเองได้ (thresholdDays เช่น 5, 7, 10, 14, 30)
+ * เงื่อนไข: ยังไม่มียอดฝากเงิน และมีประวัติติดตามในรอบปัจจุบันครบตามเกณฑ์
  */
-export const isTenDaysFollowUpCompleted = (c) => {
+export const isFollowUpCycleCompleted = (c, thresholdDays = 10) => {
     if (!c) return false;
     const hasDep = Boolean(c.hasDeposited || Number(c.totalDeposit || 0) > 0);
     if (hasDep) return false;
 
     const cycleCount = getCustomerCycleFollowUpDaysCount(c);
-    return cycleCount >= 10;
+    const limit = Number(thresholdDays) > 0 ? Number(thresholdDays) : 10;
+    return cycleCount >= limit;
+};
+
+// Aliased for backward compatibility
+export const isTenDaysFollowUpCompleted = (c, thresholdDays = 10) => {
+    return isFollowUpCycleCompleted(c, thresholdDays);
 };
 
 
