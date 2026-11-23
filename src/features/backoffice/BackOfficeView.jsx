@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { StaffRow } from './StaffRow';
 import { ChannelCard } from './ChannelCard';
@@ -24,7 +24,11 @@ import {
   Activity, 
   Search, 
   RotateCcw, 
-  Edit 
+  Edit,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 
 export default function BackOfficeView() {
@@ -116,6 +120,48 @@ export default function BackOfficeView() {
     setBoAgentFilter('ทั้งหมด');
     setBoChannelFilter('ทั้งหมด');
     setBoDepositFilter('ทั้งหมด');
+    setBoCurrentPage(1);
+  };
+
+  // Customer DB Pagination State
+  const [boPageSize, setBoPageSize] = useState(50); // 25, 50, 100, 'all'
+  const [boCurrentPage, setBoCurrentPage] = useState(1);
+
+  // Reset page to 1 whenever filters or page size change
+  useEffect(() => {
+    setBoCurrentPage(1);
+  }, [boSearchQuery, boAgentFilter, boChannelFilter, boDepositFilter, boPageSize]);
+
+  const totalBoRecords = filteredBoCustomers.length;
+  const effectivePageSize = boPageSize === 'all' ? (totalBoRecords || 1) : Number(boPageSize);
+  const totalBoPages = boPageSize === 'all' ? 1 : Math.max(1, Math.ceil(totalBoRecords / effectivePageSize));
+  const safeBoCurrentPage = Math.min(Math.max(1, boCurrentPage), totalBoPages);
+
+  const paginatedBoCustomers = useMemo(() => {
+    if (boPageSize === 'all') return filteredBoCustomers;
+    const startIdx = (safeBoCurrentPage - 1) * effectivePageSize;
+    return filteredBoCustomers.slice(startIdx, startIdx + effectivePageSize);
+  }, [filteredBoCustomers, safeBoCurrentPage, effectivePageSize, boPageSize]);
+
+  const startRecordNum = totalBoRecords === 0 ? 0 : (safeBoCurrentPage - 1) * effectivePageSize + 1;
+  const endRecordNum = boPageSize === 'all' ? totalBoRecords : Math.min(safeBoCurrentPage * effectivePageSize, totalBoRecords);
+
+  const getPaginationRange = () => {
+    if (totalBoPages <= 7) {
+      return Array.from({ length: totalBoPages }, (_, i) => i + 1);
+    }
+    const range = [];
+    const leftSide = Math.max(2, safeBoCurrentPage - 1);
+    const rightSide = Math.min(totalBoPages - 1, safeBoCurrentPage + 1);
+
+    range.push(1);
+    if (leftSide > 2) range.push('...');
+    for (let i = leftSide; i <= rightSide; i++) {
+      range.push(i);
+    }
+    if (rightSide < totalBoPages - 1) range.push('...');
+    range.push(totalBoPages);
+    return range;
   };
 
   // Staff Management Handlers
@@ -754,6 +800,58 @@ export default function BackOfficeView() {
             </select>
           </div>
 
+          {/* Table Header Controls & Pagination Info */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            marginBottom: '12px',
+            padding: '8px 12px',
+            background: theme === 'light' ? '#f8fafc' : 'rgba(255, 255, 255, 0.02)',
+            borderRadius: '10px',
+            border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255, 255, 255, 0.06)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+              <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+                📊 {lang === 'TH' ? 'ผลลัพธ์ลูกค้า:' : 'Total Results:'}
+              </span>
+              <span className="badge badge-owner" style={{ fontSize: '11px', padding: '3px 8px' }}>
+                {totalBoRecords.toLocaleString()} {lang === 'TH' ? 'คน' : 'leads'}
+              </span>
+              {totalBoRecords > 0 && (
+                <span style={{ color: 'var(--text-muted)', fontSize: '11.5px' }}>
+                  ({lang === 'TH' ? `แสดงลำดับ ${startRecordNum} - ${endRecordNum}` : `Showing ${startRecordNum} - ${endRecordNum}`})
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ fontSize: '11.5px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>{lang === 'TH' ? 'แสดงหน้าละ:' : 'Per page:'}</span>
+                <select
+                  value={boPageSize}
+                  onChange={(e) => setBoPageSize(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  className="select-input"
+                  style={{
+                    padding: '3px 8px',
+                    fontSize: '11.5px',
+                    borderRadius: '6px',
+                    height: '28px',
+                    minWidth: '100px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value={25}>25 {lang === 'TH' ? 'คน' : 'leads'}</option>
+                  <option value={50}>50 {lang === 'TH' ? 'คน' : 'leads'}</option>
+                  <option value={100}>100 {lang === 'TH' ? 'คน' : 'leads'}</option>
+                  <option value="all">{lang === 'TH' ? `ทั้งหมด (${totalBoRecords})` : `All (${totalBoRecords})`}</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
           {/* Customers Table */}
           <div className="table-responsive">
             <table className="data-table" style={{ width: '100%', fontSize: '12px' }}>
@@ -776,7 +874,7 @@ export default function BackOfficeView() {
                     </td>
                   </tr>
                 ) : (
-                  filteredBoCustomers.slice(0, 100).map(cust => (
+                  paginatedBoCustomers.map(cust => (
                     <tr key={cust.id}>
                       <td>
                         <strong>{cust.fullName || '-'}</strong>
@@ -824,6 +922,155 @@ export default function BackOfficeView() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls Bar */}
+          {totalBoRecords > 0 && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px',
+              marginTop: '12px',
+              padding: '10px 14px',
+              background: theme === 'light' ? '#f8fafc' : 'rgba(255, 255, 255, 0.02)',
+              borderRadius: '10px',
+              border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255, 255, 255, 0.06)'
+            }}>
+              {/* Left: Summary */}
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                {lang === 'TH' 
+                  ? `หน้า ${safeBoCurrentPage} จากทั้งหมด ${totalBoPages} หน้า (${totalBoRecords.toLocaleString()} รายการ)`
+                  : `Page ${safeBoCurrentPage} of ${totalBoPages} (${totalBoRecords.toLocaleString()} records)`}
+              </div>
+
+              {/* Right: Pagination Buttons */}
+              {boPageSize !== 'all' && totalBoPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {/* First Page */}
+                  <button
+                    type="button"
+                    disabled={safeBoCurrentPage <= 1}
+                    onClick={() => setBoCurrentPage(1)}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      borderRadius: '6px',
+                      opacity: safeBoCurrentPage <= 1 ? 0.4 : 1,
+                      cursor: safeBoCurrentPage <= 1 ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center'
+                    }}
+                    title={lang === 'TH' ? 'หน้าแรก' : 'First Page'}
+                  >
+                    <ChevronsLeft style={{ width: '13px', height: '13px' }} />
+                  </button>
+
+                  {/* Previous Page */}
+                  <button
+                    type="button"
+                    disabled={safeBoCurrentPage <= 1}
+                    onClick={() => setBoCurrentPage(prev => Math.max(1, prev - 1))}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      borderRadius: '6px',
+                      opacity: safeBoCurrentPage <= 1 ? 0.4 : 1,
+                      cursor: safeBoCurrentPage <= 1 ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px'
+                    }}
+                    title={lang === 'TH' ? 'หน้าก่อนหน้า' : 'Previous Page'}
+                  >
+                    <ChevronLeft style={{ width: '13px', height: '13px' }} />
+                    <span>{lang === 'TH' ? 'ก่อนหน้า' : 'Prev'}</span>
+                  </button>
+
+                  {/* Page Numbers */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', margin: '0 4px' }}>
+                    {getPaginationRange().map((p, idx) => {
+                      if (p === '...') {
+                        return (
+                          <span key={`dots-${idx}`} style={{ padding: '0 4px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                            ...
+                          </span>
+                        );
+                      }
+                      const isActive = p === safeBoCurrentPage;
+                      return (
+                        <button
+                          key={`page-${p}`}
+                          type="button"
+                          onClick={() => setBoCurrentPage(p)}
+                          style={{
+                            minWidth: '28px',
+                            height: '28px',
+                            padding: '0 6px',
+                            borderRadius: '6px',
+                            fontSize: '11.5px',
+                            fontWeight: isActive ? 800 : 500,
+                            border: isActive ? 'none' : (theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255, 255, 255, 0.12)'),
+                            background: isActive ? 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)' : 'transparent',
+                            color: isActive ? '#ffffff' : 'inherit',
+                            cursor: 'pointer',
+                            boxShadow: isActive ? '0 2px 6px rgba(124, 58, 237, 0.35)' : 'none',
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Next Page */}
+                  <button
+                    type="button"
+                    disabled={safeBoCurrentPage >= totalBoPages}
+                    onClick={() => setBoCurrentPage(prev => Math.min(totalBoPages, prev + 1))}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      borderRadius: '6px',
+                      opacity: safeBoCurrentPage >= totalBoPages ? 0.4 : 1,
+                      cursor: safeBoCurrentPage >= totalBoPages ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px'
+                    }}
+                    title={lang === 'TH' ? 'หน้าถัดไป' : 'Next Page'}
+                  >
+                    <span>{lang === 'TH' ? 'ถัดไป' : 'Next'}</span>
+                    <ChevronRight style={{ width: '13px', height: '13px' }} />
+                  </button>
+
+                  {/* Last Page */}
+                  <button
+                    type="button"
+                    disabled={safeBoCurrentPage >= totalBoPages}
+                    onClick={() => setBoCurrentPage(totalBoPages)}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      borderRadius: '6px',
+                      opacity: safeBoCurrentPage >= totalBoPages ? 0.4 : 1,
+                      cursor: safeBoCurrentPage >= totalBoPages ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center'
+                    }}
+                    title={lang === 'TH' ? 'หน้าสุดท้าย' : 'Last Page'}
+                  >
+                    <ChevronsRight style={{ width: '13px', height: '13px' }} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
