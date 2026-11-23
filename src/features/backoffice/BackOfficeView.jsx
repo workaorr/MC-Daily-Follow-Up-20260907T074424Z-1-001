@@ -28,7 +28,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 
 export default function BackOfficeView() {
@@ -115,13 +118,68 @@ export default function BackOfficeView() {
 
   const isBoFilterActive = boSearchQuery || boAgentFilter !== 'ทั้งหมด' || boChannelFilter !== 'ทั้งหมด' || boDepositFilter !== 'ทั้งหมด';
 
+  // Customer DB Sort State
+  const [boSortField, setBoSortField] = useState('createdAt'); // 'fullName', 'totalDeposit', 'createdAt', 'sourceChannel', 'createdBy'
+  const [boSortDirection, setBoSortDirection] = useState('desc'); // 'asc' or 'desc'
+
+  const handleBoSort = (field) => {
+    if (boSortField === field) {
+      setBoSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setBoSortField(field);
+      if (field === 'totalDeposit' || field === 'createdAt') {
+        setBoSortDirection('desc');
+      } else {
+        setBoSortDirection('asc');
+      }
+    }
+    setBoCurrentPage(1);
+  };
+
   const handleResetBoFilters = () => {
     setBoSearchQuery('');
     setBoAgentFilter('ทั้งหมด');
     setBoChannelFilter('ทั้งหมด');
     setBoDepositFilter('ทั้งหมด');
+    setBoSortField('createdAt');
+    setBoSortDirection('desc');
     setBoCurrentPage(1);
   };
+
+  // Sorted & Filtered customers for Database Control Center
+  const sortedAndFilteredBoCustomers = useMemo(() => {
+    const list = [...filteredBoCustomers];
+    list.sort((a, b) => {
+      let valA, valB;
+      if (boSortField === 'totalDeposit') {
+        valA = Number(a.totalDeposit) || 0;
+        valB = Number(b.totalDeposit) || 0;
+        return boSortDirection === 'asc' ? valA - valB : valB - valA;
+      }
+      if (boSortField === 'createdAt') {
+        valA = a.createdAt ? new Date(a.createdAt).getTime() : (Number(a.id) || 0);
+        valB = b.createdAt ? new Date(b.createdAt).getTime() : (Number(b.id) || 0);
+        return boSortDirection === 'asc' ? valA - valB : valB - valA;
+      }
+      if (boSortField === 'fullName') {
+        valA = (a.fullName || a.username || '').toLowerCase();
+        valB = (b.fullName || b.username || '').toLowerCase();
+        return boSortDirection === 'asc' ? valA.localeCompare(valB, 'th') : valB.localeCompare(valA, 'th');
+      }
+      if (boSortField === 'sourceChannel') {
+        valA = (a.sourceChannel || '').toLowerCase();
+        valB = (b.sourceChannel || '').toLowerCase();
+        return boSortDirection === 'asc' ? valA.localeCompare(valB, 'th') : valB.localeCompare(valA, 'th');
+      }
+      if (boSortField === 'createdBy') {
+        valA = (a.createdBy || '').toLowerCase();
+        valB = (b.createdBy || '').toLowerCase();
+        return boSortDirection === 'asc' ? valA.localeCompare(valB, 'th') : valB.localeCompare(valA, 'th');
+      }
+      return 0;
+    });
+    return list;
+  }, [filteredBoCustomers, boSortField, boSortDirection]);
 
   // Customer DB Pagination State
   const [boPageSize, setBoPageSize] = useState(50); // 25, 50, 100, 'all'
@@ -132,19 +190,67 @@ export default function BackOfficeView() {
     setBoCurrentPage(1);
   }, [boSearchQuery, boAgentFilter, boChannelFilter, boDepositFilter, boPageSize]);
 
-  const totalBoRecords = filteredBoCustomers.length;
+  const totalBoRecords = sortedAndFilteredBoCustomers.length;
   const effectivePageSize = boPageSize === 'all' ? (totalBoRecords || 1) : Number(boPageSize);
   const totalBoPages = boPageSize === 'all' ? 1 : Math.max(1, Math.ceil(totalBoRecords / effectivePageSize));
   const safeBoCurrentPage = Math.min(Math.max(1, boCurrentPage), totalBoPages);
 
   const paginatedBoCustomers = useMemo(() => {
-    if (boPageSize === 'all') return filteredBoCustomers;
+    if (boPageSize === 'all') return sortedAndFilteredBoCustomers;
     const startIdx = (safeBoCurrentPage - 1) * effectivePageSize;
-    return filteredBoCustomers.slice(startIdx, startIdx + effectivePageSize);
-  }, [filteredBoCustomers, safeBoCurrentPage, effectivePageSize, boPageSize]);
+    return sortedAndFilteredBoCustomers.slice(startIdx, startIdx + effectivePageSize);
+  }, [sortedAndFilteredBoCustomers, safeBoCurrentPage, effectivePageSize, boPageSize]);
 
   const startRecordNum = totalBoRecords === 0 ? 0 : (safeBoCurrentPage - 1) * effectivePageSize + 1;
   const endRecordNum = boPageSize === 'all' ? totalBoRecords : Math.min(safeBoCurrentPage * effectivePageSize, totalBoRecords);
+
+  const formatCustCreatedDate = (dateVal) => {
+    if (!dateVal) return '-';
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return '-';
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const yr = String(d.getFullYear()).slice(2);
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      return `${day}/${month}/${yr} ${hh}:${mm}`;
+    } catch (e) {
+      return '-';
+    }
+  };
+
+  const renderSortableHeader = (field, label, align = 'left') => {
+    const isActive = boSortField === field;
+    return (
+      <div
+        onClick={() => handleBoSort(field)}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: align === 'right' ? 'flex-end' : (align === 'center' ? 'center' : 'flex-start'),
+          gap: '5px',
+          cursor: 'pointer',
+          userSelect: 'none',
+          color: isActive ? '#7c3aed' : 'inherit',
+          fontWeight: isActive ? 800 : 700,
+          transition: 'all 0.15s'
+        }}
+        title={lang === 'TH' ? `คลิกเพื่อเรียงลำดับตาม ${label}` : `Click to sort by ${label}`}
+      >
+        <span>{label}</span>
+        {isActive ? (
+          boSortDirection === 'asc' ? (
+            <ArrowUp style={{ width: '13px', height: '13px', color: '#7c3aed' }} />
+          ) : (
+            <ArrowDown style={{ width: '13px', height: '13px', color: '#7c3aed' }} />
+          )
+        ) : (
+          <ArrowUpDown style={{ width: '11px', height: '11px', opacity: 0.35 }} />
+        )}
+      </div>
+    );
+  };
 
   const getPaginationRange = () => {
     if (totalBoPages <= 7) {
@@ -813,7 +919,7 @@ export default function BackOfficeView() {
             borderRadius: '10px',
             border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255, 255, 255, 0.06)'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontSize: '12px' }}>
               <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>
                 📊 {lang === 'TH' ? 'ผลลัพธ์ลูกค้า:' : 'Total Results:'}
               </span>
@@ -823,6 +929,30 @@ export default function BackOfficeView() {
               {totalBoRecords > 0 && (
                 <span style={{ color: 'var(--text-muted)', fontSize: '11.5px' }}>
                   ({lang === 'TH' ? `แสดงลำดับ ${startRecordNum} - ${endRecordNum}` : `Showing ${startRecordNum} - ${endRecordNum}`})
+                </span>
+              )}
+              {boSortField && (
+                <span style={{
+                  fontSize: '11px',
+                  color: '#7c3aed',
+                  background: theme === 'light' ? 'rgba(124, 58, 237, 0.08)' : 'rgba(124, 58, 237, 0.2)',
+                  border: '1px solid rgba(124, 58, 237, 0.3)',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  <span>{lang === 'TH' ? 'เรียงตาม: ' : 'Sort: '}</span>
+                  <strong>
+                    {boSortField === 'totalDeposit' ? (lang === 'TH' ? 'ยอดฝากสะสม' : 'Total Deposits') :
+                     boSortField === 'fullName' ? (lang === 'TH' ? 'ชื่อลูกค้า' : 'Customer Name') :
+                     boSortField === 'sourceChannel' ? (lang === 'TH' ? 'ช่องทาง' : 'Channel') :
+                     boSortField === 'createdBy' ? (lang === 'TH' ? 'ผู้ดูแล' : 'Owner') :
+                     (lang === 'TH' ? 'วันที่เพิ่ม' : 'Date Added')}
+                  </strong>
+                  <span>{boSortDirection === 'asc' ? '▲ (น้อยไปมาก/ก-ฮ)' : '▼ (มากไปน้อย/ล่าสุด)'}</span>
                 </span>
               )}
             </div>
@@ -857,19 +987,20 @@ export default function BackOfficeView() {
             <table className="data-table" style={{ width: '100%', fontSize: '12px' }}>
               <thead>
                 <tr>
-                  <th>{lang === 'TH' ? 'ชื่อลูกค้า / ยูสเซอร์' : 'Customer / Username'}</th>
+                  <th>{renderSortableHeader('fullName', lang === 'TH' ? 'ชื่อลูกค้า / ยูสเซอร์' : 'Customer / Username')}</th>
                   <th>{lang === 'TH' ? 'ข้อมูลติดต่อ' : 'Contact'}</th>
-                  <th>{lang === 'TH' ? 'ช่องทาง' : 'Channel'}</th>
-                  <th>{lang === 'TH' ? 'ผู้ดูแล' : 'Owner'}</th>
-                  <th style={{ textAlign: 'right' }}>{lang === 'TH' ? 'เงินสะสม' : 'Total Deposits'}</th>
+                  <th>{renderSortableHeader('sourceChannel', lang === 'TH' ? 'ช่องทาง' : 'Channel')}</th>
+                  <th>{renderSortableHeader('createdBy', lang === 'TH' ? 'ผู้ดูแล' : 'Owner')}</th>
+                  <th style={{ textAlign: 'right' }}>{renderSortableHeader('totalDeposit', lang === 'TH' ? 'เงินสะสม' : 'Total Deposits', 'right')}</th>
                   <th style={{ textAlign: 'center' }}>{lang === 'TH' ? 'สถานะ' : 'Status'}</th>
+                  <th style={{ textAlign: 'center' }}>{renderSortableHeader('createdAt', lang === 'TH' ? 'วันที่เพิ่ม' : 'Date Added', 'center')}</th>
                   <th style={{ textAlign: 'center' }}>{lang === 'TH' ? 'การจัดการ' : 'Actions'}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredBoCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                    <td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
                       {lang === 'TH' ? 'ไม่พบข้อมูลลูกค้าตรงตามเงื่อนไข' : 'No customers match criteria'}
                     </td>
                   </tr>
@@ -899,6 +1030,9 @@ export default function BackOfficeView() {
                         ) : (
                           <span className="badge badge-pending">🔴 {lang === 'TH' ? 'รอฝาก' : 'Pending'}</span>
                         )}
+                      </td>
+                      <td style={{ textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        {formatCustCreatedDate(cust.createdAt)}
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <button
