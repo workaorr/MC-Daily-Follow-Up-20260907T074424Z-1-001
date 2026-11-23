@@ -75,6 +75,7 @@ export default function BackOfficeView() {
   const [boAgentFilter, setBoAgentFilter] = useState('ทั้งหมด');
   const [boChannelFilter, setBoChannelFilter] = useState('ทั้งหมด');
   const [boDepositFilter, setBoDepositFilter] = useState('ทั้งหมด');
+  const [boIncompleteFilter, setBoIncompleteFilter] = useState('ทั้งหมด'); // 'ทั้งหมด', 'ANY_INCOMPLETE', 'NO_PHONE', 'NO_LINE', 'NO_USER', 'NO_OWNER'
 
   // Permission check
   const canBackOffice = isSupervisor || 
@@ -95,6 +96,37 @@ export default function BackOfficeView() {
     return customers.filter(c => !c.deletedAt);
   }, [customers]);
 
+  // Helper checks for incomplete customer data
+  const isCustMissingPhone = (c) => !c.phone || !String(c.phone).trim() || c.phone === '-';
+  const isCustMissingLine = (c) => !c.lineOA || !String(c.lineOA).trim() || c.lineOA === '-';
+  const isCustMissingUser = (c) => !c.username || !String(c.username).trim() || c.username === '-' || c.username === 'unregistered';
+  const isCustMissingOwner = (c) => !c.createdBy || !String(c.createdBy).trim() || c.createdBy === '-' || c.createdBy === 'ระบบกลาง';
+  const isCustAnyIncomplete = (c) => isCustMissingPhone(c) || isCustMissingLine(c) || isCustMissingUser(c);
+
+  // Stats for incomplete data badges
+  const incompleteStats = useMemo(() => {
+    let countAny = 0;
+    let countPhone = 0;
+    let countLine = 0;
+    let countUser = 0;
+    let countOwner = 0;
+
+    nonDeletedCustomers.forEach(c => {
+      const missingPhone = isCustMissingPhone(c);
+      const missingLine = isCustMissingLine(c);
+      const missingUser = isCustMissingUser(c);
+      const missingOwner = isCustMissingOwner(c);
+
+      if (missingPhone) countPhone++;
+      if (missingLine) countLine++;
+      if (missingUser) countUser++;
+      if (missingOwner) countOwner++;
+      if (missingPhone || missingLine || missingUser) countAny++;
+    });
+
+    return { countAny, countPhone, countLine, countUser, countOwner };
+  }, [nonDeletedCustomers]);
+
   // Filtered customers for Database Control Center
   const filteredBoCustomers = useMemo(() => {
     return nonDeletedCustomers.filter(c => {
@@ -102,6 +134,13 @@ export default function BackOfficeView() {
       if (boChannelFilter !== 'ทั้งหมด' && (c.sourceChannel || '').toLowerCase() !== boChannelFilter.toLowerCase()) return false;
       if (boDepositFilter === 'DEPOSITED' && !c.hasDeposited) return false;
       if (boDepositFilter === 'NOT_DEPOSITED' && c.hasDeposited) return false;
+
+      // Incomplete data filters
+      if (boIncompleteFilter === 'ANY_INCOMPLETE' && !isCustAnyIncomplete(c)) return false;
+      if (boIncompleteFilter === 'NO_PHONE' && !isCustMissingPhone(c)) return false;
+      if (boIncompleteFilter === 'NO_LINE' && !isCustMissingLine(c)) return false;
+      if (boIncompleteFilter === 'NO_USER' && !isCustMissingUser(c)) return false;
+      if (boIncompleteFilter === 'NO_OWNER' && !isCustMissingOwner(c)) return false;
 
       if (boSearchQuery.trim()) {
         const q = boSearchQuery.trim().toLowerCase();
@@ -114,9 +153,9 @@ export default function BackOfficeView() {
 
       return true;
     });
-  }, [nonDeletedCustomers, boAgentFilter, boChannelFilter, boDepositFilter, boSearchQuery]);
+  }, [nonDeletedCustomers, boAgentFilter, boChannelFilter, boDepositFilter, boIncompleteFilter, boSearchQuery]);
 
-  const isBoFilterActive = boSearchQuery || boAgentFilter !== 'ทั้งหมด' || boChannelFilter !== 'ทั้งหมด' || boDepositFilter !== 'ทั้งหมด';
+  const isBoFilterActive = boSearchQuery || boAgentFilter !== 'ทั้งหมด' || boChannelFilter !== 'ทั้งหมด' || boDepositFilter !== 'ทั้งหมด' || boIncompleteFilter !== 'ทั้งหมด';
 
   // Customer DB Sort State
   const [boSortField, setBoSortField] = useState('createdAt'); // 'fullName', 'totalDeposit', 'createdAt', 'sourceChannel', 'createdBy'
@@ -141,6 +180,7 @@ export default function BackOfficeView() {
     setBoAgentFilter('ทั้งหมด');
     setBoChannelFilter('ทั้งหมด');
     setBoDepositFilter('ทั้งหมด');
+    setBoIncompleteFilter('ทั้งหมด');
     setBoSortField('createdAt');
     setBoSortDirection('desc');
     setBoCurrentPage(1);
@@ -188,7 +228,7 @@ export default function BackOfficeView() {
   // Reset page to 1 whenever filters or page size change
   useEffect(() => {
     setBoCurrentPage(1);
-  }, [boSearchQuery, boAgentFilter, boChannelFilter, boDepositFilter, boPageSize]);
+  }, [boSearchQuery, boAgentFilter, boChannelFilter, boDepositFilter, boIncompleteFilter, boPageSize]);
 
   const totalBoRecords = sortedAndFilteredBoCustomers.length;
   const effectivePageSize = boPageSize === 'all' ? (totalBoRecords || 1) : Number(boPageSize);
@@ -904,6 +944,156 @@ export default function BackOfficeView() {
               <option value="DEPOSITED">{lang === 'TH' ? '🟢 ฝากแล้ว' : 'Deposited'}</option>
               <option value="NOT_DEPOSITED">{lang === 'TH' ? '🔴 ยังไม่ฝาก' : 'Pending Deposit'}</option>
             </select>
+
+            <select
+              value={boIncompleteFilter}
+              onChange={(e) => setBoIncompleteFilter(e.target.value)}
+              className="select-input"
+              style={{
+                fontSize: '12px',
+                borderColor: boIncompleteFilter !== 'ทั้งหมด' ? '#f59e0b' : undefined,
+                color: boIncompleteFilter !== 'ทั้งหมด' ? '#d97706' : undefined,
+                fontWeight: boIncompleteFilter !== 'ทั้งหมด' ? 700 : 'normal'
+              }}
+            >
+              <option value="ทั้งหมด">{lang === 'TH' ? 'ความสมบูรณ์: ทั้งหมด' : 'Data Integrity: All'}</option>
+              <option value="ANY_INCOMPLETE">{lang === 'TH' ? `⚠️ ข้อมูลไม่สมบูรณ์ (${incompleteStats.countAny})` : `⚠️ Incomplete (${incompleteStats.countAny})`}</option>
+              <option value="NO_PHONE">{lang === 'TH' ? `📞 ไม่มีเบอร์โทร (${incompleteStats.countPhone})` : `📞 Missing Phone (${incompleteStats.countPhone})`}</option>
+              <option value="NO_LINE">{lang === 'TH' ? `💬 ไม่มี LINE OA (${incompleteStats.countLine})` : `💬 Missing LINE (${incompleteStats.countLine})`}</option>
+              <option value="NO_USER">{lang === 'TH' ? `👤 ไม่มียูสเซอร์ (${incompleteStats.countUser})` : `👤 Missing Username (${incompleteStats.countUser})`}</option>
+              <option value="NO_OWNER">{lang === 'TH' ? `👑 ไม่มีผู้ดูแล (${incompleteStats.countOwner})` : `👑 Missing Owner (${incompleteStats.countOwner})`}</option>
+            </select>
+          </div>
+
+          {/* Quick Filter Badges for Incomplete Data */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexWrap: 'wrap',
+            margin: '0 0 16px 0',
+            padding: '8px 12px',
+            borderRadius: '10px',
+            background: theme === 'light' ? '#fffbeb' : 'rgba(245, 158, 11, 0.08)',
+            border: theme === 'light' ? '1px solid #fde68a' : '1px solid rgba(245, 158, 11, 0.2)'
+          }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#d97706', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span>⚡</span>
+              <span>{lang === 'TH' ? 'ตัวกรองด่วนข้อมูล:' : 'Quick Filters:'}</span>
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setBoIncompleteFilter('ทั้งหมด')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: boIncompleteFilter === 'ทั้งหมด' ? 800 : 500,
+                border: boIncompleteFilter === 'ทั้งหมด' ? 'none' : (theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.12)'),
+                background: boIncompleteFilter === 'ทั้งหมด' ? '#d97706' : (theme === 'light' ? '#ffffff' : 'rgba(255,255,255,0.05)'),
+                color: boIncompleteFilter === 'ทั้งหมด' ? '#ffffff' : 'inherit',
+                cursor: 'pointer',
+                transition: 'all 0.15s'
+              }}
+            >
+              {lang === 'TH' ? 'ทั้งหมด' : 'All'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setBoIncompleteFilter('ANY_INCOMPLETE')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: boIncompleteFilter === 'ANY_INCOMPLETE' ? 800 : 500,
+                border: boIncompleteFilter === 'ANY_INCOMPLETE' ? 'none' : (theme === 'light' ? '1px solid #fde68a' : '1px solid rgba(245, 158, 11, 0.3)'),
+                background: boIncompleteFilter === 'ANY_INCOMPLETE' ? '#f59e0b' : (theme === 'light' ? '#ffffff' : 'rgba(255,255,255,0.05)'),
+                color: boIncompleteFilter === 'ANY_INCOMPLETE' ? '#ffffff' : '#d97706',
+                cursor: 'pointer',
+                boxShadow: boIncompleteFilter === 'ANY_INCOMPLETE' ? '0 2px 6px rgba(245, 158, 11, 0.35)' : 'none',
+                transition: 'all 0.15s'
+              }}
+            >
+              ⚠️ {lang === 'TH' ? `ข้อมูลไม่สมบูรณ์ (${incompleteStats.countAny})` : `Incomplete (${incompleteStats.countAny})`}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setBoIncompleteFilter('NO_PHONE')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: boIncompleteFilter === 'NO_PHONE' ? 800 : 500,
+                border: boIncompleteFilter === 'NO_PHONE' ? 'none' : (theme === 'light' ? '1px solid #fecdd3' : '1px solid rgba(244, 63, 94, 0.3)'),
+                background: boIncompleteFilter === 'NO_PHONE' ? '#f43f5e' : (theme === 'light' ? '#ffffff' : 'rgba(255,255,255,0.05)'),
+                color: boIncompleteFilter === 'NO_PHONE' ? '#ffffff' : (theme === 'light' ? '#e11d48' : '#fda4af'),
+                cursor: 'pointer',
+                boxShadow: boIncompleteFilter === 'NO_PHONE' ? '0 2px 6px rgba(244, 63, 94, 0.35)' : 'none',
+                transition: 'all 0.15s'
+              }}
+            >
+              📞 {lang === 'TH' ? `ไม่มีเบอร์โทร (${incompleteStats.countPhone})` : `No Phone (${incompleteStats.countPhone})`}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setBoIncompleteFilter('NO_LINE')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: boIncompleteFilter === 'NO_LINE' ? 800 : 500,
+                border: boIncompleteFilter === 'NO_LINE' ? 'none' : (theme === 'light' ? '1px solid #a7f3d0' : '1px solid rgba(16, 185, 129, 0.3)'),
+                background: boIncompleteFilter === 'NO_LINE' ? '#10b981' : (theme === 'light' ? '#ffffff' : 'rgba(255,255,255,0.05)'),
+                color: boIncompleteFilter === 'NO_LINE' ? '#ffffff' : (theme === 'light' ? '#059669' : '#6ee7b7'),
+                cursor: 'pointer',
+                boxShadow: boIncompleteFilter === 'NO_LINE' ? '0 2px 6px rgba(16, 185, 129, 0.35)' : 'none',
+                transition: 'all 0.15s'
+              }}
+            >
+              💬 {lang === 'TH' ? `ไม่มี LINE (${incompleteStats.countLine})` : `No LINE (${incompleteStats.countLine})`}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setBoIncompleteFilter('NO_USER')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: boIncompleteFilter === 'NO_USER' ? 800 : 500,
+                border: boIncompleteFilter === 'NO_USER' ? 'none' : (theme === 'light' ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.12)'),
+                background: boIncompleteFilter === 'NO_USER' ? '#64748b' : (theme === 'light' ? '#ffffff' : 'rgba(255,255,255,0.05)'),
+                color: boIncompleteFilter === 'NO_USER' ? '#ffffff' : 'inherit',
+                cursor: 'pointer',
+                boxShadow: boIncompleteFilter === 'NO_USER' ? '0 2px 6px rgba(100, 116, 139, 0.35)' : 'none',
+                transition: 'all 0.15s'
+              }}
+            >
+              👤 {lang === 'TH' ? `ไม่มียูสเซอร์ (${incompleteStats.countUser})` : `No Username (${incompleteStats.countUser})`}
+            </button>
+
+            {boIncompleteFilter !== 'ทั้งหมด' && (
+              <button
+                type="button"
+                onClick={() => setBoIncompleteFilter('ทั้งหมด')}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  textDecoration: 'underline'
+                }}
+              >
+                {lang === 'TH' ? 'ล้างตัวกรองด่วน' : 'Clear'}
+              </button>
+            )}
           </div>
 
           {/* Table Header Controls & Pagination Info */}
@@ -1009,17 +1199,37 @@ export default function BackOfficeView() {
                     <tr key={cust.id}>
                       <td>
                         <strong>{cust.fullName || '-'}</strong>
-                        <div style={{ fontSize: '11px', color: 'var(--primary)' }}>@{cust.username || 'unregistered'}</div>
+                        {isCustMissingUser(cust) ? (
+                          <div style={{ fontSize: '10.5px', color: '#94a3b8', fontStyle: 'italic' }}>
+                            {lang === 'TH' ? '⚠️ ยังไม่มียูสเซอร์' : '⚠️ No username'}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '11px', color: 'var(--primary)' }}>@{cust.username}</div>
+                        )}
                       </td>
                       <td>
-                        <div style={{ fontSize: '11px' }}>📞 {cust.phone || '-'}</div>
-                        <div style={{ fontSize: '11px', color: '#34d399' }}>💬 {cust.lineOA || '-'}</div>
+                        {isCustMissingPhone(cust) ? (
+                          <div style={{ fontSize: '11px', color: '#f43f5e', fontWeight: 600 }}>📞 {lang === 'TH' ? 'ไม่มีเบอร์' : 'No phone'}</div>
+                        ) : (
+                          <div style={{ fontSize: '11px' }}>📞 {cust.phone}</div>
+                        )}
+                        {isCustMissingLine(cust) ? (
+                          <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600 }}>💬 {lang === 'TH' ? 'ไม่มี LINE OA' : 'No LINE'}</div>
+                        ) : (
+                          <div style={{ fontSize: '11px', color: '#34d399' }}>💬 {cust.lineOA}</div>
+                        )}
                       </td>
                       <td>
                         <span className="badge badge-source">{formatChannelDisplayName(cust.sourceChannel, lang)}</span>
                       </td>
                       <td>
-                        <span className="badge badge-owner">{cust.createdBy || '-'}</span>
+                        {isCustMissingOwner(cust) ? (
+                          <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', fontSize: '11px' }}>
+                            {lang === 'TH' ? '⚠️ ไม่มีผู้ดูแล' : 'Unassigned'}
+                          </span>
+                        ) : (
+                          <span className="badge badge-owner">{cust.createdBy}</span>
+                        )}
                       </td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>
                         ฿{(cust.totalDeposit || 0).toLocaleString()}
