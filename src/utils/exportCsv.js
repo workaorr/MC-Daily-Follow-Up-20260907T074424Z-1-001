@@ -1,5 +1,67 @@
-// CSV Exporter with Formula Injection Protection (RFC 4180 + Excel Guard) & UTF-8 BOM
+// CSV & Excel Exporter with Formula Injection Protection (RFC 4180 + Excel Guard) & UTF-8 BOM
+import * as XLSX from 'xlsx';
 import { formatLineLekDisplay, getCustomerKpiCategory } from './customerFormatters.js';
+
+export const exportCustomersToExcel = (targetList, filename = 'MC_Customer_List.xlsx', lang = 'TH') => {
+    if (!targetList || targetList.length === 0) {
+        alert(lang === 'TH' ? 'ไม่มีข้อมูลสำหรับส่งออก Excel' : 'No data available for Excel export');
+        return;
+    }
+
+    const rows = targetList.map((c, i) => {
+        const followUpDays = c.followUp
+            ? Object.entries(c.followUp)
+                .filter(([_, val]) => val)
+                .map(([d]) => lang === 'TH' ? `วันที่ ${d}` : `Day ${d}`)
+                .join(', ')
+            : '-';
+
+        return {
+            [lang === 'TH' ? 'ลำดับ' : 'No.']: i + 1,
+            [lang === 'TH' ? 'วันที่สมัคร/เพิ่ม' : 'Date Added']: c.createdAt ? c.createdAt.substring(0, 10) : (c.registrationDate || '-'),
+            [lang === 'TH' ? 'ชื่อ-นามสกุล' : 'Full Name']: c.fullName || '-',
+            [lang === 'TH' ? 'ยูสเซอร์เนม' : 'Username']: c.username ? `@${c.username}` : (lang === 'TH' ? 'ยังไม่มียูส' : 'Unregistered'),
+            [lang === 'TH' ? 'เบอร์โทร' : 'Phone']: c.phone || '-',
+            [lang === 'TH' ? 'LINE OA' : 'LINE OA']: c.lineOA || '-',
+            [lang === 'TH' ? 'สถานะไลน์เล็ก' : 'LINE Lek']: formatLineLekDisplay(c.lineLek, lang),
+            [lang === 'TH' ? 'ช่องทางสมัคร' : 'Source Channel']: c.sourceChannel || '-',
+            [lang === 'TH' ? 'ผู้แนะนำ (Referrer)' : 'Referrer']: c.referrer || '-',
+            [lang === 'TH' ? 'ผู้ดูแลหลัก (Owner)' : 'Owner Agent']: c.createdBy || '-',
+            [lang === 'TH' ? 'กลุ่มสถานะลูกค้า (KPI)' : 'Customer Segment (KPI)']: getCustomerKpiCategory(c, lang),
+            [lang === 'TH' ? 'ยอดเงินสะสม (บาท)' : 'Total Deposits (THB)']: Number(c.totalDeposit) || 0,
+            [lang === 'TH' ? 'สถานะการฝาก' : 'Deposit Status']: c.hasDeposited ? (lang === 'TH' ? 'ฝากแล้ว' : 'Deposited') : (lang === 'TH' ? 'ยังไม่ฝาก' : 'Pending Deposit'),
+            [lang === 'TH' ? 'รอบเดือน' : 'Campaign Month']: c.campaignMonth || '-',
+            [lang === 'TH' ? 'การติดตามลูกค้า' : 'Follow-Up']: followUpDays,
+            [lang === 'TH' ? 'โน้ตรายละเอียด' : 'Notes']: c.notes || '-'
+        };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+
+    worksheet['!cols'] = [
+        { wch: 6 },  // No
+        { wch: 14 }, // Date
+        { wch: 22 }, // Name
+        { wch: 16 }, // Username
+        { wch: 14 }, // Phone
+        { wch: 16 }, // Line OA
+        { wch: 14 }, // Line Lek
+        { wch: 16 }, // Source Channel
+        { wch: 16 }, // Referrer
+        { wch: 16 }, // Owner
+        { wch: 20 }, // KPI
+        { wch: 18 }, // Total Deposits
+        { wch: 14 }, // Deposit Status
+        { wch: 14 }, // Month
+        { wch: 24 }, // Follow Up
+        { wch: 30 }  // Notes
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, lang === 'TH' ? 'รายชื่อลูกค้า' : 'Customers');
+    const finalFilename = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`;
+    XLSX.writeFile(workbook, finalFilename);
+};
 
 export const sanitizeCsvCell = (val) => {
     if (val === null || val === undefined) return '""';

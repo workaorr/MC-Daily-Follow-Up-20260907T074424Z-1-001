@@ -6,6 +6,7 @@ import { formatKeyedDateTime } from '../../utils/dateFormatters';
 import { formatChannelDisplayName } from '../../utils/customerFormatters';
 import { hashPasscode } from '../../utils/auth';
 import { pushAgentToCloud, pushCustomerToCloud } from '../../services/supabase';
+import { exportCustomersToCSV, exportCustomersToExcel } from '../../utils/exportCsv';
 import { 
   ShieldAlert, 
   ShieldCheck, 
@@ -31,7 +32,9 @@ import {
   ChevronsRight,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  FileSpreadsheet,
+  Download
 } from 'lucide-react';
 
 export default function BackOfficeView() {
@@ -184,6 +187,7 @@ export default function BackOfficeView() {
     setBoSortField('createdAt');
     setBoSortDirection('desc');
     setBoCurrentPage(1);
+    setSelectedBoCustIds([]);
   };
 
   // Sorted & Filtered customers for Database Control Center
@@ -308,6 +312,61 @@ export default function BackOfficeView() {
     if (rightSide < totalBoPages - 1) range.push('...');
     range.push(totalBoPages);
     return range;
+  };
+
+  // Multi-select state for Customer DB
+  const [selectedBoCustIds, setSelectedBoCustIds] = useState([]);
+
+  // Checkbox selection helpers
+  const isAllCurrentPageSelected = paginatedBoCustomers.length > 0 && paginatedBoCustomers.every(c => selectedBoCustIds.includes(c.id));
+  const isSomeCurrentPageSelected = paginatedBoCustomers.some(c => selectedBoCustIds.includes(c.id)) && !isAllCurrentPageSelected;
+
+  const handleToggleSelectAllInPage = () => {
+    if (isAllCurrentPageSelected) {
+      const pageCustIds = new Set(paginatedBoCustomers.map(c => c.id));
+      setSelectedBoCustIds(prev => prev.filter(id => !pageCustIds.has(id)));
+    } else {
+      const newIds = new Set([...selectedBoCustIds, ...paginatedBoCustomers.map(c => c.id)]);
+      setSelectedBoCustIds(Array.from(newIds));
+    }
+  };
+
+  const handleSelectAllFiltered = () => {
+    setSelectedBoCustIds(sortedAndFilteredBoCustomers.map(c => c.id));
+  };
+
+  const handleClearSelection = () => {
+    setSelectedBoCustIds([]);
+  };
+
+  const handleToggleSelectCustomer = (custId) => {
+    setSelectedBoCustIds(prev =>
+      prev.includes(custId) ? prev.filter(id => id !== custId) : [...prev, custId]
+    );
+  };
+
+  // Export handlers (Supports both Excel .xlsx and CSV)
+  const handleExportFiltered = (format = 'excel') => {
+    const listToExport = selectedBoCustIds.length > 0
+      ? sortedAndFilteredBoCustomers.filter(c => selectedBoCustIds.includes(c.id))
+      : sortedAndFilteredBoCustomers;
+
+    if (listToExport.length === 0) {
+      alert(lang === 'TH' ? 'ไม่พบข้อมูลลูกค้าสำหรับส่งออก' : 'No customers to export');
+      return;
+    }
+
+    const dateStr = new Date().toISOString().substring(0, 10);
+    const suffix = selectedBoCustIds.length > 0 ? `Selected_${listToExport.length}` : `Filtered_${listToExport.length}`;
+    const filename = `MC_Customers_${suffix}_${dateStr}`;
+
+    if (format === 'excel') {
+      exportCustomersToExcel(listToExport, `${filename}.xlsx`, lang);
+      writeLog('EXPORT_EXCEL', `ส่งออกข้อมูลลูกค้า (${listToExport.length} คน) เป็นไฟล์ Excel (.xlsx)`, 'info', activeAgentName);
+    } else {
+      exportCustomersToCSV(listToExport, `${filename}.csv`, lang);
+      writeLog('EXPORT_CSV', `ส่งออกข้อมูลลูกค้า (${listToExport.length} คน) เป็นไฟล์ CSV`, 'info', activeAgentName);
+    }
   };
 
   // Staff Management Handlers
@@ -1147,7 +1206,7 @@ export default function BackOfficeView() {
               )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               <label style={{ fontSize: '11.5px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span>{lang === 'TH' ? 'แสดงหน้าละ:' : 'Per page:'}</span>
                 <select
@@ -1169,14 +1228,169 @@ export default function BackOfficeView() {
                   <option value="all">{lang === 'TH' ? `ทั้งหมด (${totalBoRecords})` : `All (${totalBoRecords})`}</option>
                 </select>
               </label>
+
+              <div style={{ width: '1px', height: '18px', background: theme === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
+
+              <button
+                type="button"
+                onClick={() => handleExportFiltered('excel')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '5px 12px',
+                  borderRadius: '7px',
+                  background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
+                  transition: 'all 0.15s'
+                }}
+                title={lang === 'TH' ? `ส่งออกข้อมูลลูกค้าตามตัวกรอง (${totalBoRecords} คน) เป็นไฟล์ Excel (.xlsx)` : 'Export filtered customers to Excel'}
+              >
+                <FileSpreadsheet style={{ width: '13px', height: '13px' }} />
+                <span>{lang === 'TH' ? `ส่งออก Excel (${totalBoRecords})` : `Export Excel (${totalBoRecords})`}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleExportFiltered('csv')}
+                className="btn btn-secondary"
+                style={{
+                  padding: '5px 10px',
+                  fontSize: '11.5px',
+                  borderRadius: '7px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+                title={lang === 'TH' ? 'ส่งออกเป็นไฟล์ CSV' : 'Export CSV'}
+              >
+                <Download style={{ width: '13px', height: '13px' }} />
+                <span>CSV</span>
+              </button>
             </div>
           </div>
+
+          {/* Active Selection Banner */}
+          {selectedBoCustIds.length > 0 && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+              padding: '10px 16px',
+              borderRadius: '10px',
+              background: theme === 'light' ? '#f5f3ff' : 'rgba(124, 58, 237, 0.16)',
+              border: theme === 'light' ? '1.5px solid #d8b4fe' : '1.5px solid rgba(168, 85, 247, 0.4)',
+              marginBottom: '12px',
+              boxShadow: '0 2px 8px rgba(124, 58, 237, 0.12)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <span style={{ fontSize: '16px' }}>☑️</span>
+                <span style={{ fontWeight: 800, fontSize: '13px', color: '#7c3aed' }}>
+                  {lang === 'TH' ? `เลือกอยู่ ${selectedBoCustIds.length} คน` : `Selected ${selectedBoCustIds.length} leads`}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleToggleSelectAllInPage}
+                  className="btn btn-secondary"
+                  style={{ padding: '3px 9px', fontSize: '11px', borderRadius: '6px', fontWeight: 600 }}
+                >
+                  {isAllCurrentPageSelected 
+                    ? (lang === 'TH' ? 'ยกเลิกเลือกหน้านี้' : 'Deselect Page') 
+                    : (lang === 'TH' ? `เลือกทั้งหมดในหน้านี้ (${paginatedBoCustomers.length})` : `Select Page (${paginatedBoCustomers.length})`)}
+                </button>
+                {sortedAndFilteredBoCustomers.length > paginatedBoCustomers.length && (
+                  <button
+                    type="button"
+                    onClick={handleSelectAllFiltered}
+                    className="btn btn-secondary"
+                    style={{ padding: '3px 9px', fontSize: '11px', borderRadius: '6px', fontWeight: 600 }}
+                  >
+                    {lang === 'TH' ? `เลือกทุกคนตามตัวกรอง (${sortedAndFilteredBoCustomers.length})` : `Select All Filtered (${sortedAndFilteredBoCustomers.length})`}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleClearSelection}
+                  style={{
+                    padding: '3px 8px',
+                    fontSize: '11px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#ef4444',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    fontWeight: 600
+                  }}
+                >
+                  {lang === 'TH' ? 'ล้างที่เลือก' : 'Clear'}
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleExportFiltered('excel')}
+                  style={{
+                    padding: '5px 14px',
+                    fontSize: '12px',
+                    borderRadius: '8px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                    border: 'none',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)'
+                  }}
+                >
+                  <FileSpreadsheet style={{ width: '13px', height: '13px' }} />
+                  <span>{lang === 'TH' ? `ส่งออก Excel ที่เลือก (${selectedBoCustIds.length})` : `Export Selected (${selectedBoCustIds.length})`}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportFiltered('csv')}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '5px 10px',
+                    fontSize: '11.5px',
+                    borderRadius: '8px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <Download style={{ width: '13px', height: '13px' }} />
+                  <span>CSV</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Customers Table */}
           <div className="table-responsive">
             <table className="data-table" style={{ width: '100%', fontSize: '12px' }}>
               <thead>
                 <tr>
+                  <th style={{ width: '42px', minWidth: '42px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={isAllCurrentPageSelected}
+                      ref={el => { if (el) el.indeterminate = isSomeCurrentPageSelected; }}
+                      onChange={handleToggleSelectAllInPage}
+                      style={{ cursor: 'pointer', width: '15px', height: '15px', accentColor: '#7c3aed' }}
+                      title={lang === 'TH' ? 'เลือก/ยกเลิกทั้งหมดในหน้านี้' : 'Select/Deselect all on this page'}
+                    />
+                  </th>
                   <th>{renderSortableHeader('fullName', lang === 'TH' ? 'ชื่อลูกค้า / ยูสเซอร์' : 'Customer / Username')}</th>
                   <th>{lang === 'TH' ? 'ข้อมูลติดต่อ' : 'Contact'}</th>
                   <th>{renderSortableHeader('sourceChannel', lang === 'TH' ? 'ช่องทาง' : 'Channel')}</th>
@@ -1190,13 +1404,28 @@ export default function BackOfficeView() {
               <tbody>
                 {filteredBoCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                    <td colSpan="9" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
                       {lang === 'TH' ? 'ไม่พบข้อมูลลูกค้าตรงตามเงื่อนไข' : 'No customers match criteria'}
                     </td>
                   </tr>
                 ) : (
                   paginatedBoCustomers.map(cust => (
-                    <tr key={cust.id}>
+                    <tr 
+                      key={cust.id}
+                      style={{
+                        background: selectedBoCustIds.includes(cust.id)
+                          ? (theme === 'light' ? '#f5f3ff' : 'rgba(124, 58, 237, 0.12)')
+                          : undefined
+                      }}
+                    >
+                      <td style={{ textAlign: 'center', width: '42px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedBoCustIds.includes(cust.id)}
+                          onChange={() => handleToggleSelectCustomer(cust.id)}
+                          style={{ cursor: 'pointer', width: '15px', height: '15px', accentColor: '#7c3aed' }}
+                        />
+                      </td>
                       <td>
                         <strong>{cust.fullName || '-'}</strong>
                         {isCustMissingUser(cust) ? (
