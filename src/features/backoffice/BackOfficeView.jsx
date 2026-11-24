@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { StaffRow } from './StaffRow';
 import { ChannelCard } from './ChannelCard';
@@ -316,6 +317,8 @@ export default function BackOfficeView() {
 
   // Multi-select state for Customer DB
   const [selectedBoCustIds, setSelectedBoCustIds] = useState([]);
+  const [isBulkChannelModalOpen, setIsBulkChannelModalOpen] = useState(false);
+  const [bulkTargetChannel, setBulkTargetChannel] = useState('');
 
   // Checkbox selection helpers
   const isAllCurrentPageSelected = paginatedBoCustomers.length > 0 && paginatedBoCustomers.every(c => selectedBoCustIds.includes(c.id));
@@ -411,6 +414,45 @@ export default function BackOfficeView() {
     alert(lang === 'TH' 
       ? `✅ ย้ายลูกค้า ${count} คนไปยังถังขยะระบบสำเร็จเรียบร้อยแล้ว!` 
       : `✅ Successfully moved ${count} customers to Recycle Bin!`
+    );
+  };
+
+  // Bulk Channel Change Handler
+  const handleExecuteBulkChangeChannel = async () => {
+    if (!bulkTargetChannel || selectedBoCustIds.length === 0) return;
+    const count = selectedBoCustIds.length;
+    const targetIdsSet = new Set(selectedBoCustIds);
+    const nowIso = new Date().toISOString();
+
+    const updated = customers.map(c => {
+      if (!targetIdsSet.has(c.id)) return c;
+      const updatedCust = {
+        ...c,
+        sourceChannel: bulkTargetChannel,
+        updatedBy: activeAgentName || 'Supervisor',
+        updatedAt: nowIso
+      };
+      if (supabaseClient) {
+        pushCustomerToCloud(supabaseClient, updatedCust);
+      }
+      return updatedCust;
+    });
+
+    setCustomers(updated);
+    localStorage.setItem('mc_customers', JSON.stringify(updated));
+    setIsBulkChannelModalOpen(false);
+    setSelectedBoCustIds([]);
+
+    writeLog(
+      'CUSTOMER_UPDATE',
+      `🏷️ หัวหน้า [${activeAgentName || 'Supervisor'}] ได้เปลี่ยนช่องทางการตลาดแบบกลุ่ม (${count} คน) เป็น [${formatChannelDisplayName(bulkTargetChannel, lang)}]`,
+      'info',
+      activeAgentName || 'Supervisor'
+    );
+
+    alert(lang === 'TH' 
+      ? `✅ เปลี่ยนช่องทางการตลาดเป็น "${formatChannelDisplayName(bulkTargetChannel, lang)}" ให้กับลูกค้า ${count} คน สำเร็จเรียบร้อยแล้ว!` 
+      : `✅ Successfully updated channel to "${formatChannelDisplayName(bulkTargetChannel, lang)}" for ${count} customers!`
     );
   };
 
@@ -1422,6 +1464,40 @@ export default function BackOfficeView() {
 
                 <button
                   type="button"
+                  onClick={() => {
+                    setBulkTargetChannel(sourceChannels[0] || 'Facebook');
+                    setIsBulkChannelModalOpen(true);
+                  }}
+                  style={{
+                    padding: '5px 12px',
+                    fontSize: '11.5px',
+                    borderRadius: '8px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'rgba(59, 130, 246, 0.12)',
+                    border: '1.5px solid rgba(59, 130, 246, 0.45)',
+                    color: '#3b82f6',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = '#3b82f6';
+                    e.currentTarget.style.color = '#ffffff';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)';
+                    e.currentTarget.style.color = '#3b82f6';
+                  }}
+                  title={lang === 'TH' ? `เปลี่ยนช่องทางการตลาดให้กับลูกค้าที่เลือก ${selectedBoCustIds.length} คน` : 'Change marketing channel for selected leads'}
+                >
+                  <Tag style={{ width: '13px', height: '13px' }} />
+                  <span>{lang === 'TH' ? `เปลี่ยนช่องทาง (${selectedBoCustIds.length})` : `Change Channel (${selectedBoCustIds.length})`}</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleBulkDeleteCustomers}
                   style={{
                     padding: '5px 12px',
@@ -1834,6 +1910,164 @@ export default function BackOfficeView() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bulk Change Channel Confirmation Modal */}
+      {isBulkChannelModalOpen && typeof document !== 'undefined' && createPortal(
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 999999,
+          padding: '16px',
+          boxSizing: 'border-box'
+        }}>
+          <div style={{
+            background: theme === 'light' ? '#ffffff' : '#0f172a',
+            color: theme === 'light' ? '#0f172a' : '#f8fafc',
+            borderRadius: '16px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.35)',
+            border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+            width: '100%',
+            maxWidth: '460px',
+            overflow: 'hidden',
+            animation: 'fadeIn 0.15s ease-out'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 20px',
+              borderBottom: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
+              background: theme === 'light' ? '#eff6ff' : '#172554'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>🏷️</span>
+                <span style={{ fontWeight: 800, fontSize: '15px', color: '#2563eb' }}>
+                  {lang === 'TH' ? 'เปลี่ยนช่องทางการตลาดแบบกลุ่ม' : 'Bulk Change Marketing Channel'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBulkChannelModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '20px' }}>
+              <div style={{
+                padding: '14px 16px',
+                borderRadius: '12px',
+                background: theme === 'light' ? '#f8fafc' : 'rgba(255,255,255,0.04)',
+                border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
+                marginBottom: '18px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{lang === 'TH' ? '📊 จำนวนลูกค้าที่เลือก:' : 'Selected Leads:'}</span>
+                  <strong style={{ color: '#2563eb', fontSize: '15px' }}>
+                    {selectedBoCustIds.length} {lang === 'TH' ? 'คน' : 'leads'}
+                  </strong>
+                </div>
+                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', borderTop: theme === 'light' ? '1px dashed #cbd5e1' : '1px dashed rgba(255,255,255,0.1)', paddingTop: '8px', marginTop: '8px', lineHeight: 1.5 }}>
+                  ℹ️ {lang === 'TH' 
+                    ? 'ระบบจะอัปเดตช่องทางสมัคร (Source Channel) ให้ลูกค้าทุกคนที่เลือก ประวัติการฝากเงิน, วันที่ติ๊กตาม และโน้ตเดิมจะยังคงอยู่ครบ 100%' 
+                    : 'Channel will be updated for all selected leads while preserving their deposit and follow-up history.'}
+                </div>
+              </div>
+
+              {/* Channel Selector */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>
+                  {lang === 'TH' ? '🎯 เลือกช่องทางใหม่ที่ต้องการเปลี่ยนเป็น:' : 'Select New Channel:'}
+                </label>
+                <select
+                  value={bulkTargetChannel}
+                  onChange={(e) => setBulkTargetChannel(e.target.value)}
+                  className="select-input"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    fontSize: '13.5px',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    border: '1.5px solid #3b82f6'
+                  }}
+                >
+                  {sourceChannels.map(ch => (
+                    <option key={ch} value={ch}>
+                      {formatChannelDisplayName(ch, lang)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsBulkChannelModalOpen(false)}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {lang === 'TH' ? 'ยกเลิก' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteBulkChangeChannel}
+                  disabled={!bulkTargetChannel}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 20px',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    boxShadow: '0 2px 10px rgba(37, 99, 235, 0.4)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <span>💾</span>
+                  <span>
+                    {lang === 'TH' 
+                      ? `ยืนยันเปลี่ยนเป็น "${formatChannelDisplayName(bulkTargetChannel, lang)}"` 
+                      : `Confirm Change`}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
