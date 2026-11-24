@@ -1318,49 +1318,53 @@ export default function BackOfficeView() {
                 </select>
               </label>
 
-              <div style={{ width: '1px', height: '18px', background: theme === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
+              {selectedBoCustIds.length === 0 && (
+                <>
+                  <div style={{ width: '1px', height: '18px', background: theme === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
 
-              <button
-                type="button"
-                onClick={() => handleExportFiltered('excel', 'filtered')}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '5px 12px',
-                  borderRadius: '7px',
-                  background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: '11.5px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
-                  transition: 'all 0.15s'
-                }}
-                title={lang === 'TH' ? `ส่งออกข้อมูลลูกค้าทั้งหมดตามตัวกรอง (${totalBoRecords} คน) เป็นไฟล์ Excel (.xlsx)` : 'Export filtered customers to Excel (.xlsx)'}
-              >
-                <FileSpreadsheet style={{ width: '13px', height: '13px' }} />
-                <span>{lang === 'TH' ? `ส่งออก Excel ตามตัวกรอง (${totalBoRecords})` : `Export Filtered (${totalBoRecords})`}</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExportFiltered('excel', 'filtered')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '5px 12px',
+                      borderRadius: '7px',
+                      background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontSize: '11.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
+                      transition: 'all 0.15s'
+                    }}
+                    title={lang === 'TH' ? `ส่งออกข้อมูลลูกค้าทั้งหมดตามตัวกรอง (${totalBoRecords} คน) เป็นไฟล์ Excel (.xlsx)` : 'Export filtered customers to Excel (.xlsx)'}
+                  >
+                    <FileSpreadsheet style={{ width: '13px', height: '13px' }} />
+                    <span>{lang === 'TH' ? `ส่งออก Excel (${totalBoRecords})` : `Export Excel (${totalBoRecords})`}</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => handleExportFiltered('csv', 'filtered')}
-                className="btn btn-secondary"
-                style={{
-                  padding: '5px 10px',
-                  fontSize: '11.5px',
-                  borderRadius: '7px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-                title={lang === 'TH' ? `ส่งออกข้อมูลลูกค้าทั้งหมดตามตัวกรอง (${totalBoRecords} คน) เป็นไฟล์ CSV` : 'Export Filtered CSV'}
-              >
-                <Download style={{ width: '13px', height: '13px' }} />
-                <span>CSV</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExportFiltered('csv', 'filtered')}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '5px 10px',
+                      fontSize: '11.5px',
+                      borderRadius: '7px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title={lang === 'TH' ? `ส่งออกข้อมูลลูกค้าทั้งหมดตามตัวกรอง (${totalBoRecords} คน) เป็นไฟล์ CSV` : 'Export Filtered CSV'}
+                  >
+                    <Download style={{ width: '13px', height: '13px' }} />
+                    <span>CSV</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
