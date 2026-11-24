@@ -369,6 +369,51 @@ export default function BackOfficeView() {
     }
   };
 
+  // Bulk Soft Delete Handler (Move selected customers to Recycle Bin)
+  const handleBulkDeleteCustomers = async () => {
+    if (selectedBoCustIds.length === 0) return;
+    const count = selectedBoCustIds.length;
+
+    const confirmMsg = lang === 'TH'
+      ? `⚠️ ยืนยันการย้ายลูกค้าที่เลือก (${count} คน) ไปยังถังขยะระบบ (Recycle Bin)?\n\n(คุณสามารถกู้คืนข้อมูลกลับมาได้ตลอดเวลาจากเมนู "ถังขยะระบบ")`
+      : `Move selected ${count} customers to Recycle Bin?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    const nowIso = new Date().toISOString();
+    const targetIdSet = new Set(selectedBoCustIds);
+
+    const updated = customers.map(c => {
+      if (!targetIdSet.has(c.id)) return c;
+      const softDeleted = {
+        ...c,
+        deletedAt: nowIso,
+        deletedBy: activeAgentName || 'Supervisor',
+        isDeleted: true
+      };
+      if (supabaseClient) {
+        pushCustomerToCloud(supabaseClient, softDeleted);
+      }
+      return softDeleted;
+    });
+
+    setCustomers(updated);
+    localStorage.setItem('mc_customers', JSON.stringify(updated));
+    setSelectedBoCustIds([]);
+
+    writeLog(
+      'CUSTOMER_DELETE', 
+      `🗑️ หัวหน้า [${activeAgentName || 'Supervisor'}] ได้ย้ายลูกค้าแบบกลุ่ม (${count} คน) ไปยังถังขยะระบบ`, 
+      'warning', 
+      activeAgentName || 'Supervisor'
+    );
+
+    alert(lang === 'TH' 
+      ? `✅ ย้ายลูกค้า ${count} คนไปยังถังขยะระบบสำเร็จเรียบร้อยแล้ว!` 
+      : `✅ Successfully moved ${count} customers to Recycle Bin!`
+    );
+  };
+
   // Staff Management Handlers
   const handleCreateStaff = async (e) => {
     e.preventDefault();
@@ -1371,6 +1416,39 @@ export default function BackOfficeView() {
                 >
                   <Download style={{ width: '13px', height: '13px' }} />
                   <span>CSV</span>
+                </button>
+
+                <div style={{ width: '1px', height: '18px', background: theme === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
+
+                <button
+                  type="button"
+                  onClick={handleBulkDeleteCustomers}
+                  style={{
+                    padding: '5px 12px',
+                    fontSize: '11.5px',
+                    borderRadius: '8px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1.5px solid rgba(239, 68, 68, 0.45)',
+                    color: '#ef4444',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = '#ef4444';
+                    e.currentTarget.style.color = '#ffffff';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)';
+                    e.currentTarget.style.color = '#ef4444';
+                  }}
+                  title={lang === 'TH' ? `ย้ายลูกค้าที่เลือก ${selectedBoCustIds.length} คน ไปยังถังขยะระบบ (Recycle Bin)` : 'Move selected to Recycle Bin'}
+                >
+                  <Trash2 style={{ width: '13px', height: '13px' }} />
+                  <span>{lang === 'TH' ? `ย้ายลงถังขยะ (${selectedBoCustIds.length})` : `Delete (${selectedBoCustIds.length})`}</span>
                 </button>
               </div>
             </div>
