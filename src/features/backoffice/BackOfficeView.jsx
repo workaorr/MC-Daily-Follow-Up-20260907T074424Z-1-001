@@ -349,8 +349,10 @@ export default function BackOfficeView() {
   };
 
   // Export handlers (Supports both Excel .xlsx and CSV)
-  const handleExportFiltered = (format = 'excel') => {
-    const listToExport = selectedBoCustIds.length > 0
+  const handleExportFiltered = (format = 'excel', scope = 'auto') => {
+    // scope: 'selected' = เฉพาะที่ติ๊กเลือก, 'filtered' = ทั้งหมดตามตัวกรอง, 'auto' = ตามที่มีการเลือก
+    const isSelectedScope = scope === 'selected' || (scope === 'auto' && selectedBoCustIds.length > 0);
+    const listToExport = isSelectedScope
       ? sortedAndFilteredBoCustomers.filter(c => selectedBoCustIds.includes(c.id))
       : sortedAndFilteredBoCustomers;
 
@@ -360,15 +362,15 @@ export default function BackOfficeView() {
     }
 
     const dateStr = new Date().toISOString().substring(0, 10);
-    const suffix = selectedBoCustIds.length > 0 ? `Selected_${listToExport.length}` : `Filtered_${listToExport.length}`;
+    const suffix = isSelectedScope ? `Selected_${listToExport.length}` : `Filtered_${listToExport.length}`;
     const filename = `MC_Customers_${suffix}_${dateStr}`;
 
     if (format === 'excel') {
       exportCustomersToExcel(listToExport, `${filename}.xlsx`, lang);
-      writeLog('EXPORT_EXCEL', `ส่งออกข้อมูลลูกค้า (${listToExport.length} คน) เป็นไฟล์ Excel (.xlsx)`, 'info', activeAgentName);
+      writeLog('EXPORT_EXCEL', `ส่งออกข้อมูลลูกค้า (${listToExport.length} คน) [${isSelectedScope ? 'เฉพาะรายการที่ติ๊กเลือก' : 'ตามตัวกรองทั้งหมด'}] เป็นไฟล์ Excel (.xlsx)`, 'info', activeAgentName);
     } else {
       exportCustomersToCSV(listToExport, `${filename}.csv`, lang);
-      writeLog('EXPORT_CSV', `ส่งออกข้อมูลลูกค้า (${listToExport.length} คน) เป็นไฟล์ CSV`, 'info', activeAgentName);
+      writeLog('EXPORT_CSV', `ส่งออกข้อมูลลูกค้า (${listToExport.length} คน) [${isSelectedScope ? 'เฉพาะรายการที่ติ๊กเลือก' : 'ตามตัวกรองทั้งหมด'}] เป็นไฟล์ CSV`, 'info', activeAgentName);
     }
   };
 
@@ -1320,7 +1322,7 @@ export default function BackOfficeView() {
 
               <button
                 type="button"
-                onClick={() => handleExportFiltered('excel')}
+                onClick={() => handleExportFiltered('excel', 'filtered')}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -1336,15 +1338,15 @@ export default function BackOfficeView() {
                   boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
                   transition: 'all 0.15s'
                 }}
-                title={lang === 'TH' ? `ส่งออกข้อมูลลูกค้าตามตัวกรอง (${totalBoRecords} คน) เป็นไฟล์ Excel (.xlsx)` : 'Export filtered customers to Excel'}
+                title={lang === 'TH' ? `ส่งออกข้อมูลลูกค้าทั้งหมดตามตัวกรอง (${totalBoRecords} คน) เป็นไฟล์ Excel (.xlsx)` : 'Export filtered customers to Excel (.xlsx)'}
               >
                 <FileSpreadsheet style={{ width: '13px', height: '13px' }} />
-                <span>{lang === 'TH' ? `ส่งออก Excel (${totalBoRecords})` : `Export Excel (${totalBoRecords})`}</span>
+                <span>{lang === 'TH' ? `ส่งออก Excel ตามตัวกรอง (${totalBoRecords})` : `Export Filtered (${totalBoRecords})`}</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => handleExportFiltered('csv')}
+                onClick={() => handleExportFiltered('csv', 'filtered')}
                 className="btn btn-secondary"
                 style={{
                   padding: '5px 10px',
@@ -1354,7 +1356,7 @@ export default function BackOfficeView() {
                   alignItems: 'center',
                   gap: '4px'
                 }}
-                title={lang === 'TH' ? 'ส่งออกเป็นไฟล์ CSV' : 'Export CSV'}
+                title={lang === 'TH' ? `ส่งออกข้อมูลลูกค้าทั้งหมดตามตัวกรอง (${totalBoRecords} คน) เป็นไฟล์ CSV` : 'Export Filtered CSV'}
               >
                 <Download style={{ width: '13px', height: '13px' }} />
                 <span>CSV</span>
@@ -1423,7 +1425,7 @@ export default function BackOfficeView() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <button
                   type="button"
-                  onClick={() => handleExportFiltered('excel')}
+                  onClick={() => handleExportFiltered('excel', 'selected')}
                   style={{
                     padding: '5px 14px',
                     fontSize: '12px',
@@ -1438,6 +1440,7 @@ export default function BackOfficeView() {
                     cursor: 'pointer',
                     boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)'
                   }}
+                  title={lang === 'TH' ? `ส่งออกเฉพาะลูกค้าที่เลือก (${selectedBoCustIds.length} คน) เป็นไฟล์ Excel (.xlsx)` : 'Export selected customers to Excel (.xlsx)'}
                 >
                   <FileSpreadsheet style={{ width: '13px', height: '13px' }} />
                   <span>{lang === 'TH' ? `ส่งออก Excel ที่เลือก (${selectedBoCustIds.length})` : `Export Selected (${selectedBoCustIds.length})`}</span>
@@ -1445,7 +1448,7 @@ export default function BackOfficeView() {
 
                 <button
                   type="button"
-                  onClick={() => handleExportFiltered('csv')}
+                  onClick={() => handleExportFiltered('csv', 'selected')}
                   className="btn btn-secondary"
                   style={{
                     padding: '5px 10px',
@@ -1455,9 +1458,10 @@ export default function BackOfficeView() {
                     alignItems: 'center',
                     gap: '4px'
                   }}
+                  title={lang === 'TH' ? `ส่งออกเฉพาะลูกค้าที่เลือก (${selectedBoCustIds.length} คน) เป็นไฟล์ CSV` : 'Export selected customers to CSV'}
                 >
                   <Download style={{ width: '13px', height: '13px' }} />
-                  <span>CSV</span>
+                  <span>{lang === 'TH' ? `CSV ที่เลือก (${selectedBoCustIds.length})` : `CSV Selected (${selectedBoCustIds.length})`}</span>
                 </button>
 
                 <div style={{ width: '1px', height: '18px', background: theme === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.15)', margin: '0 2px' }} />

@@ -2,6 +2,22 @@
 import * as XLSX from 'xlsx';
 import { formatLineLekDisplay, getCustomerKpiCategory } from './customerFormatters.js';
 
+const formatExcelDateTime = (val) => {
+    if (!val) return '-';
+    try {
+        const d = new Date(val);
+        if (isNaN(d.getTime())) return String(val);
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const yr = d.getFullYear();
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${yr} ${hh}:${mm}`;
+    } catch {
+        return String(val);
+    }
+};
+
 export const exportCustomersToExcel = (targetList, filename = 'MC_Customer_List.xlsx', lang = 'TH') => {
     if (!targetList || targetList.length === 0) {
         alert(lang === 'TH' ? 'ไม่มีข้อมูลสำหรับส่งออก Excel' : 'No data available for Excel export');
@@ -18,7 +34,7 @@ export const exportCustomersToExcel = (targetList, filename = 'MC_Customer_List.
 
         return {
             [lang === 'TH' ? 'ลำดับ' : 'No.']: i + 1,
-            [lang === 'TH' ? 'วันที่สมัคร/เพิ่ม' : 'Date Added']: c.createdAt ? c.createdAt.substring(0, 10) : (c.registrationDate || '-'),
+            [lang === 'TH' ? 'วันที่สมัคร/เพิ่ม' : 'Date Added']: c.createdAt ? formatExcelDateTime(c.createdAt) : (c.registrationDate || '-'),
             [lang === 'TH' ? 'ชื่อ-นามสกุล' : 'Full Name']: c.fullName || '-',
             [lang === 'TH' ? 'ยูสเซอร์เนม' : 'Username']: c.username ? `@${c.username}` : (lang === 'TH' ? 'ยังไม่มียูส' : 'Unregistered'),
             [lang === 'TH' ? 'เบอร์โทร' : 'Phone']: c.phone || '-',
@@ -40,7 +56,7 @@ export const exportCustomersToExcel = (targetList, filename = 'MC_Customer_List.
 
     worksheet['!cols'] = [
         { wch: 6 },  // No
-        { wch: 14 }, // Date
+        { wch: 18 }, // Date Added
         { wch: 22 }, // Name
         { wch: 16 }, // Username
         { wch: 14 }, // Phone
